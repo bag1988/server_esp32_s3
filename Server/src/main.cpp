@@ -52,6 +52,7 @@ Preferences prefs;
 //Когда сервер BLE отправляет новое значение температуры со свойством notify,
 static void temperatureNotifyCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic,
                                       uint8_t* pData, size_t length, bool isNotify) {
+   std::string bleUUID = pBLERemoteCharacteristic->getUUID().toString();                                    
   //store temperature value
   temperatureChar = (char*)pData;
   newTemperature = true;
@@ -111,7 +112,7 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
       }
       //TODO как добавить новый элемент???????????????????????????
       if (!isFind) {
-        //int sizeArr = sizeof(knownBLEAddresses) / sizeof(knownBLEAddresses)[0];
+        int sizeArr = sizeof(knownBLEAddresses) / sizeof(knownBLEAddresses)[0];
         //knownBLEAddresses[sizeArr] = new ble_device_info("", advertisedDevice.getAddress().toString(), 0, 0, false, 0, true);
       }
     }
