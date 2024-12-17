@@ -35,8 +35,9 @@
 #include <BLEServer.h> 
 #include <Preferences.h> 
 #include <WiFi.h> 
-#include <AsyncTCP.h> 
-#include <ESPAsyncWebServer.h> 
+#include <WebServer.h> //----
+//#include <AsyncTCP.h> 
+//#include <ESPAsyncWebServer.h> 
 #include <set> // для хранения уникальных значений GPIO
 
 // Структура данных для сохранения информации о BLE подключениях
@@ -257,43 +258,6 @@ void setupWebServer() {
   server.begin();
 }
 
-void setup() {
-  Serial.begin(115200);
-  loadDeviceData();
-  setupBLE();
-  setupGPIO();
-  setupWebServer();
-
-  // Подключение к сохраненной WiFi сети
-  preferences.begin("wifi-creds", false);
-  ssid = preferences.getString("ssid", "");
-  password = preferences.getString("password", "");
-  preferences.end();
-  
-  if (!ssid.isEmpty() && !password.isEmpty()) {
-    WiFi.begin(ssid.c_str(), password.c_str());
-
-    // Ожидание подключения
-    while (WiFi.status() != WL_CONNECTED) {
-      delay(1000);
-      Serial.println("Connecting to WiFi...");
-    }
-
-    Serial.println("Connected to WiFi.");
-    Serial.print("IP address: ");
-    Serial.println(WiFi.localIP());
-  } else {
-    Serial.println("No WiFi credentials found.");
-  }
-}
-
-void loop() {
-  manageDevicesAndControlGPIO();
-  server.handleClient();  // Обработка клиентских запросов на web-сервере
-  delay(1000);  // Пауза для предотвращения излишней нагрузки на процессор
-}
-
-
 void setupGPIO() {
   for (int i = 0; i < sizeof(gpioPins)/sizeof(int); i++) {
     pinMode(gpioPins[i], OUTPUT);
@@ -340,3 +304,110 @@ void manageDevicesAndControlGPIO() {
   digitalWrite(pumpPin, activatePump ? HIGH : LOW);
 }
 
+// void setup() {
+//   Serial.begin(115200);
+//   loadDeviceData();
+//   setupBLE();
+//   setupGPIO();
+//   setupWebServer();
+
+//   // Подключение к сохраненной WiFi сети
+//   preferences.begin("wifi-creds", false);
+//   ssid = preferences.getString("ssid", "");
+//   password = preferences.getString("password", "");
+//   preferences.end();
+  
+//   if (!ssid.isEmpty() && !password.isEmpty()) {
+//     WiFi.begin(ssid.c_str(), password.c_str());
+
+//     // Ожидание подключения
+//     while (WiFi.status() != WL_CONNECTED) {
+//       delay(1000);
+//       Serial.println("Connecting to WiFi...");
+//     }
+
+//     Serial.println("Connected to WiFi.");
+//     Serial.print("IP address: ");
+//     Serial.println(WiFi.localIP());
+//   } else {
+//     Serial.println("No WiFi credentials found.");
+//   }
+// }
+
+void loop() {
+//   manageDevicesAndControlGPIO();
+//   server.handleClient();  // Обработка клиентских запросов на web-сервере
+//   delay(1000);  // Пауза для предотвращения излишней нагрузки на процессор
+}
+
+
+void setup() {
+  Serial.begin(115200);
+  loadDeviceData();
+  setupBLE();
+  setupGPIO();
+  setupWebServer();
+
+  // Подключение к сохраненной WiFi сети
+  preferences.begin("wifi-creds", false);
+  ssid = preferences.getString("ssid", "");
+  password = preferences.getString("password", "");
+  preferences.end();
+  
+  if (!ssid.isEmpty() && !password.isEmpty()) {
+    WiFi.begin(ssid.c_str(), password.c_str());
+
+    // Ожидание подключения
+    while (WiFi.status() != WL_CONNECTED) {
+      delay(1000);
+      Serial.println("Connecting to WiFi...");
+    }
+
+    Serial.println("Connected to WiFi.");
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
+  } else {
+    Serial.println("No WiFi credentials found.");
+  }
+  // Создание задач для двух ядер
+  xTaskCreatePinnedToCore(
+    manageDevicesAndControlGPIOTask,    /* Функция, которую нужно выполнить */
+    "GPIO Management Task",             /* Название задачи */
+    10000,                              /* Размер стека для задачи */
+    NULL,                               /* Параметр для задачи */
+    1,                                  /* Приоритет задачи */
+    NULL,                               /* Указатель на задачу */
+    0                                   /* Запуск задачи на первом ядре */
+  );
+
+  xTaskCreatePinnedToCore(
+    bleTask,                            /* Функция, которую нужно выполнить */
+    "BLE Task",                         /* Название задачи */
+    10000,                              /* Размер стека для задачи */
+    NULL,                               /* Параметр для задачи */
+    1,                                  /* Приоритет задачи */
+    NULL,                               /* Указатель на задачу */
+    1                                   /* Запуск задачи на втором ядре */
+  );
+}
+
+void loop() {
+  // Пусто, так как задачи выполняются в отдельных задачах на разных ядрах
+}
+
+// Задача для управления устройствами и GPIO
+void manageDevicesAndControlGPIOTask(void * parameter) {
+  for (;;) {
+    manageDevicesAndControlGPIO();
+    delay(1000);  // Пауза для предотвращения излишней нагрузки на процессор
+  }
+}
+
+// Задача для BLE функциональности
+void bleTask(void * parameter) {
+  for (;;) {
+    // Здесь можно добавить BLE функциональность, например, сканирование устройств
+    scanForBLEDevices();
+    delay(1000);  // Пауза для предотвращения излишней нагрузки на процессор
+  }
+}
