@@ -80,7 +80,7 @@ bool connectToServer(BLEAddress pAddress) {
 
 class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
   void onResult(BLEAdvertisedDevice advertisedDevice) {
-    if (advertisedDevice.getName() == bleServerName) {
+    if (advertisedDevice.getName() == ConnectServiceName) {
       bool isFind = false;
       for (int i = 0; i < (sizeof(knownBLEAddresses) / sizeof(ble_device_info)); i++) {
         if (strcmp(advertisedDevice.getAddress().toString().c_str(), knownBLEAddresses[i].address.c_str()) == 0) {

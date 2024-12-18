@@ -54,7 +54,7 @@ void setup() {
   pinMode(2, OUTPUT);  // LED
 
   // Create the BLE Device
-  BLEDevice::init(bleServerName);
+  BLEDevice::init(ConnectServiceName);
 
   // Create the BLE Server
   BLEServer *pServer = BLEDevice::createServer();

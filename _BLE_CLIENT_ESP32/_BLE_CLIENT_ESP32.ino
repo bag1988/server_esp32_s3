@@ -83,7 +83,7 @@ bool connectToServer(BLEAddress pAddress) {
 //Функция обратного вызова, которая вызывается при получении ответа с другого устройства
 class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
   void onResult(BLEAdvertisedDevice advertisedDevice) {
-    if (advertisedDevice.getName() == bleServerName) {                 //Check if the name of the advertiser matches
+    if (advertisedDevice.getName() == ConnectServiceName) {                 //Check if the name of the advertiser matches
       advertisedDevice.getScan()->stop();                              //Scan can be stopped, we found what we are looking for
       pServerAddress = new BLEAddress(advertisedDevice.getAddress());  //Address of advertiser is the one we need
       doConnect = true;                                                //Set indicator, stating that we are ready to connect
