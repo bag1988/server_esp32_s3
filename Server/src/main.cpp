@@ -24,7 +24,7 @@ struct DeviceData
   String name;
   bool enabled;
   bool isConnected;
-  int gpioToEnable[5];
+  uint8_t gpioToEnable[5];
   bool pump;
   bool boiler;
   float targetTemp;
@@ -35,9 +35,9 @@ struct DeviceData
 // Глобальные переменные
 Preferences preferences;
 DeviceData deviceData[10];
-int gpioPins[] = {12, 13, 14, 15, 16}; // Глобальный массив GPIO
-const int boilerPin = 17;              // GPIO котла
-const int pumpPin = 18;                // GPIO насоса
+uint8_t gpioPins[] = {12, 13, 14, 15, 16}; // Глобальный массив GPIO
+const uint8_t boilerPin = 17;              // GPIO котла
+const uint8_t pumpPin = 18;                // GPIO насоса
 //AsyncWebServer server(80);
 String ssid = "";
 String password = "";
@@ -58,10 +58,10 @@ void loadDeviceData()
     deviceData[i].isConnected = preferences.getBool(("isConnected" + String(i)).c_str(), false);
     for (int j = 0; j < 5; j++)
     {
-      deviceData[i].gpioToEnable[j] = preferences.getInt(("gpio" + String(i) + "_" + String(j)).c_str(), -1);
+      deviceData[i].gpioToEnable[j] = preferences.getUInt(("gpio" + String(i) + "_" + String(j)).c_str(), 0);
     }
-    deviceData[i].pump = preferences.getBool(("pump" + String(i)).c_str(), false);
-    deviceData[i].boiler = preferences.getBool(("boiler" + String(i)).c_str(), false);
+    deviceData[i].pump = preferences.getUInt(("pump" + String(i)).c_str(), false);
+    deviceData[i].boiler = preferences.getUInt(("boiler" + String(i)).c_str(), false);
     deviceData[i].targetTemp = preferences.getFloat(("targetTemp" + String(i)).c_str(), 0.0);
     deviceData[i].temp = preferences.getFloat(("temp" + String(i)).c_str(), 0.0);
     deviceData[i].humidity = preferences.getFloat(("humidity" + String(i)).c_str(), 0.0);
@@ -79,10 +79,10 @@ void saveDeviceData(int index)
   preferences.putBool(("isConnected" + String(index)).c_str(), deviceData[index].isConnected);
   for (int j = 0; j < 5; j++)
   {
-    preferences.putInt(("gpio" + String(index) + "_" + String(j)).c_str(), deviceData[index].gpioToEnable[j]);
+    preferences.putUInt(("gpio" + String(index) + "_" + String(j)).c_str(), deviceData[index].gpioToEnable[j]);
   }
-  preferences.putBool(("pump" + String(index)).c_str(), deviceData[index].pump);
-  preferences.putBool(("boiler" + String(index)).c_str(), deviceData[index].boiler);
+  preferences.putUInt(("pump" + String(index)).c_str(), deviceData[index].pump);
+  preferences.putUInt(("boiler" + String(index)).c_str(), deviceData[index].boiler);
   preferences.putFloat(("targetTemp" + String(index)).c_str(), deviceData[index].targetTemp);
   preferences.putFloat(("temp" + String(index)).c_str(), deviceData[index].temp);
   preferences.putFloat(("humidity" + String(index)).c_str(), deviceData[index].humidity);
@@ -304,7 +304,7 @@ void manageDevicesAndControlGPIO()
   bool activatePump = false;
 
   // Сбор уникальных GPIO для включения
-  std::set<int> uniqueGpioToEnable;
+  std::set<uint8_t> uniqueGpioToEnable;
 
   for (int i = 0; i < 10; i++)
   {
@@ -312,8 +312,8 @@ void manageDevicesAndControlGPIO()
     {
       for (int j = 0; j < 5; j++)
       {
-        int gpio = deviceData[i].gpioToEnable[j];
-        if (gpio != -1)
+        uint8_t gpio = deviceData[i].gpioToEnable[j];
+        if (gpio != 0)
         {
           uniqueGpioToEnable.insert(gpio);
         }
@@ -330,7 +330,7 @@ void manageDevicesAndControlGPIO()
   }
 
   // Включение/выключение уникальных GPIO
-  for (int i = 0; i < sizeof(gpioPins) / sizeof(int); i++)
+  for (int i = 0; i < sizeof(gpioPins) / sizeof(uint8_t); i++)
   {
     if (uniqueGpioToEnable.find(gpioPins[i]) != uniqueGpioToEnable.end())
     {
