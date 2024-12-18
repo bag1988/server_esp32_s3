@@ -4,26 +4,19 @@
 #include <BLEScan.h>
 #include <BLEAdvertisedDevice.h>
 #include <Preferences.h>
-#include <WiFi.h>
-#include <AsyncTCP.h>
-#include <ESPAsyncWebServer.h>
+//#include <WiFi.h>
+// #include <AsyncTCP.h>
+// #include <ESPAsyncWebServer.h>
 #include <set> // для хранения уникальных значений GPIO
 
-#define NAMESPACE_FLASH "ble_device"
-#define KEY_NAME_FLASH "ble_devices"
 // Имя сервера BLE(другое имя ESP32, на котором выполняется эскиз сервера)
-#define bleServerName "DHT11_ESP32C3"
-
 #define SERVER_NAME "ESP32_BLE_CENTRAL_SERVER"
-
 #define SERVICE_UUID "33b6ebbe-538f-4d4a-ba39-2ee04516ff39"
 #define TEMP_CHARACT_SERVICE_UUID "ccfe71ea-e98b-4927-98e2-6c1b77d1f756"
 #define NUM_CHARACT_SERVICE_UUID "6ed76625-573e-4caa-addf-3ddc5a283095"
-
 #define SERVER_UUID "e1de7d6e-3104-4065-a187-2de5e5727b26"
 #define SERVER_SERVICE_WIFI_UUID "93d971b2-4bb8-45d0-9ab3-74d7f881d828"
 #define SERVER_SERVICE_IP_UUID "b882babc-6942-494c-a47b-497b4caa86d4"
-
 // Структура данных для сохранения информации о BLE подключениях
 struct DeviceData
 {
@@ -39,24 +32,20 @@ struct DeviceData
   float humidity;
   int tempReductionTime;
 };
-
 // Глобальные переменные
 Preferences preferences;
 DeviceData deviceData[10];
 int gpioPins[] = {12, 13, 14, 15, 16}; // Глобальный массив GPIO
 const int boilerPin = 17;              // GPIO котла
 const int pumpPin = 18;                // GPIO насоса
-
-AsyncWebServer server(80);
+//AsyncWebServer server(80);
 String ssid = "";
 String password = "";
-
 // Основная функциональность BLE
 BLEServer *pServer = NULL;
 BLECharacteristic *pCharacteristicSetWifi = NULL;
 BLECharacteristic *pCharacteristicIp = NULL;
 bool deviceConnected = false;
-
 // Инициализация данных
 void loadDeviceData()
 {
@@ -80,7 +69,6 @@ void loadDeviceData()
   }
   preferences.end();
 }
-
 // Сохранение данных
 void saveDeviceData(int index)
 {
@@ -101,7 +89,6 @@ void saveDeviceData(int index)
   preferences.putInt(("tempReductionTime" + String(index)).c_str(), deviceData[index].tempReductionTime);
   preferences.end();
 }
-
 class ServerConnectedClientCallbacks : public BLEServerCallbacks
 {
   void onConnect(BLEServer *pServer)
@@ -115,15 +102,10 @@ class ServerConnectedClientCallbacks : public BLEServerCallbacks
   }
 };
 
-static void temperatureNotifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic,
-                                      uint8_t *pData, size_t length, bool isNotify)
+static void temperatureNotifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify)
 {
   std::string value = (char *)pData;
   std::string ble_address = pBLERemoteCharacteristic->getRemoteService()->getClient()->getPeerAddress().toString();
-  // Логика обработки новых данных и обновления deviceData
-  // Парсинг значения и обновление данных устройства
-  // Например, value может содержать JSON, который нужно распарсить
-  // Здесь простой пример обновления targetTemp
   for (int i = 0; i < 10; i++)
   {
     if (deviceData[i].ble_address.c_str() == ble_address.c_str())
@@ -135,15 +117,10 @@ static void temperatureNotifyCallback(BLERemoteCharacteristic *pBLERemoteCharact
   }
 }
 
-static void humidityNotifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic,
-                                      uint8_t *pData, size_t length, bool isNotify)
+static void humidityNotifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify)
 {
   std::string value = (char *)pData;
   std::string ble_address = pBLERemoteCharacteristic->getRemoteService()->getClient()->getPeerAddress().toString();
-  // Логика обработки новых данных и обновления deviceData
-  // Парсинг значения и обновление данных устройства
-  // Например, value может содержать JSON, который нужно распарсить
-  // Здесь простой пример обновления targetTemp
   for (int i = 0; i < 10; i++)
   {
     if (deviceData[i].ble_address.c_str() == ble_address.c_str())
@@ -154,6 +131,30 @@ static void humidityNotifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteri
     }
   }
 }
+
+// void startConnectWifi()
+// {
+//   if (!ssid.isEmpty() && !password.isEmpty())
+//   {
+//     WiFi.begin(ssid.c_str(), password.c_str());
+
+//     // Ожидание подключения
+//     while (WiFi.status() != WL_CONNECTED)
+//     {
+//       delay(1000);
+//       Serial.println(F("Connecting to WiFi..."));
+//     }
+//     Serial.println(F("Connected to WiFi."));
+//     Serial.print(F("IP address: "));
+//     Serial.println(F(WiFi.localIP().toString().c_str()));
+//     pCharacteristicIp->setValue(WiFi.localIP().toString().c_str());
+//     pCharacteristicIp->notify();
+//   }
+//   else
+//   {
+//     Serial.println(F("No WiFi credentials found."));
+//   }
+// }
 
 class SetServerSettingCallbacks : public BLECharacteristicCallbacks
 {
@@ -173,22 +174,7 @@ class SetServerSettingCallbacks : public BLECharacteristicCallbacks
       preferences.putString("ssid", ssid);
       preferences.putString("password", password);
       preferences.end();
-
-      // Подключение к WiFi с новыми данными
-      WiFi.begin(ssid.c_str(), password.c_str());
-
-      // Ожидание подключения
-      while (WiFi.status() != WL_CONNECTED)
-      {
-        delay(1000);
-        Serial.println("Connecting to WiFi...");
-      }
-
-      Serial.println("Connected to WiFi.");
-      Serial.print("IP address: ");
-      Serial.println(WiFi.localIP());
-      pCharacteristicIp->setValue(WiFi.localIP().toString().c_str());
-      pCharacteristicIp->notify();
+     // startConnectWifi();
     }
   }
 };
@@ -256,50 +242,50 @@ void scanForBLEDevices()
 }
 
 // Web server для управления устройствами
-void setupWebServer()
-{
-  server.on("/get", HTTP_GET, [](AsyncWebServerRequest *request)
-            {
-    String json = "[";
-    for (int i = 0; i < 10; i++) {
-      //if (!deviceData[i].ble_address.empty()) {
-        json += "{";
-        json += "\"ble_address\":\"" + String(deviceData[i].ble_address.c_str()) + "\",";
-        json += "\"name\":\"" + String(deviceData[i].name.c_str()) + "\",";
-        json += "\"targetTemp\":" + String(deviceData[i].targetTemp);
-        json += "},";
-    //  }
-    }
-    json.remove(json.length() - 1);
-    json += "]";
-    request->send(200, "application/json", json); });
+// void setupWebServer()
+// {
+//   server.on("/get", HTTP_GET, [](AsyncWebServerRequest *request)
+//             {
+//     String json = "[";
+//     for (int i = 0; i < 10; i++) {
+//       //if (!deviceData[i].ble_address.empty()) {
+//         json += "{";
+//         json += "\"ble_address\":\"" + String(deviceData[i].ble_address.c_str()) + "\",";
+//         json += "\"name\":\"" + String(deviceData[i].name.c_str()) + "\",";
+//         json += "\"targetTemp\":" + String(deviceData[i].targetTemp);
+//         json += "},";
+//     //  }
+//     }
+//     json.remove(json.length() - 1);
+//     json += "]";
+//     request->send(200, "application/json", json); });
 
-  server.on("/set", HTTP_POST, [](AsyncWebServerRequest *request)
-            {
-    if (request->hasArg("ble_address") && request->hasArg("targetTemp") && request->hasArg("name")) {
-      String ble_address = request->arg("ble_address");
-      float targetTemp = request->arg("targetTemp").toFloat();
-      String name = request->arg("name");
-      for (int i = 0; i < 10; i++) {
-        if (deviceData[i].ble_address == ble_address.c_str()) {
-          deviceData[i].targetTemp = targetTemp;
-          deviceData[i].name = name.c_str();
-          saveDeviceData(i);
-          request->send(200, "text/plain", "Updated");
-          return;
-        }
-      }
-      request->send(404, "text/plain", "Device not found");
-    } else {
-      request->send(400, "text/plain", "Bad Request");
-    } });
+//   server.on("/set", HTTP_POST, [](AsyncWebServerRequest *request)
+//             {
+//     if (request->hasArg("ble_address") && request->hasArg("targetTemp") && request->hasArg("name")) {
+//       String ble_address = request->arg("ble_address");
+//       float targetTemp = request->arg("targetTemp").toFloat();
+//       String name = request->arg("name");
+//       for (int i = 0; i < 10; i++) {
+//         if (deviceData[i].ble_address == ble_address.c_str()) {
+//           deviceData[i].targetTemp = targetTemp;
+//           deviceData[i].name = name.c_str();
+//           saveDeviceData(i);
+//           request->send(200, "text/plain", "Updated");
+//           return;
+//         }
+//       }
+//       request->send(404, "text/plain", "Device not found");
+//     } else {
+//       request->send(400, "text/plain", "Bad Request");
+//     } });
 
-  server.on("/start_scan", HTTP_POST, [](AsyncWebServerRequest *request)
-            { scanForBLEDevices();
-            request->send(200, "text/plain", "Scan Started"); });
+//   server.on("/start_scan", HTTP_POST, [](AsyncWebServerRequest *request)
+//             { scanForBLEDevices();
+//             request->send(200, "text/plain", "Scan Started"); });
 
-  server.begin();
-}
+//   server.begin();
+// }
 
 void setupGPIO()
 {
@@ -322,7 +308,7 @@ void manageDevicesAndControlGPIO()
 
   for (int i = 0; i < 10; i++)
   {
-    if (deviceData[i].isConnected && (deviceData[i].targetTemp - 2) > deviceData[i].tempReductionTime)
+    if (deviceData[i].isConnected && (deviceData[i].temp + 2) < deviceData[i].targetTemp)
     {
       for (int j = 0; j < 5; j++)
       {
@@ -366,7 +352,7 @@ void setup()
   loadDeviceData();
   setupBLE();
   setupGPIO();
-  setupWebServer();
+  //setupWebServer();
 
   // Подключение к сохраненной WiFi сети
   preferences.begin("wifi-creds", false);
@@ -374,26 +360,7 @@ void setup()
   password = preferences.getString("password", "");
   preferences.end();
 
-  if (!ssid.isEmpty() && !password.isEmpty())
-  {
-    WiFi.begin(ssid.c_str(), password.c_str());
-
-    // Ожидание подключения
-    while (WiFi.status() != WL_CONNECTED)
-    {
-      delay(1000);
-      Serial.println("Connecting to WiFi...");
-    }
-    Serial.println("Connected to WiFi.");
-    Serial.print("IP address: ");
-    Serial.println(WiFi.localIP());
-    pCharacteristicIp->setValue(WiFi.localIP().toString().c_str());
-    pCharacteristicIp->notify();
-  }
-  else
-  {
-    Serial.println("No WiFi credentials found.");
-  }
+  //startConnectWifi();
 }
 
 void loop()
