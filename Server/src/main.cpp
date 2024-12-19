@@ -72,23 +72,23 @@ void saveDeviceData(int index)
 
 static void temperatureNotifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify)
 {
-  std::string value = (char *)pData;
-  std::string ble_address = pBLERemoteCharacteristic->getRemoteService()->getClient()->getPeerAddress().toString();
+  String value = (char *)pData;
+  String ble_address = pBLERemoteCharacteristic->getRemoteService()->getClient()->getPeerAddress().toString().c_str();
   DevInfo *find = findInList(deviceData, ble_address);
   if (find != NULL)
   {
-    find->temp = std::stof(value);
+    find->temp = value.toFloat();
   }
 }
 
 static void humidityNotifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify)
 {
-  std::string value = (char *)pData;
-  std::string ble_address = pBLERemoteCharacteristic->getRemoteService()->getClient()->getPeerAddress().toString();
+  String value = (char *)pData;
+  String ble_address = pBLERemoteCharacteristic->getRemoteService()->getClient()->getPeerAddress().toString().c_str();
   DevInfo *find = findInList(deviceData, ble_address);
   if (find != NULL)
   {
-    find->humidity = std::stof(value);
+    find->humidity = value.toFloat();
   }
 }
 
@@ -120,19 +120,19 @@ class SetServerSettingCallbacks : public BLECharacteristicCallbacks
 {
   void onWrite(BLECharacteristic *pCharacteristic)
   {
-    std::string value = pCharacteristic->getValue();
+    String value = pCharacteristic->getValue().c_str();
 
     // Пример обработки данных в формате "SSID,PASSWORD"
-    size_t delimiterPos = value.find(",");
-    if (delimiterPos != std::string::npos)
+    int delimiterPos = value.indexOf(",");
+    if (delimiterPos != value.length())
     {
-      String ssid = value.substr(0, delimiterPos).c_str();
-      String password = value.substr(delimiterPos + 1).c_str();
+      String ssid = value.substring(0, delimiterPos);
+      String password = value.substring(delimiterPos + 1);
 
       // Сохранение данных WiFi в память
       preferences.begin("wifi-creds", false);
-      preferences.putString("ssid", ssid.c_str());
-      preferences.putString("password", password.c_str());
+      preferences.putString("ssid", ssid);
+      preferences.putString("password", password);
       preferences.end();
       startConnectWifi(ssid, password);
     }
@@ -155,12 +155,12 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
       if (pRemoteService != nullptr)
       {
         // Поиск в списке сохранненых
-        std::string ble_address = advertisedDevice.getAddress().toString();
+        String ble_address = advertisedDevice.getAddress().toString().c_str();
         DevInfo *find = findInList(deviceData, ble_address);
         if (find == NULL)
         {
           DevInfo newItem = {.ble_address = ble_address,
-                             .name = advertisedDevice.getName(),
+                             .name = advertisedDevice.getName().c_str(),
                              .enabled = false,
                              .isConnected = true,
                              .gpioToEnable = {0},
