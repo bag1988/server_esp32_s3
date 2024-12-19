@@ -17,7 +17,7 @@
 #define NUM_CHARACT_SERVICE_UUID "6ed76625-573e-4caa-addf-3ddc5a283095"
 #define SERVER_UUID "e1de7d6e-3104-4065-a187-2de5e5727b26"
 #define SERVER_SERVICE_WIFI_UUID "93d971b2-4bb8-45d0-9ab3-74d7f881d828"
-#define SERVER_SERVICE_IP_UUID "b882babc-6942-494c-a47b-497b4caa86d4"
+//#define SERVER_SERVICE_IP_UUID "b882babc-6942-494c-a47b-497b4caa86d4"
 // Структура данных для сохранения информации о BLE подключениях
 
 #define DEELY_LOOP 1000
@@ -29,13 +29,12 @@ uint8_t gpioPins[] = {12, 13, 14, 15, 16}; // Глобальный массив 
 const uint8_t boilerPin = 17;              // GPIO котла
 const uint8_t pumpPin = 18;                // GPIO насоса
 AsyncWebServer server(80);
-String ssid = "";
-String password = "";
+
 // Основная функциональность BLE
 BLEServer *pServer = NULL;
 BLECharacteristic *pCharacteristicSetWifi = NULL;
-BLECharacteristic *pCharacteristicIp = NULL;
-bool deviceConnected = false;
+//BLECharacteristic *pCharacteristicIp = NULL;
+//bool deviceConnected = false;
 // Инициализация данных
 void loadDeviceData()
 {
@@ -45,7 +44,7 @@ void loadDeviceData()
   preferences.getBytes("schedule", buffer, schLen);
   if (schLen % sizeof(DevInfo))
   { // simple check that data fits
-    log_e("Data is not correct size!");
+    Serial.println(F("Data is not correct size!"));
     return;
   }
   deviceData = (DevInfo *)buffer;
@@ -58,18 +57,18 @@ void saveDeviceData(int index)
   preferences.putBytes("device-data", deviceData, sizeof(deviceData));
   preferences.end();
 }
-class ServerConnectedClientCallbacks : public BLEServerCallbacks
-{
-  void onConnect(BLEServer *pServer)
-  {
-    deviceConnected = true;
-  };
+// class ServerConnectedClientCallbacks : public BLEServerCallbacks
+// {
+//   void onConnect(BLEServer *pServer)
+//   {
+//     //deviceConnected = true;
+//   };
 
-  void onDisconnect(BLEServer *pServer)
-  {
-    deviceConnected = false;
-  }
-};
+//   void onDisconnect(BLEServer *pServer)
+//   {
+//     //deviceConnected = false;
+//   }
+// };
 
 static void temperatureNotifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify)
 {
@@ -93,7 +92,7 @@ static void humidityNotifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteri
   }
 }
 
-void startConnectWifi()
+void startConnectWifi(String ssid, String password)
 {
   if (!ssid.isEmpty() && !password.isEmpty())
   {
@@ -108,8 +107,8 @@ void startConnectWifi()
     Serial.println(F("Connected to WiFi."));
     Serial.print(F("IP address: "));
     Serial.println(F(WiFi.localIP().toString().c_str()));
-    pCharacteristicIp->setValue(WiFi.localIP().toString().c_str());
-    pCharacteristicIp->notify();
+    pCharacteristicSetWifi->setValue(WiFi.localIP().toString().c_str());
+    pCharacteristicSetWifi->notify();
   }
   else
   {
@@ -127,15 +126,15 @@ class SetServerSettingCallbacks : public BLECharacteristicCallbacks
     size_t delimiterPos = value.find(",");
     if (delimiterPos != std::string::npos)
     {
-      ssid = value.substr(0, delimiterPos).c_str();
-      password = value.substr(delimiterPos + 1).c_str();
+      String ssid = value.substr(0, delimiterPos).c_str();
+      String password = value.substr(delimiterPos + 1).c_str();
 
       // Сохранение данных WiFi в память
       preferences.begin("wifi-creds", false);
-      preferences.putString("ssid", ssid);
-      preferences.putString("password", password);
+      preferences.putString("ssid", ssid.c_str());
+      preferences.putString("password", password.c_str());
       preferences.end();
-      startConnectWifi();
+      startConnectWifi(ssid, password);
     }
   }
 };
@@ -171,7 +170,6 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
                              .temp = 25.0,
                              .humidity = 0.0,
                              .tempReductionTime = 0};
-
           addToList(deviceData, newItem);
         }
         //
@@ -194,7 +192,7 @@ void setupBLE()
 {
   BLEDevice::init(SERVER_NAME);
   pServer = BLEDevice::createServer();
-  pServer->setCallbacks(new ServerConnectedClientCallbacks());
+  //pServer->setCallbacks(new ServerConnectedClientCallbacks());
 
   BLEService *pService = pServer->createService(SERVER_UUID);
   pCharacteristicSetWifi = pService->createCharacteristic(
@@ -202,8 +200,8 @@ void setupBLE()
       BLECharacteristic::PROPERTY_READ |
           BLECharacteristic::PROPERTY_WRITE);
   pCharacteristicSetWifi->setCallbacks(new SetServerSettingCallbacks());
-  pCharacteristicIp = pService->createCharacteristic(
-      SERVER_SERVICE_IP_UUID, BLECharacteristic::PROPERTY_NOTIFY);
+  // pCharacteristicIp = pService->createCharacteristic(
+  //     SERVER_SERVICE_IP_UUID, BLECharacteristic::PROPERTY_NOTIFY);
   pService->start();
   BLEDevice::startAdvertising();
 }
@@ -309,15 +307,15 @@ void setup()
   loadDeviceData();
   setupBLE();
   setupGPIO();
-   setupWebServer();
+  setupWebServer();
 
   // Подключение к сохраненной WiFi сети
   preferences.begin("wifi-creds", false);
-  ssid = preferences.getString("ssid", "");
-  password = preferences.getString("password", "");
+  String ssid = preferences.getString("ssid", "");
+  String password = preferences.getString("password", "");
   preferences.end();
 
-  startConnectWifi();
+  startConnectWifi(ssid, password);
 }
 
 void loop()

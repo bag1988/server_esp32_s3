@@ -128,35 +128,3 @@ bool anyBoiler(DevInfo *list)
     }
     return false;
 }
-
-// int main() {
-//     DevInfoList arr;
-//     initList(&arr);
-
-//     DevInfo dev1 = {"aaa", "acai", 0.0, false, false, false, false, {false}, 0};
-//     addToList(&arr, dev1);
-
-//     DevInfo* find = findInList(&arr, "aaa");
-//     if (find != NULL) {
-//         strcpy(find->Name, "tttt");
-//     }
-
-//     removeAllFromList(&arr, "1");
-
-//     printf("List size: %zu\n", arr.size);
-
-//     for (size_t i = 0; i < arr.size; ++i) {
-//         printf("Id: %s, Name: %s\n", arr.data[i].Id, arr.data[i].Name);
-//     }
-
-//     DevInfoList forStartArray = filterList(&arr);
-//     bool* gpioArray = getGpioArray(&forStartArray);
-//     bool pump = anyPump(&forStartArray);
-//     bool boiler = anyBoiler(&forStartArray);
-
-//     incrementActiveGpio(&forStartArray);
-
-//     free(arr.data);
-//     free(forStartArray.data);
-//     return 0;
-// }
