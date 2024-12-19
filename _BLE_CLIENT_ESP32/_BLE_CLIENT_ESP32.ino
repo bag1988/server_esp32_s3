@@ -1,135 +1,118 @@
-#include <Arduino.h>
+//#include <Arduino.h>
 #include <BLEDevice.h>
 #include <BLEUtils.h>
 #include <BLEScan.h>
 #include <BLEAdvertisedDevice.h>
 #include <Preferences.h>
+//#include <WebServer.h>
 #include <WiFi.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
-#include <set> // для хранения уникальных значений GPIO
+#include <devInfoArray.h>
 
 // Имя сервера BLE(другое имя ESP32, на котором выполняется эскиз сервера)
-#define bleServerName "DHT11_ESP32C3"
 #define SERVER_NAME "ESP32_BLE_CENTRAL_SERVER"
 #define SERVICE_UUID "33b6ebbe-538f-4d4a-ba39-2ee04516ff39"
 #define TEMP_CHARACT_SERVICE_UUID "ccfe71ea-e98b-4927-98e2-6c1b77d1f756"
 #define NUM_CHARACT_SERVICE_UUID "6ed76625-573e-4caa-addf-3ddc5a283095"
 #define SERVER_UUID "e1de7d6e-3104-4065-a187-2de5e5727b26"
 #define SERVER_SERVICE_WIFI_UUID "93d971b2-4bb8-45d0-9ab3-74d7f881d828"
-#define SERVER_SERVICE_IP_UUID "b882babc-6942-494c-a47b-497b4caa86d4"
+//#define SERVER_SERVICE_IP_UUID "b882babc-6942-494c-a47b-497b4caa86d4"
 // Структура данных для сохранения информации о BLE подключениях
-struct DeviceData
-{
-  String ble_address;
-  String name;
-  bool enabled;
-  bool isConnected;
-  int gpioToEnable[5];
-  bool pump;
-  bool boiler;
-  float targetTemp;
-  float temp;
-  float humidity;
-  int tempReductionTime;
-};
+
+#define DEELY_LOOP 1000
+
 // Глобальные переменные
 Preferences preferences;
-DeviceData deviceData[10];
-int gpioPins[] = {12, 13, 14, 15, 16}; // Глобальный массив GPIO
-const int boilerPin = 17;              // GPIO котла
-const int pumpPin = 18;                // GPIO насоса
+DevInfo *deviceData;
+uint8_t gpioPins[] = {12, 13, 14, 15, 16}; // Глобальный массив GPIO
+const uint8_t boilerPin = 17;              // GPIO котла
+const uint8_t pumpPin = 18;                // GPIO насоса
 AsyncWebServer server(80);
-String ssid = "";
-String password = "";
+
 // Основная функциональность BLE
 BLEServer *pServer = NULL;
 BLECharacteristic *pCharacteristicSetWifi = NULL;
-BLECharacteristic *pCharacteristicIp = NULL;
-bool deviceConnected = false;
+//BLECharacteristic *pCharacteristicIp = NULL;
+//bool deviceConnected = false;
 // Инициализация данных
 void loadDeviceData()
 {
   preferences.begin("device-data", false);
-  for (int i = 0; i < 10; i++)
-  {
-    deviceData[i].ble_address = preferences.getString(("ble_address" + String(i)).c_str(), "");
-    deviceData[i].name = preferences.getString(("name" + String(i)).c_str(), "");
-    deviceData[i].isConnected = preferences.getBool(("enabled" + String(i)).c_str(), false);
-    deviceData[i].isConnected = preferences.getBool(("isConnected" + String(i)).c_str(), false);
-    for (int j = 0; j < 5; j++)
-    {
-      deviceData[i].gpioToEnable[j] = preferences.getInt(("gpio" + String(i) + "_" + String(j)).c_str(), -1);
-    }
-    deviceData[i].pump = preferences.getBool(("pump" + String(i)).c_str(), false);
-    deviceData[i].boiler = preferences.getBool(("boiler" + String(i)).c_str(), false);
-    deviceData[i].targetTemp = preferences.getFloat(("targetTemp" + String(i)).c_str(), 0.0);
-    deviceData[i].temp = preferences.getFloat(("temp" + String(i)).c_str(), 0.0);
-    deviceData[i].humidity = preferences.getFloat(("humidity" + String(i)).c_str(), 0.0);
-    deviceData[i].tempReductionTime = preferences.getInt(("tempReductionTime" + String(i)).c_str(), 0);
+  size_t schLen = preferences.getBytesLength("device-data");
+  char buffer[schLen]; // prepare a buffer for the data
+  preferences.getBytes("schedule", buffer, schLen);
+  if (schLen % sizeof(DevInfo))
+  { // simple check that data fits
+    Serial.println(F("Data is not correct size!"));
+    return;
   }
+  deviceData = (DevInfo *)buffer;
   preferences.end();
 }
 // Сохранение данных
 void saveDeviceData(int index)
 {
   preferences.begin("device-data", false);
-  preferences.putString(("ble_address" + String(index)).c_str(), deviceData[index].ble_address.c_str());
-  preferences.putString(("name" + String(index)).c_str(), deviceData[index].name.c_str());
-  preferences.putBool(("enabled" + String(index)).c_str(), deviceData[index].enabled);
-  preferences.putBool(("isConnected" + String(index)).c_str(), deviceData[index].isConnected);
-  for (int j = 0; j < 5; j++)
-  {
-    preferences.putInt(("gpio" + String(index) + "_" + String(j)).c_str(), deviceData[index].gpioToEnable[j]);
-  }
-  preferences.putBool(("pump" + String(index)).c_str(), deviceData[index].pump);
-  preferences.putBool(("boiler" + String(index)).c_str(), deviceData[index].boiler);
-  preferences.putFloat(("targetTemp" + String(index)).c_str(), deviceData[index].targetTemp);
-  preferences.putFloat(("temp" + String(index)).c_str(), deviceData[index].temp);
-  preferences.putFloat(("humidity" + String(index)).c_str(), deviceData[index].humidity);
-  preferences.putInt(("tempReductionTime" + String(index)).c_str(), deviceData[index].tempReductionTime);
+  preferences.putBytes("device-data", deviceData, sizeof(deviceData));
   preferences.end();
 }
-class ServerConnectedClientCallbacks : public BLEServerCallbacks
-{
-  void onConnect(BLEServer *pServer)
-  {
-    deviceConnected = true;
-  };
+// class ServerConnectedClientCallbacks : public BLEServerCallbacks
+// {
+//   void onConnect(BLEServer *pServer)
+//   {
+//     //deviceConnected = true;
+//   };
 
-  void onDisconnect(BLEServer *pServer)
-  {
-    deviceConnected = false;
-  }
-};
+//   void onDisconnect(BLEServer *pServer)
+//   {
+//     //deviceConnected = false;
+//   }
+// };
 
 static void temperatureNotifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify)
 {
-  std::string value = (char *)pData;
-  String ble_address = pBLERemoteCharacteristic->getRemoteService()->getClient()->getPeerAddress().toString();
-  for (int i = 0; i < 10; i++)
+  String value = (char *)pData;
+  String ble_address = pBLERemoteCharacteristic->getRemoteService()->getClient()->getPeerAddress().toString().c_str();
+  DevInfo *find = findInList(deviceData, ble_address);
+  if (find != NULL)
   {
-    if (deviceData[i].ble_address.c_str() == ble_address.c_str())
-    { // Поиск устройства по блютуз адресу
-      deviceData[i].temp = std::stof(value);
-      saveDeviceData(i);
-      break;
-    }
+    find->temp = value.toFloat();
   }
 }
 
 static void humidityNotifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify)
 {
-  std::string value = (char *)pData;
-  String ble_address = pBLERemoteCharacteristic->getRemoteService()->getClient()->getPeerAddress().toString();
-  for (int i = 0; i < 10; i++)
+  String value = (char *)pData;
+  String ble_address = pBLERemoteCharacteristic->getRemoteService()->getClient()->getPeerAddress().toString().c_str();
+  DevInfo *find = findInList(deviceData, ble_address);
+  if (find != NULL)
   {
-    if (deviceData[i].ble_address.c_str() == ble_address.c_str())
-    { // Поиск устройства по блютуз адресу
-      deviceData[i].humidity = std::stof(value);
-      saveDeviceData(i);
-      break;
+    find->humidity = value.toFloat();
+  }
+}
+
+void startConnectWifi(String ssid, String password)
+{
+  if (!ssid.isEmpty() && !password.isEmpty())
+  {
+    WiFi.begin(ssid.c_str(), password.c_str());
+
+    // Ожидание подключения
+    while (WiFi.status() != WL_CONNECTED)
+    {
+      delay(1000);
+      Serial.println(F("Connecting to WiFi..."));
     }
+    Serial.println(F("Connected to WiFi."));
+    Serial.print(F("IP address: "));
+    Serial.println(F(WiFi.localIP().toString().c_str()));
+    pCharacteristicSetWifi->setValue(WiFi.localIP().toString().c_str());
+    pCharacteristicSetWifi->notify();
+  }
+  else
+  {
+    Serial.println(F("No WiFi credentials found."));
   }
 }
 
@@ -137,36 +120,21 @@ class SetServerSettingCallbacks : public BLECharacteristicCallbacks
 {
   void onWrite(BLECharacteristic *pCharacteristic)
   {
-    std::string value = pCharacteristic->getValue().c_str();
+    String value = pCharacteristic->getValue().c_str();
 
     // Пример обработки данных в формате "SSID,PASSWORD"
-    size_t delimiterPos = value.find(",");
-    if (delimiterPos != std::string::npos)
+    int delimiterPos = value.indexOf(",");
+    if (delimiterPos != value.length())
     {
-      ssid = value.substr(0, delimiterPos).c_str();
-      password = value.substr(delimiterPos + 1).c_str();
+      String ssid = value.substring(0, delimiterPos);
+      String password = value.substring(delimiterPos + 1);
 
       // Сохранение данных WiFi в память
       preferences.begin("wifi-creds", false);
       preferences.putString("ssid", ssid);
       preferences.putString("password", password);
       preferences.end();
-
-      // Подключение к WiFi с новыми данными
-      WiFi.begin(ssid.c_str(), password.c_str());
-
-      // Ожидание подключения
-      while (WiFi.status() != WL_CONNECTED)
-      {
-        delay(1000);
-        Serial.println("Connecting to WiFi...");
-      }
-
-      Serial.println("Connected to WiFi.");
-      Serial.print("IP address: ");
-      Serial.println(WiFi.localIP());
-      pCharacteristicIp->setValue(WiFi.localIP().toString().c_str());
-      pCharacteristicIp->notify();
+      startConnectWifi(ssid, password);
     }
   }
 };
@@ -179,11 +147,6 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
     // Логика поиска нужных характеристик
     if (advertisedDevice.haveServiceUUID() && advertisedDevice.isAdvertisingService(BLEUUID(SERVICE_UUID)))
     {
-
-      // Поиск в списке сохранненых
-
-      //
-
       BLEDevice::getScan()->stop();
       BLEClient *pClient = BLEDevice::createClient();
       pClient->connect(&advertisedDevice);
@@ -191,6 +154,25 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
       BLERemoteService *pRemoteService = pClient->getService(BLEUUID(SERVICE_UUID));
       if (pRemoteService != nullptr)
       {
+        // Поиск в списке сохранненых
+        String ble_address = advertisedDevice.getAddress().toString().c_str();
+        DevInfo *find = findInList(deviceData, ble_address);
+        if (find == NULL)
+        {
+          DevInfo newItem = {.ble_address = ble_address,
+                             .name = advertisedDevice.getName().c_str(),
+                             .enabled = false,
+                             .isConnected = true,
+                             .gpioToEnable = {0},
+                             .pump = false,
+                             .boiler = false,
+                             .targetTemp = 25.0,
+                             .temp = 25.0,
+                             .humidity = 0.0,
+                             .tempReductionTime = 0};
+          addToList(deviceData, newItem);
+        }
+        //
         BLERemoteCharacteristic *pRemoteTempCharacteristic = pRemoteService->getCharacteristic(BLEUUID(TEMP_CHARACT_SERVICE_UUID));
         if (pRemoteTempCharacteristic != nullptr)
         {
@@ -210,7 +192,7 @@ void setupBLE()
 {
   BLEDevice::init(SERVER_NAME);
   pServer = BLEDevice::createServer();
-  pServer->setCallbacks(new ServerConnectedClientCallbacks());
+  //pServer->setCallbacks(new ServerConnectedClientCallbacks());
 
   BLEService *pService = pServer->createService(SERVER_UUID);
   pCharacteristicSetWifi = pService->createCharacteristic(
@@ -218,8 +200,8 @@ void setupBLE()
       BLECharacteristic::PROPERTY_READ |
           BLECharacteristic::PROPERTY_WRITE);
   pCharacteristicSetWifi->setCallbacks(new SetServerSettingCallbacks());
-  pCharacteristicIp = pService->createCharacteristic(
-      SERVER_SERVICE_IP_UUID, BLECharacteristic::PROPERTY_NOTIFY);
+  // pCharacteristicIp = pService->createCharacteristic(
+  //     SERVER_SERVICE_IP_UUID, BLECharacteristic::PROPERTY_NOTIFY);
   pService->start();
   BLEDevice::startAdvertising();
 }
@@ -292,39 +274,15 @@ void setupGPIO()
 // Управление устройствами и GPIO
 void manageDevicesAndControlGPIO()
 {
-  bool activateBoiler = false;
-  bool activatePump = false;
+  DevInfo *forStartArray = filterList(deviceData, DEELY_LOOP);
 
   // Сбор уникальных GPIO для включения
-  std::set<int> uniqueGpioToEnable;
-
-  for (int i = 0; i < 10; i++)
-  {
-    if (deviceData[i].isConnected && (deviceData[i].targetTemp - 2) > deviceData[i].tempReductionTime)
-    {
-      for (int j = 0; j < 5; j++)
-      {
-        int gpio = deviceData[i].gpioToEnable[j];
-        if (gpio != -1)
-        {
-          uniqueGpioToEnable.insert(gpio);
-        }
-      }
-      if (deviceData[i].pump)
-      {
-        activatePump = true;
-      }
-      if (deviceData[i].boiler)
-      {
-        activateBoiler = true;
-      }
-    }
-  }
+  uint8_t *uniqueGpioToEnable = getGpioArray(forStartArray);
 
   // Включение/выключение уникальных GPIO
-  for (int i = 0; i < sizeof(gpioPins) / sizeof(int); i++)
+  for (int i = 0; i < sizeof(gpioPins) / sizeof(uint8_t); i++)
   {
-    if (uniqueGpioToEnable.find(gpioPins[i]) != uniqueGpioToEnable.end())
+    if (anyGpioValue(uniqueGpioToEnable, gpioPins[i]))
     {
       digitalWrite(gpioPins[i], HIGH);
     }
@@ -334,8 +292,10 @@ void manageDevicesAndControlGPIO()
     }
   }
 
-  digitalWrite(boilerPin, activateBoiler ? HIGH : LOW);
-  digitalWrite(pumpPin, activatePump ? HIGH : LOW);
+  digitalWrite(boilerPin, anyBoiler(forStartArray) ? HIGH : LOW);
+  digitalWrite(pumpPin, anyPump(forStartArray) ? HIGH : LOW);
+
+  free(forStartArray);
 }
 
 void setup()
@@ -348,35 +308,16 @@ void setup()
 
   // Подключение к сохраненной WiFi сети
   preferences.begin("wifi-creds", false);
-  ssid = preferences.getString("ssid", "");
-  password = preferences.getString("password", "");
+  String ssid = preferences.getString("ssid", "");
+  String password = preferences.getString("password", "");
   preferences.end();
 
-  if (!ssid.isEmpty() && !password.isEmpty())
-  {
-    WiFi.begin(ssid.c_str(), password.c_str());
-
-    // Ожидание подключения
-    while (WiFi.status() != WL_CONNECTED)
-    {
-      delay(1000);
-      Serial.println("Connecting to WiFi...");
-    }
-    Serial.println("Connected to WiFi.");
-    Serial.print("IP address: ");
-    Serial.println(WiFi.localIP());
-    pCharacteristicIp->setValue(WiFi.localIP().toString().c_str());
-    pCharacteristicIp->notify();
-  }
-  else
-  {
-    Serial.println("No WiFi credentials found.");
-  }
+  startConnectWifi(ssid, password);
 }
 
 void loop()
 {
   manageDevicesAndControlGPIO();
   // server.handleClient(); // Обработка клиентских запросов на web-сервере
-  delay(1000); // Пауза для предотвращения излишней нагрузки на процессор
+  delay(DEELY_LOOP); // Пауза для предотвращения излишней нагрузки на процессор
 }
