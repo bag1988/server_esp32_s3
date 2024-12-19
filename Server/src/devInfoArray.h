@@ -1,13 +1,10 @@
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdbool.h>
+// #include <string.h>
 
 typedef struct
 {
-    std::string ble_address;
-    std::string name;
+    String ble_address;
+    String name;
     bool enabled;
     bool isConnected;
     uint8_t gpioToEnable[10];
@@ -26,7 +23,7 @@ void addToList(DevInfo *list, DevInfo item)
     list[size++] = item;
 }
 
-DevInfo *findInList(DevInfo *list, std::string ble_address)
+DevInfo *findInList(DevInfo *list, String ble_address)
 {
     for (size_t i = 0; i < sizeof(list) / sizeof(DevInfo); ++i)
     {
@@ -38,7 +35,7 @@ DevInfo *findInList(DevInfo *list, std::string ble_address)
     return NULL;
 }
 
-void removeAllFromList(DevInfo *list, std::string ble_address)
+void removeAllFromList(DevInfo *list, String ble_address)
 {
     DevInfo *result = (DevInfo *)malloc(sizeof(list) - sizeof(DevInfo));
     size_t i, j = 0;
