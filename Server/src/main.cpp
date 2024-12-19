@@ -274,9 +274,6 @@ void setupGPIO()
 // Управление устройствами и GPIO
 void manageDevicesAndControlGPIO()
 {
-  bool activateBoiler = false;
-  bool activatePump = false;
-
   DevInfo *forStartArray = filterList(deviceData, DEELY_LOOP);
 
   // Сбор уникальных GPIO для включения
