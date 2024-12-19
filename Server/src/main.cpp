@@ -4,7 +4,8 @@
 #include <BLEScan.h>
 #include <BLEAdvertisedDevice.h>
 #include <Preferences.h>
-// #include <WiFi.h>
+#include <WebServer.h>
+#include <WiFi.h>
 //  #include <AsyncTCP.h>
 //  #include <ESPAsyncWebServer.h>
 #include <devInfoArray.h>
@@ -27,7 +28,7 @@ DevInfo *deviceData;
 uint8_t gpioPins[] = {12, 13, 14, 15, 16}; // Глобальный массив GPIO
 const uint8_t boilerPin = 17;              // GPIO котла
 const uint8_t pumpPin = 18;                // GPIO насоса
-// AsyncWebServer server(80);
+WebServer server(80);
 String ssid = "";
 String password = "";
 // Основная функциональность BLE
@@ -92,29 +93,29 @@ static void humidityNotifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteri
   }
 }
 
-// void startConnectWifi()
-// {
-//   if (!ssid.isEmpty() && !password.isEmpty())
-//   {
-//     WiFi.begin(ssid.c_str(), password.c_str());
+void startConnectWifi()
+{
+  if (!ssid.isEmpty() && !password.isEmpty())
+  {
+    WiFi.begin(ssid.c_str(), password.c_str());
 
-//     // Ожидание подключения
-//     while (WiFi.status() != WL_CONNECTED)
-//     {
-//       delay(1000);
-//       Serial.println(F("Connecting to WiFi..."));
-//     }
-//     Serial.println(F("Connected to WiFi."));
-//     Serial.print(F("IP address: "));
-//     Serial.println(F(WiFi.localIP().toString().c_str()));
-//     pCharacteristicIp->setValue(WiFi.localIP().toString().c_str());
-//     pCharacteristicIp->notify();
-//   }
-//   else
-//   {
-//     Serial.println(F("No WiFi credentials found."));
-//   }
-// }
+    // Ожидание подключения
+    while (WiFi.status() != WL_CONNECTED)
+    {
+      delay(1000);
+      Serial.println(F("Connecting to WiFi..."));
+    }
+    Serial.println(F("Connected to WiFi."));
+    Serial.print(F("IP address: "));
+    Serial.println(F(WiFi.localIP().toString().c_str()));
+    pCharacteristicIp->setValue(WiFi.localIP().toString().c_str());
+    pCharacteristicIp->notify();
+  }
+  else
+  {
+    Serial.println(F("No WiFi credentials found."));
+  }
+}
 
 class SetServerSettingCallbacks : public BLECharacteristicCallbacks
 {
@@ -134,7 +135,7 @@ class SetServerSettingCallbacks : public BLECharacteristicCallbacks
       preferences.putString("ssid", ssid);
       preferences.putString("password", password);
       preferences.end();
-      // startConnectWifi();
+      startConnectWifi();
     }
   }
 };
@@ -217,50 +218,50 @@ void scanForBLEDevices()
 }
 
 // Web server для управления устройствами
-// void setupWebServer()
-// {
-//   server.on("/get", HTTP_GET, [](AsyncWebServerRequest *request)
-//             {
-//     String json = "[";
-//     for (int i = 0; i < 10; i++) {
-//       //if (!deviceData[i].ble_address.empty()) {
-//         json += "{";
-//         json += "\"ble_address\":\"" + String(deviceData[i].ble_address.c_str()) + "\",";
-//         json += "\"name\":\"" + String(deviceData[i].name.c_str()) + "\",";
-//         json += "\"targetTemp\":" + String(deviceData[i].targetTemp);
-//         json += "},";
-//     //  }
-//     }
-//     json.remove(json.length() - 1);
-//     json += "]";
-//     request->send(200, "application/json", json); });
+void setupWebServer()
+{
+  server.on("/get", HTTP_GET, []()
+            {
+    String json = "[";
+    for (int i = 0; i < 10; i++) {
+      //if (!deviceData[i].ble_address.empty()) {
+        json += "{";
+        json += "\"ble_address\":\"" + String(deviceData[i].ble_address.c_str()) + "\",";
+        json += "\"name\":\"" + String(deviceData[i].name.c_str()) + "\",";
+        json += "\"targetTemp\":" + String(deviceData[i].targetTemp);
+        json += "},";
+    //  }
+    }
+    json.remove(json.length() - 1);
+    json += "]";
+    server.send(200, "application/json", json); });
 
-//   server.on("/set", HTTP_POST, [](AsyncWebServerRequest *request)
-//             {
-//     if (request->hasArg("ble_address") && request->hasArg("targetTemp") && request->hasArg("name")) {
-//       String ble_address = request->arg("ble_address");
-//       float targetTemp = request->arg("targetTemp").toFloat();
-//       String name = request->arg("name");
-//       for (int i = 0; i < 10; i++) {
-//         if (deviceData[i].ble_address == ble_address.c_str()) {
-//           deviceData[i].targetTemp = targetTemp;
-//           deviceData[i].name = name.c_str();
-//           saveDeviceData(i);
-//           request->send(200, "text/plain", "Updated");
-//           return;
-//         }
-//       }
-//       request->send(404, "text/plain", "Device not found");
-//     } else {
-//       request->send(400, "text/plain", "Bad Request");
-//     } });
+  server.on("/set", HTTP_POST, []()
+            {
+    if (server.hasArg("ble_address") && server.hasArg("targetTemp") && server.hasArg("name")) {
+      String ble_address = server.arg("ble_address");
+      float targetTemp = server.arg("targetTemp").toFloat();
+      String name = server.arg("name");
+      for (int i = 0; i < 10; i++) {
+        if (deviceData[i].ble_address == ble_address.c_str()) {
+          deviceData[i].targetTemp = targetTemp;
+          deviceData[i].name = name.c_str();
+          saveDeviceData(i);
+          server.send(200, "text/plain", "Updated");
+          return;
+        }
+      }
+      server.send(404, "text/plain", "Device not found");
+    } else {
+      server.send(400, "text/plain", "Bad Request");
+    } });
 
-//   server.on("/start_scan", HTTP_POST, [](AsyncWebServerRequest *request)
-//             { scanForBLEDevices();
-//             request->send(200, "text/plain", "Scan Started"); });
+  server.on("/start_scan", HTTP_POST, []()
+            { scanForBLEDevices();
+            server.send(200, "text/plain", "Scan Started"); });
 
-//   server.begin();
-// }
+  server.begin();
+}
 
 void setupGPIO()
 {
@@ -308,7 +309,7 @@ void setup()
   loadDeviceData();
   setupBLE();
   setupGPIO();
-  // setupWebServer();
+  setupWebServer();
 
   // Подключение к сохраненной WiFi сети
   preferences.begin("wifi-creds", false);
@@ -316,12 +317,12 @@ void setup()
   password = preferences.getString("password", "");
   preferences.end();
 
-  // startConnectWifi();
+  startConnectWifi();
 }
 
 void loop()
 {
   manageDevicesAndControlGPIO();
-  // server.handleClient(); // Обработка клиентских запросов на web-сервере
+  server.handleClient(); // Обработка клиентских запросов на web-сервере
   delay(DEELY_LOOP); // Пауза для предотвращения излишней нагрузки на процессор
 }
