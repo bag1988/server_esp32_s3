@@ -4,10 +4,10 @@
 #include <BLEScan.h>
 #include <BLEAdvertisedDevice.h>
 #include <Preferences.h>
-#include <WebServer.h>
+//#include <WebServer.h>
 #include <WiFi.h>
-//  #include <AsyncTCP.h>
-//  #include <ESPAsyncWebServer.h>
+#include <AsyncTCP.h>
+#include <ESPAsyncWebServer.h>
 #include <devInfoArray.h>
 
 // Имя сервера BLE(другое имя ESP32, на котором выполняется эскиз сервера)
@@ -28,7 +28,7 @@ DevInfo *deviceData;
 uint8_t gpioPins[] = {12, 13, 14, 15, 16}; // Глобальный массив GPIO
 const uint8_t boilerPin = 17;              // GPIO котла
 const uint8_t pumpPin = 18;                // GPIO насоса
-WebServer server(80);
+AsyncWebServer server(80);
 String ssid = "";
 String password = "";
 // Основная функциональность BLE
@@ -220,7 +220,7 @@ void scanForBLEDevices()
 // Web server для управления устройствами
 void setupWebServer()
 {
-  server.on("/get", HTTP_GET, []()
+  server.on("/get", HTTP_GET, [](AsyncWebServerRequest *request)
             {
     String json = "[";
     for (int i = 0; i < 10; i++) {
@@ -234,31 +234,31 @@ void setupWebServer()
     }
     json.remove(json.length() - 1);
     json += "]";
-    server.send(200, "application/json", json); });
+    request->send(200, "application/json", json); });
 
-  server.on("/set", HTTP_POST, []()
+  server.on("/set", HTTP_POST, [](AsyncWebServerRequest *request)
             {
-    if (server.hasArg("ble_address") && server.hasArg("targetTemp") && server.hasArg("name")) {
-      String ble_address = server.arg("ble_address");
-      float targetTemp = server.arg("targetTemp").toFloat();
-      String name = server.arg("name");
+    if (request->hasArg("ble_address") && request->hasArg("targetTemp") && request->hasArg("name")) {
+      String ble_address = request->arg("ble_address");
+      float targetTemp = request->arg("targetTemp").toFloat();
+      String name = request->arg("name");
       for (int i = 0; i < 10; i++) {
         if (deviceData[i].ble_address == ble_address.c_str()) {
           deviceData[i].targetTemp = targetTemp;
           deviceData[i].name = name.c_str();
           saveDeviceData(i);
-          server.send(200, "text/plain", "Updated");
+          request->send(200, "text/plain", "Updated");
           return;
         }
       }
-      server.send(404, "text/plain", "Device not found");
+      request->send(404, "text/plain", "Device not found");
     } else {
-      server.send(400, "text/plain", "Bad Request");
+      request->send(400, "text/plain", "Bad Request");
     } });
 
-  server.on("/start_scan", HTTP_POST, []()
+  server.on("/start_scan", HTTP_POST, [](AsyncWebServerRequest *request)
             { scanForBLEDevices();
-            server.send(200, "text/plain", "Scan Started"); });
+            request->send(200, "text/plain", "Scan Started"); });
 
   server.begin();
 }
@@ -309,7 +309,7 @@ void setup()
   loadDeviceData();
   setupBLE();
   setupGPIO();
-  setupWebServer();
+   setupWebServer();
 
   // Подключение к сохраненной WiFi сети
   preferences.begin("wifi-creds", false);
@@ -323,6 +323,6 @@ void setup()
 void loop()
 {
   manageDevicesAndControlGPIO();
-  server.handleClient(); // Обработка клиентских запросов на web-сервере
+  // server.handleClient(); // Обработка клиентских запросов на web-сервере
   delay(DEELY_LOOP); // Пауза для предотвращения излишней нагрузки на процессор
 }
