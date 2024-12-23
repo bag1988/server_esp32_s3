@@ -5,6 +5,9 @@
         "bleutils.h": "c",
         "map": "cpp",
         "asynctcp.h": "c",
-        "bledevice.h": "c"
+        "bledevice.h": "c",
+        "string": "cpp",
+        "*.tcc": "cpp",
+        "typeinfo": "cpp"
     }
 }

@@ -8,7 +8,7 @@
 #include <WiFi.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
-#include "dev_manager.h"
+#include <dev_manager.h>
 
 // Имя сервера BLE(другое имя ESP32, на котором выполняется эскиз сервера)
 #define SERVER_NAME "ESP32_BLE_CENTRAL_SERVER"
@@ -33,8 +33,8 @@ typedef struct
 } GpioAccess;
 
 GpioAccess gpioAccess[] = {
-    {18, "насос"},
-    {19, "котел"},
+    {18, "котел"},
+    {19, "насос"},
     {20, "ванна"},
     {21, "кухня"}};
 
@@ -42,7 +42,7 @@ GpioAccess gpioAccess[] = {
 BLEServer *pServer = NULL;
 BLECharacteristic *pCharacteristicSetWifi = NULL;
 // BLECharacteristic *pCharacteristicIp = NULL;
-// bool deviceConnected = false;
+bool deviceConnected = false;
 //  Инициализация данных
 void loaddevices_ble()
 {
@@ -60,24 +60,24 @@ void loaddevices_ble()
   preferences.end();
 }
 // Сохранение данных
-void savedevices_ble(int index)
+void savedevices_ble()
 {
   preferences.begin("device-data", false);
   preferences.putBytes("device-data", devices_ble, sizeof(devices_ble));
   preferences.end();
 }
-// class ServerConnectedClientCallbacks : public BLEServerCallbacks
-// {
-//   void onConnect(BLEServer *pServer)
-//   {
-//     //deviceConnected = true;
-//   };
+class ServerConnectedClientCallbacks : public BLEServerCallbacks
+{
+  void onConnect(BLEServer *pServer)
+  {
+    deviceConnected = true;
+  };
 
-//   void onDisconnect(BLEServer *pServer)
-//   {
-//     //deviceConnected = false;
-//   }
-// };
+  void onDisconnect(BLEServer *pServer)
+  {
+    deviceConnected = false;
+  }
+};
 
 static void temperatureNotifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify)
 {
@@ -104,7 +104,6 @@ void startConnectWifi(String ssid, String password)
   if (!ssid.isEmpty() && !password.isEmpty())
   {
     WiFi.begin(ssid.c_str(), password.c_str());
-
     // Ожидание подключения
     while (WiFi.status() != WL_CONNECTED)
     {
@@ -115,7 +114,10 @@ void startConnectWifi(String ssid, String password)
     Serial.print(F("IP address: "));
     Serial.println(F(WiFi.localIP().toString().c_str()));
     pCharacteristicSetWifi->setValue(WiFi.localIP().toString().c_str());
-    pCharacteristicSetWifi->notify();
+    if (deviceConnected)
+    {
+      pCharacteristicSetWifi->notify();
+    }
   }
   else
   {
@@ -128,7 +130,6 @@ class SetServerSettingCallbacks : public BLECharacteristicCallbacks
   void onWrite(BLECharacteristic *pCharacteristic)
   {
     String value = pCharacteristic->getValue().c_str();
-
     // Пример обработки данных в формате "SSID,PASSWORD"
     int delimiterPos = value.indexOf(",");
     if (delimiterPos != value.length())
@@ -166,16 +167,10 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
         DevInfo *find = findDevice(ble_address.c_str());
         if (find == NULL)
         {
-          // DevInfo new_item = {.ble_address = *ble_address.c_str(),
-          //                     .name = *advertisedDevice.getName().c_str(),
-          //                     .enabled = false,
-          //                     .isConnected = true,
-          //                     //.gpioToEnable = {0},
-          //                     .targetTemp = 25.0,
-          //                     .temp = 25.0,
-          //                     .humidity = 0.0,
-          //                     .totalTimeActive = 0};
-          // addDevice(new_item);
+          DevInfo new_item = {"", "", false, true, {18}, 25.0, 25.0, 0.0, 0};
+          ble_address.copy(new_item.ble_address, 18);
+          advertisedDevice.getName().copy(new_item.name, sizeof new_item.name);
+          addDevice(new_item);
         }
         //
         BLERemoteCharacteristic *pRemoteTempCharacteristic = pRemoteService->getCharacteristic(BLEUUID(TEMP_CHARACT_SERVICE_UUID));
@@ -197,7 +192,7 @@ void setupBLE()
 {
   BLEDevice::init(SERVER_NAME);
   pServer = BLEDevice::createServer();
-  // pServer->setCallbacks(new ServerConnectedClientCallbacks());
+  pServer->setCallbacks(new ServerConnectedClientCallbacks());
 
   BLEService *pService = pServer->createService(SERVER_UUID);
   pCharacteristicSetWifi = pService->createCharacteristic(
@@ -225,36 +220,24 @@ void setupWebServer()
 {
   server.on("/get", HTTP_GET, [](AsyncWebServerRequest *request)
             {
-    String json = "[";
-    for (int i = 0; i < 10; i++) {
-      //if (!devices_ble[i].ble_address.empty()) {
-        json += "{";
-        json += "\"ble_address\":\"" + String(devices_ble[i].ble_address) + "\",";
-        json += "\"name\":\"" + String(devices_ble[i].name) + "\",";
-        json += "\"targetTemp\":" + String(devices_ble[i].targetTemp);
-        json += "},";
-    //  }
-    }
-    json.remove(json.length() - 1);
-    json += "]";
-    request->send(200, "application/json", json); });
+    char* jsonString = convertArrayToJSON();
+    request->send(200, "application/json", jsonString); 
+    free(jsonString); });
 
   server.on("/set", HTTP_POST, [](AsyncWebServerRequest *request)
             {
-    if (request->hasArg("ble_address") && request->hasArg("targetTemp") && request->hasArg("name")) {
-      String ble_address = request->arg("ble_address");
-      float targetTemp = request->arg("targetTemp").toFloat();
-      String name = request->arg("name");
-      for (int i = 0; i < 10; i++) {
-        if (devices_ble[i].ble_address == ble_address.c_str()) {
-          devices_ble[i].targetTemp = targetTemp;
-          //devices_ble[i].name = name.c_str();
-          savedevices_ble(i);
-          request->send(200, "text/plain", "Updated");
-          return;
-        }
+    if (request->hasArg("update_dev")) {
+      DevInfo newDevs[MAX_DEVICES];
+      int newDevCount;
+      parseArrayFromJSON(request->arg("update_dev").c_str(), newDevs, &newDevCount);
+      if(newDevCount)
+      {
+        updateDevices(newDevs, newDevCount);  
+        savedevices_ble();
+                request->send(200, "text/plain", "Updated");
+                return;
       }
-      request->send(404, "text/plain", "Device not found");
+      request->send(404, "text/plain", "Device not found");    
     } else {
       request->send(400, "text/plain", "Bad Request");
     } });
@@ -262,7 +245,6 @@ void setupWebServer()
   server.on("/start_scan", HTTP_POST, [](AsyncWebServerRequest *request)
             { scanForBLEDevices();
             request->send(200, "text/plain", "Scan Started"); });
-
   server.begin();
 }
 
@@ -317,7 +299,7 @@ void manageDevicesAndControlGPIO()
     }
   }
 
-  //free(findList);
+  // free(findList);
 }
 
 void setup()
