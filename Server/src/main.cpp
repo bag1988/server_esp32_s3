@@ -1,3 +1,4 @@
+//The program size (1591213 bytes) is greater than maximum allowed (1310720 bytes)
 #include <Arduino.h>
 #include <BLEDevice.h>
 #include <BLEUtils.h>
