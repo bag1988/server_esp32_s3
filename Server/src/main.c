@@ -1,14 +1,14 @@
-// #include <Arduino.h>
+#include <Arduino.h>
 #include <BLEDevice.h>
 #include <BLEUtils.h>
 #include <BLEScan.h>
 #include <BLEAdvertisedDevice.h>
 #include <Preferences.h>
-//#include <WebServer.h>
+// #include <WebServer.h>
 #include <WiFi.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
-#include <devInfoArray.h>
+#include "dev_manager.h"
 
 // Имя сервера BLE(другое имя ESP32, на котором выполняется эскиз сервера)
 #define SERVER_NAME "ESP32_BLE_CENTRAL_SERVER"
@@ -17,26 +17,34 @@
 #define NUM_CHARACT_SERVICE_UUID "6ed76625-573e-4caa-addf-3ddc5a283095"
 #define SERVER_UUID "e1de7d6e-3104-4065-a187-2de5e5727b26"
 #define SERVER_SERVICE_WIFI_UUID "93d971b2-4bb8-45d0-9ab3-74d7f881d828"
-//#define SERVER_SERVICE_IP_UUID "b882babc-6942-494c-a47b-497b4caa86d4"
-// Структура данных для сохранения информации о BLE подключениях
+// #define SERVER_SERVICE_IP_UUID "b882babc-6942-494c-a47b-497b4caa86d4"
+//  Структура данных для сохранения информации о BLE подключениях
 
 #define DEELY_LOOP 1000
 
 // Глобальные переменные
 Preferences preferences;
-DevInfo *deviceData;
-uint8_t gpioPins[] = {12, 13, 14, 15, 16}; // Глобальный массив GPIO
-const uint8_t boilerPin = 17;              // GPIO котла
-const uint8_t pumpPin = 18;                // GPIO насоса
 AsyncWebServer server(80);
+
+typedef struct
+{
+  int gpio;
+  char name[20];
+} GpioAccess;
+
+GpioAccess gpioAccess[] = {
+    {18, "насос"},
+    {19, "котел"},
+    {20, "ванна"},
+    {21, "кухня"}};
 
 // Основная функциональность BLE
 BLEServer *pServer = NULL;
 BLECharacteristic *pCharacteristicSetWifi = NULL;
-//BLECharacteristic *pCharacteristicIp = NULL;
-//bool deviceConnected = false;
-// Инициализация данных
-void loadDeviceData()
+// BLECharacteristic *pCharacteristicIp = NULL;
+// bool deviceConnected = false;
+//  Инициализация данных
+void loaddevices_ble()
 {
   preferences.begin("device-data", false);
   size_t schLen = preferences.getBytesLength("device-data");
@@ -47,14 +55,15 @@ void loadDeviceData()
     Serial.println(F("Data is not correct size!"));
     return;
   }
-  deviceData = (DevInfo *)buffer;
+  int bufferSize = sizeof(buffer) / sizeof(DevInfo);
+  initDevicesFromBuffer((DevInfo *)buffer, bufferSize);
   preferences.end();
 }
 // Сохранение данных
-void saveDeviceData(int index)
+void savedevices_ble(int index)
 {
   preferences.begin("device-data", false);
-  preferences.putBytes("device-data", deviceData, sizeof(deviceData));
+  preferences.putBytes("device-data", devices_ble, sizeof(devices_ble));
   preferences.end();
 }
 // class ServerConnectedClientCallbacks : public BLEServerCallbacks
@@ -73,8 +82,7 @@ void saveDeviceData(int index)
 static void temperatureNotifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify)
 {
   String value = (char *)pData;
-  String ble_address = pBLERemoteCharacteristic->getRemoteService()->getClient()->getPeerAddress().toString().c_str();
-  DevInfo *find = findInList(deviceData, ble_address);
+  DevInfo *find = findDevice(pBLERemoteCharacteristic->getRemoteService()->getClient()->getPeerAddress().toString().c_str());
   if (find != NULL)
   {
     find->temp = value.toFloat();
@@ -84,8 +92,7 @@ static void temperatureNotifyCallback(BLERemoteCharacteristic *pBLERemoteCharact
 static void humidityNotifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify)
 {
   String value = (char *)pData;
-  String ble_address = pBLERemoteCharacteristic->getRemoteService()->getClient()->getPeerAddress().toString().c_str();
-  DevInfo *find = findInList(deviceData, ble_address);
+  DevInfo *find = findDevice(pBLERemoteCharacteristic->getRemoteService()->getClient()->getPeerAddress().toString().c_str());
   if (find != NULL)
   {
     find->humidity = value.toFloat();
@@ -155,22 +162,20 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
       if (pRemoteService != nullptr)
       {
         // Поиск в списке сохранненых
-        String ble_address = advertisedDevice.getAddress().toString().c_str();
-        DevInfo *find = findInList(deviceData, ble_address);
+        std::string ble_address = advertisedDevice.getAddress().toString();
+        DevInfo *find = findDevice(ble_address.c_str());
         if (find == NULL)
         {
-          DevInfo newItem = {.ble_address = ble_address,
-                             .name = advertisedDevice.getName().c_str(),
-                             .enabled = false,
-                             .isConnected = true,
-                             .gpioToEnable = {0},
-                             .pump = false,
-                             .boiler = false,
-                             .targetTemp = 25.0,
-                             .temp = 25.0,
-                             .humidity = 0.0,
-                             .tempReductionTime = 0};
-          addToList(deviceData, newItem);
+          // DevInfo new_item = {.ble_address = *ble_address.c_str(),
+          //                     .name = *advertisedDevice.getName().c_str(),
+          //                     .enabled = false,
+          //                     .isConnected = true,
+          //                     //.gpioToEnable = {0},
+          //                     .targetTemp = 25.0,
+          //                     .temp = 25.0,
+          //                     .humidity = 0.0,
+          //                     .totalTimeActive = 0};
+          // addDevice(new_item);
         }
         //
         BLERemoteCharacteristic *pRemoteTempCharacteristic = pRemoteService->getCharacteristic(BLEUUID(TEMP_CHARACT_SERVICE_UUID));
@@ -192,7 +197,7 @@ void setupBLE()
 {
   BLEDevice::init(SERVER_NAME);
   pServer = BLEDevice::createServer();
-  //pServer->setCallbacks(new ServerConnectedClientCallbacks());
+  // pServer->setCallbacks(new ServerConnectedClientCallbacks());
 
   BLEService *pService = pServer->createService(SERVER_UUID);
   pCharacteristicSetWifi = pService->createCharacteristic(
@@ -222,11 +227,11 @@ void setupWebServer()
             {
     String json = "[";
     for (int i = 0; i < 10; i++) {
-      //if (!deviceData[i].ble_address.empty()) {
+      //if (!devices_ble[i].ble_address.empty()) {
         json += "{";
-        json += "\"ble_address\":\"" + String(deviceData[i].ble_address.c_str()) + "\",";
-        json += "\"name\":\"" + String(deviceData[i].name.c_str()) + "\",";
-        json += "\"targetTemp\":" + String(deviceData[i].targetTemp);
+        json += "\"ble_address\":\"" + String(devices_ble[i].ble_address) + "\",";
+        json += "\"name\":\"" + String(devices_ble[i].name) + "\",";
+        json += "\"targetTemp\":" + String(devices_ble[i].targetTemp);
         json += "},";
     //  }
     }
@@ -241,10 +246,10 @@ void setupWebServer()
       float targetTemp = request->arg("targetTemp").toFloat();
       String name = request->arg("name");
       for (int i = 0; i < 10; i++) {
-        if (deviceData[i].ble_address == ble_address.c_str()) {
-          deviceData[i].targetTemp = targetTemp;
-          deviceData[i].name = name.c_str();
-          saveDeviceData(i);
+        if (devices_ble[i].ble_address == ble_address.c_str()) {
+          devices_ble[i].targetTemp = targetTemp;
+          //devices_ble[i].name = name.c_str();
+          savedevices_ble(i);
           request->send(200, "text/plain", "Updated");
           return;
         }
@@ -263,45 +268,62 @@ void setupWebServer()
 
 void setupGPIO()
 {
-  for (int i = 0; i < sizeof(gpioPins) / sizeof(int); i++)
+  for (int i = 0; i < sizeof(gpioAccess) / sizeof(GpioAccess); i++)
   {
-    pinMode(gpioPins[i], OUTPUT);
+    pinMode(gpioAccess[i].gpio, OUTPUT);
   }
-  pinMode(boilerPin, OUTPUT);
-  pinMode(pumpPin, OUTPUT);
 }
 
 // Управление устройствами и GPIO
 void manageDevicesAndControlGPIO()
 {
-  DevInfo *forStartArray = filterList(deviceData, DEELY_LOOP);
 
-  // Сбор уникальных GPIO для включения
-  uint8_t *uniqueGpioToEnable = getGpioArray(forStartArray);
+  DevInfo *findList[MAX_DEVICES];
+  int findCount = 0;
+  filterDevicesByTemp(findList, &findCount);
 
-  // Включение/выключение уникальных GPIO
-  for (int i = 0; i < sizeof(gpioPins) / sizeof(uint8_t); i++)
+  if (findCount > 0)
   {
-    if (anyGpioValue(uniqueGpioToEnable, gpioPins[i]))
+    for (int i = 0; i < findCount; i++)
     {
-      digitalWrite(gpioPins[i], HIGH);
+      findList[i]->totalTimeActive += DEELY_LOOP / 1000;
     }
-    else
+
+    int gpioList[256] = {0};
+
+    for (int i = 0; i < findCount; i++)
     {
-      digitalWrite(gpioPins[i], LOW);
+      for (int j = 0; j < MAX_GPIO; j++)
+      {
+        if (findList[i]->gpioToEnable[j] > 0)
+        {
+          gpioList[findList[i]->gpioToEnable[j]] = 1;
+        }
+      }
+    }
+
+    for (int i = 0; i < sizeof(gpioAccess) / sizeof(GpioAccess); i++)
+    {
+      if (gpioList[gpioAccess[i].gpio])
+      {
+        digitalWrite(gpioAccess[i].gpio, HIGH);
+        // printf("gpio %d:%s enabled\n", gpioAccess[i].gpio, gpioAccess[i].name);
+      }
+      else
+      {
+        digitalWrite(gpioAccess[i].gpio, LOW);
+        // printf("gpio %d:%s disabled\n", gpioAccess[i].gpio, gpioAccess[i].name);
+      }
     }
   }
 
-  digitalWrite(boilerPin, anyBoiler(forStartArray) ? HIGH : LOW);
-  digitalWrite(pumpPin, anyPump(forStartArray) ? HIGH : LOW);
-
-  free(forStartArray);
+  //free(findList);
 }
 
 void setup()
 {
   Serial.begin(115200);
-  loadDeviceData();
+  loaddevices_ble();
   setupBLE();
   setupGPIO();
   setupWebServer();
