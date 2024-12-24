@@ -1,4 +1,4 @@
-#include <Arduino.h>
+// #include <Arduino.h>
 #include <BLEDevice.h>
 #include <BLEUtils.h>
 #include <BLEScan.h>
@@ -8,7 +8,7 @@
 #include <WiFi.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
-#include <dev_manager.h>
+#include <dev_info.h>
 
 // Имя сервера BLE(другое имя ESP32, на котором выполняется эскиз сервера)
 #define SERVER_NAME "ESP32_BLE_CENTRAL_SERVER"
@@ -25,7 +25,7 @@
 // Глобальные переменные
 Preferences preferences;
 AsyncWebServer server(80);
-
+std::vector<DevInfo> devices_ble;
 typedef struct
 {
   int gpio;
@@ -56,14 +56,15 @@ void loaddevices_ble()
     return;
   }
   int bufferSize = sizeof(buffer) / sizeof(DevInfo);
-  initDevicesFromBuffer((DevInfo *)buffer, bufferSize);
+  devices_ble = parseDevicesFromBytes(buffer, sizeof(buffer) - 1);
   preferences.end();
 }
 // Сохранение данных
 void savedevices_ble()
 {
   preferences.begin("device-data", false);
-  preferences.putBytes("device-data", devices_ble, sizeof(devices_ble));
+  auto byteData = convertDevicesToBytes(devices_ble);
+  preferences.putBytes("device-data", byteData.data(), sizeof(byteData));
   preferences.end();
 }
 class ServerConnectedClientCallbacks : public BLEServerCallbacks
@@ -82,7 +83,7 @@ class ServerConnectedClientCallbacks : public BLEServerCallbacks
 static void temperatureNotifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify)
 {
   String value = (char *)pData;
-  DevInfo *find = findDevice(pBLERemoteCharacteristic->getRemoteService()->getClient()->getPeerAddress().toString().c_str());
+  DevInfo *find = findDevice(devices_ble, pBLERemoteCharacteristic->getRemoteService()->getClient()->getPeerAddress().toString().c_str());
   if (find != NULL)
   {
     find->temp = value.toFloat();
@@ -92,7 +93,7 @@ static void temperatureNotifyCallback(BLERemoteCharacteristic *pBLERemoteCharact
 static void humidityNotifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify)
 {
   String value = (char *)pData;
-  DevInfo *find = findDevice(pBLERemoteCharacteristic->getRemoteService()->getClient()->getPeerAddress().toString().c_str());
+  DevInfo *find = findDevice(devices_ble, pBLERemoteCharacteristic->getRemoteService()->getClient()->getPeerAddress().toString().c_str());
   if (find != NULL)
   {
     find->humidity = value.toFloat();
@@ -164,13 +165,20 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
       {
         // Поиск в списке сохранненых
         std::string ble_address = advertisedDevice.getAddress().toString();
-        DevInfo *find = findDevice(ble_address.c_str());
+        DevInfo *find = findDevice(devices_ble, ble_address.c_str());
         if (find == NULL)
         {
-          DevInfo new_item = {"", "", false, true, {18}, 25.0, 25.0, 0.0, 0};
-          ble_address.copy(new_item.ble_address, 18);
-          advertisedDevice.getName().copy(new_item.name, sizeof new_item.name);
-          addDevice(new_item);
+          DevInfo new_item;
+          new_item.ble_address = new_item.ble_address;
+          new_item.name = new_item.name;
+          new_item.enabled = false;
+          new_item.isConnected = true;
+          new_item.gpioToEnable[0] = 18;
+          new_item.targetTemp = 25.0;
+          new_item.temp = 25.0;
+          new_item.humidity = 0;
+          new_item.totalTimeActive = 0;
+          addDevice(devices_ble, new_item);
         }
         //
         BLERemoteCharacteristic *pRemoteTempCharacteristic = pRemoteService->getCharacteristic(BLEUUID(TEMP_CHARACT_SERVICE_UUID));
@@ -220,19 +228,20 @@ void setupWebServer()
 {
   server.on("/get", HTTP_GET, [](AsyncWebServerRequest *request)
             {
-    char* jsonString = convertArrayToJSON();
-    request->send(200, "application/json", jsonString); 
-    free(jsonString); });
+    auto jsonString = convertDevicesToBytes(devices_ble);
+    request->send(200, "application/json", jsonString.data()); });
 
   server.on("/set", HTTP_POST, [](AsyncWebServerRequest *request)
             {
     if (request->hasArg("update_dev")) {
-      DevInfo newDevs[MAX_DEVICES];
-      int newDevCount;
-      parseArrayFromJSON(request->arg("update_dev").c_str(), newDevs, &newDevCount);
-      if(newDevCount)
+      //DevInfo newDevs[MAX_DEVICES];
+      //int newDevCount;
+      auto buffer = request->arg("update_dev").c_str();
+      auto newDevs = parseDevicesFromBytes(buffer, sizeof(buffer) - 1);
+
+      if(newDevs.size())
       {
-        updateDevices(newDevs, newDevCount);  
+        updateDevices(devices_ble, newDevs);  
         savedevices_ble();
                 request->send(200, "text/plain", "Updated");
                 return;
@@ -259,47 +268,39 @@ void setupGPIO()
 // Управление устройствами и GPIO
 void manageDevicesAndControlGPIO()
 {
+  std::vector<DevInfo> findList = filterDevicesByTemp(devices_ble, DEELY_LOOP);
 
-  DevInfo *findList[MAX_DEVICES];
-  int findCount = 0;
-  filterDevicesByTemp(findList, &findCount);
-
-  if (findCount > 0)
+  if (findList.size())
   {
-    for (int i = 0; i < findCount; i++)
-    {
-      findList[i]->totalTimeActive += DEELY_LOOP / 1000;
-    }
+    std::vector<uint8_t> gpioList;
 
-    int gpioList[256] = {0};
-
-    for (int i = 0; i < findCount; i++)
+    for (auto &dev : findList)
     {
-      for (int j = 0; j < MAX_GPIO; j++)
+      for (int j = 0; j < sizeof(dev.gpioToEnable); j++)
       {
-        if (findList[i]->gpioToEnable[j] > 0)
+        if (dev.gpioToEnable[j] > 0)
         {
-          gpioList[findList[i]->gpioToEnable[j]] = 1;
+          gpioList.push_back(dev.gpioToEnable[j]);
         }
       }
     }
 
     for (int i = 0; i < sizeof(gpioAccess) / sizeof(GpioAccess); i++)
     {
-      if (gpioList[gpioAccess[i].gpio])
+      auto it = std::find(gpioList.begin(), gpioList.end(), gpioAccess[i].gpio);
+
+      // Проверяем, найдено ли значение
+      if (it != gpioList.end())
       {
         digitalWrite(gpioAccess[i].gpio, HIGH);
-        // printf("gpio %d:%s enabled\n", gpioAccess[i].gpio, gpioAccess[i].name);
       }
       else
       {
         digitalWrite(gpioAccess[i].gpio, LOW);
-        // printf("gpio %d:%s disabled\n", gpioAccess[i].gpio, gpioAccess[i].name);
       }
     }
   }
 
-  // free(findList);
 }
 
 void setup()
