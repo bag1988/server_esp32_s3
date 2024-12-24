@@ -1,12 +1,9 @@
 //The program size (1591213 bytes) is greater than maximum allowed (1310720 bytes)
-#include <Arduino.h>
 #include <BLEDevice.h>
 #include <BLEUtils.h>
 #include <BLEScan.h>
 #include <BLEAdvertisedDevice.h>
 #include <Preferences.h>
-// #include <WebServer.h>
-#include <WiFi.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <dev_manager.h>
