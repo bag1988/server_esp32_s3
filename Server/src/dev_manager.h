@@ -6,7 +6,7 @@ typedef struct {
     char name[50];
     uint8_t enabled;
     uint8_t isConnected;
-    int gpioToEnable[MAX_GPIO];
+    uint8_t gpioToEnable[MAX_GPIO];
     float targetTemp;
     float temp;
     float humidity;
@@ -57,10 +57,11 @@ void removeDevice(const char* ble_address) {
     }
 }
 
-void filterDevicesByTemp(DevInfo* findList[], int* findCount) {
+void filterDevicesByTemp(DevInfo* findList[], int* findCount, int deely_loop) {
     *findCount = 0;
     for (int i = 0; i < devCount; i++) {
         if (devices_ble[i].enabled && devices_ble[i].isConnected && (devices_ble[i].temp + 2) < devices_ble[i].targetTemp) {
+            devices_ble[i].totalTimeActive +=deely_loop/1000;
             findList[*findCount] = &devices_ble[i];
             (*findCount)++;
         }
@@ -76,38 +77,70 @@ void initDevicesFromBuffer(const DevInfo* buffer, int size) {
 }
 
 char* convertArrayToJSON() {
-    char* json = (char*)malloc(10240);  // Предполагаем, что 10 KB достаточно для JSON
-    strcpy(json, "[");
+    // Буфер для JSON строки
+    char* jsonString = (char*)malloc(10240);
+    strcpy(jsonString, "[");
+
     for (int i = 0; i < devCount; i++) {
-        char devJson[1024];
-        sprintf(devJson, "{");
-        sprintf(devJson + strlen(devJson), "\"ble_address\":\"%s\",", devices_ble[i].ble_address);
-        sprintf(devJson + strlen(devJson), "\"name\":\"%s\",", devices_ble[i].name);
-        sprintf(devJson + strlen(devJson), "\"enabled\":%s,", devices_ble[i].enabled ? "true" : "false");
-        sprintf(devJson + strlen(devJson), "\"isConnected\":%s,", devices_ble[i].isConnected ? "true" : "false");
+        char deviceJson[1024];
+        strcpy(deviceJson, "{");
 
-        sprintf(devJson + strlen(devJson), "\"gpioToEnable\":[");
-        for (int j = 0; j < 10; j++) {
+        // Конкатенация поля ble_address
+        strcat(deviceJson, "\"ble_address\":\"");
+        strcat(deviceJson, devices_ble[i].ble_address);
+        strcat(deviceJson, "\",");
+
+        // Конкатенация поля name
+        strcat(deviceJson, "\"name\":\"");
+        strcat(deviceJson, devices_ble[i].name);
+        strcat(deviceJson, "\",");
+
+        // Конкатенация поля enabled
+        strcat(deviceJson, "\"enabled\":");
+        strcat(deviceJson, devices_ble[i].enabled ? "true" : "false");
+        strcat(deviceJson, ",");
+
+        // Конкатенация поля isConnected
+        strcat(deviceJson, "\"isConnected\":");
+        strcat(deviceJson, devices_ble[i].isConnected ? "true" : "false");
+        strcat(deviceJson, ",");
+
+        // Конкатенация массива gpioToEnable
+        strcat(deviceJson, "\"gpioToEnable\":[");
+        for (int j = 0; j < MAX_GPIO; j++) {
             if (j > 0) {
-                sprintf(devJson + strlen(devJson), ",");
+                strcat(deviceJson, ",");
             }
-            sprintf(devJson + strlen(devJson), "%d", devices_ble[i].gpioToEnable[j]);
+            char gpioStr[12];
+            sprintf(gpioStr, "%d", devices_ble[i].gpioToEnable[j]);
+            strcat(deviceJson, gpioStr);
         }
-        sprintf(devJson + strlen(devJson), "],");
+        strcat(deviceJson, "],");
 
-        sprintf(devJson + strlen(devJson), "\"targetTemp\":%.2f,", devices_ble[i].targetTemp);
-        sprintf(devJson + strlen(devJson), "\"temp\":%.2f,", devices_ble[i].temp);
-        sprintf(devJson + strlen(devJson), "\"humidity\":%.2f,", devices_ble[i].humidity);
-        sprintf(devJson + strlen(devJson), "\"totalTimeActive\":%d", devices_ble[i].totalTimeActive);
-        sprintf(devJson + strlen(devJson), "}");
+        // Конкатенация полей targetTemp, temp, humidity и totalTimeActive
+        char tempStr[64];
+        snprintf(tempStr, sizeof(tempStr), "\"targetTemp\":%.2f,", devices_ble[i].targetTemp);
+        strcat(deviceJson, tempStr);
+
+        snprintf(tempStr, sizeof(tempStr), "\"temp\":%.2f,", devices_ble[i].temp);
+        strcat(deviceJson, tempStr);
+
+        snprintf(tempStr, sizeof(tempStr), "\"humidity\":%.2f,", devices_ble[i].humidity);
+        strcat(deviceJson, tempStr);
+
+        snprintf(tempStr, sizeof(tempStr), "\"totalTimeActive\":%d", devices_ble[i].totalTimeActive);
+        strcat(deviceJson, tempStr);
+
+        strcat(deviceJson, "}");
 
         if (i > 0) {
-            strcat(json, ",");
+            strcat(jsonString, ",");
         }
-        strcat(json, devJson);
+        strcat(jsonString, deviceJson);
     }
-    strcat(json, "]");
-    return json;
+    strcat(jsonString, "]");
+
+    return jsonString;
 }
 
 void parseArrayFromJSON(const char* json, DevInfo* devs, int* updateDevCount) {

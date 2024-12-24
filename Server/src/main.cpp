@@ -1,4 +1,4 @@
-//The program size (1591213 bytes) is greater than maximum allowed (1310720 bytes)
+// The program size (1591213 bytes) is greater than maximum allowed (1310720 bytes)
 #include <BLEDevice.h>
 #include <BLEUtils.h>
 #include <BLEScan.h>
@@ -254,37 +254,45 @@ void setupGPIO()
   }
 }
 
+uint8_t containsGpioToEnable(const uint8_t *gpioList, uint8_t gpio)
+{
+  for (int i = 0; i < sizeof(gpioList)/sizeof(uint8_t); i++)
+  {
+    if (gpioList[i] == gpio)
+    {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+
 // Управление устройствами и GPIO
 void manageDevicesAndControlGPIO()
 {
 
   DevInfo *findList[MAX_DEVICES];
   int findCount = 0;
-  filterDevicesByTemp(findList, &findCount);
+  filterDevicesByTemp(findList, &findCount, DEELY_LOOP);
 
   if (findCount > 0)
   {
+    uint8_t *gpioList;
+    uint8_t indexGpio = 0;
     for (int i = 0; i < findCount; i++)
     {
-      findList[i]->totalTimeActive += DEELY_LOOP / 1000;
-    }
-
-    int gpioList[256] = {0};
-
-    for (int i = 0; i < findCount; i++)
-    {
-      for (int j = 0; j < MAX_GPIO; j++)
+      for (int j = 0; j < sizeof(findList[i]->gpioToEnable)/sizeof(uint8_t); j++)
       {
-        if (findList[i]->gpioToEnable[j] > 0)
+        if (findList[i]->gpioToEnable[j] > 0 && !containsGpioToEnable(gpioList, findList[i]->gpioToEnable[j]))
         {
-          gpioList[findList[i]->gpioToEnable[j]] = 1;
+          gpioList[indexGpio++] = findList[i]->gpioToEnable[j];
         }
       }
     }
 
     for (int i = 0; i < sizeof(gpioAccess) / sizeof(GpioAccess); i++)
     {
-      if (gpioList[gpioAccess[i].gpio])
+      if (containsGpioToEnable(gpioList, gpioAccess[i].gpio))
       {
         digitalWrite(gpioAccess[i].gpio, HIGH);
         // printf("gpio %d:%s enabled\n", gpioAccess[i].gpio, gpioAccess[i].name);
@@ -299,6 +307,7 @@ void manageDevicesAndControlGPIO()
 
   // free(findList);
 }
+
 
 void setup()
 {
