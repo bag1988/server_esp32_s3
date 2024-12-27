@@ -7,7 +7,8 @@
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <dev_manager.h>
-
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
 // Имя сервера BLE(другое имя ESP32, на котором выполняется эскиз сервера)
 #define SERVER_NAME "ESP32_BLE_CENTRAL_SERVER"
 #define SERVICE_UUID "33b6ebbe-538f-4d4a-ba39-2ee04516ff39"
@@ -19,6 +20,14 @@
 //  Структура данных для сохранения информации о BLE подключениях
 
 #define DEELY_LOOP 1000
+
+// set the LCD number of columns and rows
+int lcdColumns = 16;
+int lcdRows = 2;
+
+// set LCD address, number of columns and rows
+// if you don't know your display address, run an I2C scanner sketch
+LiquidCrystal_I2C lcd(0x27, lcdColumns, lcdRows);
 
 // Глобальные переменные
 Preferences preferences;
@@ -256,7 +265,7 @@ void setupGPIO()
 
 uint8_t containsGpioToEnable(const uint8_t *gpioList, uint8_t gpio)
 {
-  for (int i = 0; i < sizeof(gpioList)/sizeof(uint8_t); i++)
+  for (int i = 0; i < sizeof(gpioList) / sizeof(uint8_t); i++)
   {
     if (gpioList[i] == gpio)
     {
@@ -266,11 +275,9 @@ uint8_t containsGpioToEnable(const uint8_t *gpioList, uint8_t gpio)
   return 0;
 }
 
-
 // Управление устройствами и GPIO
 void manageDevicesAndControlGPIO()
 {
-
   DevInfo *findList[MAX_DEVICES];
   int findCount = 0;
   filterDevicesByTemp(findList, &findCount, DEELY_LOOP);
@@ -281,7 +288,7 @@ void manageDevicesAndControlGPIO()
     uint8_t indexGpio = 0;
     for (int i = 0; i < findCount; i++)
     {
-      for (int j = 0; j < sizeof(findList[i]->gpioToEnable)/sizeof(uint8_t); j++)
+      for (int j = 0; j < sizeof(findList[i]->gpioToEnable) / sizeof(uint8_t); j++)
       {
         if (findList[i]->gpioToEnable[j] > 0 && !containsGpioToEnable(gpioList, findList[i]->gpioToEnable[j]))
         {
@@ -308,9 +315,64 @@ void manageDevicesAndControlGPIO()
   // free(findList);
 }
 
+void ScanningLCD()
+{
+  byte error, address;
+  int nDevices;
+  Serial.println(F("Scanning..."));
+  nDevices = 0;
+  for (address = 1; address < 127; address++)
+  {
+    Wire.beginTransmission(address);
+    error = Wire.endTransmission();
+    if (error == 0)
+    {
+      Serial.print(F("I2C device found at address 0x"));
+      if (address < 16)
+      {
+        Serial.print(F("0"));
+      }
+      Serial.println(address, HEX);
+      nDevices++;
+    }
+    else if (error == 4)
+    {
+      Serial.print(F("Unknow error at address 0x"));
+      if (address < 16)
+      {
+        Serial.print("0");
+      }
+      Serial.println(address, HEX);
+    }
+  }
+  if (nDevices == 0)
+  {
+    Serial.println(F("No I2C devices found\n"));
+  }
+  else
+  {
+    Serial.println(F("done\n"));
+  }
+}
+
+void WriteLCD(){
+  // set cursor to first column, first row
+  lcd.setCursor(0, 0);
+  // print message
+  lcd.print("Hello, World!");
+  delay(1000);
+  // clears the display to print new message
+  lcd.clear();
+  // set cursor to first column, second row
+  lcd.setCursor(0,1);
+  lcd.print("Hello, World!");
+  delay(1000);
+  lcd.clear(); 
+}
 
 void setup()
 {
+  Wire.begin();
   Serial.begin(115200);
   loaddevices_ble();
   setupBLE();
@@ -324,10 +386,16 @@ void setup()
   preferences.end();
 
   startConnectWifi(ssid, password);
+
+  // initialize LCD
+  lcd.init();
+  // turn on LCD backlight
+  lcd.backlight();
 }
 
 void loop()
 {
+  ScanningLCD();
   manageDevicesAndControlGPIO();
   // server.handleClient(); // Обработка клиентских запросов на web-сервере
   delay(DEELY_LOOP); // Пауза для предотвращения излишней нагрузки на процессор
