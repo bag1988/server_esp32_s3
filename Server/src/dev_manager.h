@@ -13,8 +13,8 @@ typedef struct {
     int totalTimeActive;
 } DevInfo;
 
-extern DevInfo devices_ble[MAX_DEVICES];
-extern int devCount;
+RTC_DATA_ATTR extern DevInfo devices_ble[MAX_DEVICES];
+RTC_DATA_ATTR extern int devCount;
 
 // void addDevice(DevInfo dev);
 // DevInfo* findDevice(const char* ble_address);
