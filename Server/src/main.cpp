@@ -166,7 +166,7 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
     {
       // BLEDevice::getScan()->stop();
       BLEClient *pClient = BLEDevice::createClient();
-       Serial.println(F("Connecting to device"));
+      Serial.println(F("Connecting to device"));
       pClient->connect(&advertisedDevice);
       Serial.println(F("Device connected, subscribe service"));
       // Подписка на обновления характеристик
@@ -361,21 +361,35 @@ void manageDevicesAndControlGPIO()
 //     Serial.println(F("done\n"));
 //   }
 // }
-
-// void WriteLCD(){
-//   // set cursor to first column, first row
-//   lcd.setCursor(0, 0);
-//   // print message
-//   lcd.print("Hello, World!");
-//   delay(1000);
-//   // clears the display to print new message
-//   lcd.clear();
-//   // set cursor to first column, second row
-//   lcd.setCursor(0,1);
-//   lcd.print("Hello, World!");
-//   delay(1000);
-//   lcd.clear();
-// }
+int x;
+void WriteLCD(float& temp, float&  hum)
+{
+  // выводим данные на LCD
+  lcd.setCursor(0, 0);
+  lcd.print("Temp   ");
+  lcd.print(temp);
+  lcd.print(char(223));
+  lcd.print("C  ");
+  lcd.setCursor(0, 1);
+  if (x >= 3 && x < 10)
+  { // выводить индекс жары каждые 3 секунды из 10
+    lcd.print("Hum    ");
+    lcd.print(hum);
+    lcd.print(" %         ");
+  }
+  else
+  {
+    lcd.print("Index  ");
+    lcd.print(hic, 1);
+    lcd.print(char(223));
+    lcd.print("C  ");
+  }
+  if (x == 10)
+  {
+    x = 0;
+  }
+  x++;
+}
 
 void setup()
 {
