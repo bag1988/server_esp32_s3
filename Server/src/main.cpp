@@ -4,12 +4,12 @@
 #include <BLEScan.h>
 #include <BLEAdvertisedDevice.h>
 #include <Preferences.h>
-#include <AsyncTCP.h>
-#include <ESPAsyncWebServer.h>
+// #include <AsyncTCP.h>
+// #include <ESPAsyncWebServer.h>
 #include <dev_manager.h>
 #include <Wire.h>
-#include <LiquidCrystal_I2C.h>
-// Имя сервера BLE(другое имя ESP32, на котором выполняется эскиз сервера)
+// #include <LiquidCrystal_I2C.h>
+//  Имя сервера BLE(другое имя ESP32, на котором выполняется эскиз сервера)
 #define SERVER_NAME "ESP32_BLE_CENTRAL_SERVER"
 #define SERVICE_UUID "33b6ebbe-538f-4d4a-ba39-2ee04516ff39"
 #define TEMP_CHARACT_SERVICE_UUID "ccfe71ea-e98b-4927-98e2-6c1b77d1f756"
@@ -27,11 +27,11 @@ int lcdRows = 2;
 
 // set LCD address, number of columns and rows
 // if you don't know your display address, run an I2C scanner sketch
-LiquidCrystal_I2C lcd(0x27, lcdColumns, lcdRows);
+// LiquidCrystal_I2C lcd(0x27, lcdColumns, lcdRows);
 
 // Глобальные переменные
 Preferences preferences;
-AsyncWebServer server(80);
+// AsyncWebServer server(80);
 
 typedef struct
 {
@@ -56,7 +56,7 @@ void loaddevices_ble()
   preferences.begin("device-data", false);
   size_t schLen = preferences.getBytesLength("device-data");
   char buffer[schLen]; // prepare a buffer for the data
-  preferences.getBytes("schedule", buffer, schLen);
+  preferences.getBytes("device-data", buffer, schLen);
   if (schLen % sizeof(DevInfo))
   { // simple check that data fits
     Serial.println(F("Data is not correct size!"));
@@ -106,31 +106,31 @@ static void humidityNotifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteri
   }
 }
 
-void startConnectWifi(String ssid, String password)
-{
-  if (!ssid.isEmpty() && !password.isEmpty())
-  {
-    WiFi.begin(ssid.c_str(), password.c_str());
-    // Ожидание подключения
-    while (WiFi.status() != WL_CONNECTED)
-    {
-      delay(1000);
-      Serial.println(F("Connecting to WiFi..."));
-    }
-    Serial.println(F("Connected to WiFi."));
-    Serial.print(F("IP address: "));
-    Serial.println(F(WiFi.localIP().toString().c_str()));
-    pCharacteristicSetWifi->setValue(WiFi.localIP().toString().c_str());
-    if (deviceConnected)
-    {
-      pCharacteristicSetWifi->notify();
-    }
-  }
-  else
-  {
-    Serial.println(F("No WiFi credentials found."));
-  }
-}
+// void startConnectWifi(String ssid, String password)
+// {
+//   if (!ssid.isEmpty() && !password.isEmpty())
+//   {
+//     WiFi.begin(ssid.c_str(), password.c_str());
+//     // Ожидание подключения
+//     while (WiFi.status() != WL_CONNECTED)
+//     {
+//       delay(1000);
+//       Serial.println(F("Connecting to WiFi..."));
+//     }
+//     Serial.println(F("Connected to WiFi."));
+//     Serial.print(F("IP address: "));
+//     Serial.println(F(WiFi.localIP().toString().c_str()));
+//     pCharacteristicSetWifi->setValue(WiFi.localIP().toString().c_str());
+//     if (deviceConnected)
+//     {
+//       pCharacteristicSetWifi->notify();
+//     }
+//   }
+//   else
+//   {
+//     Serial.println(F("No WiFi credentials found."));
+//   }
+// }
 
 class SetServerSettingCallbacks : public BLECharacteristicCallbacks
 {
@@ -149,7 +149,7 @@ class SetServerSettingCallbacks : public BLECharacteristicCallbacks
       preferences.putString("ssid", ssid);
       preferences.putString("password", password);
       preferences.end();
-      startConnectWifi(ssid, password);
+      // startConnectWifi(ssid, password);
     }
   }
 };
@@ -159,18 +159,23 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
 {
   void onResult(BLEAdvertisedDevice advertisedDevice)
   {
+    Serial.print(F("Find device"));
     // Логика поиска нужных характеристик
+
     if (advertisedDevice.haveServiceUUID() && advertisedDevice.isAdvertisingService(BLEUUID(SERVICE_UUID)))
     {
-      BLEDevice::getScan()->stop();
+      // BLEDevice::getScan()->stop();
       BLEClient *pClient = BLEDevice::createClient();
+       Serial.println(F("Connecting to device"));
       pClient->connect(&advertisedDevice);
+      Serial.println(F("Device connected, subscribe service"));
       // Подписка на обновления характеристик
       BLERemoteService *pRemoteService = pClient->getService(BLEUUID(SERVICE_UUID));
       if (pRemoteService != nullptr)
       {
         // Поиск в списке сохранненых
         std::string ble_address = advertisedDevice.getAddress().toString();
+        Serial.println(ble_address.c_str());
         DevInfo *find = findDevice(ble_address.c_str());
         if (find == NULL)
         {
@@ -178,6 +183,7 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
           ble_address.copy(new_item.ble_address, 18);
           advertisedDevice.getName().copy(new_item.name, sizeof new_item.name);
           addDevice(new_item);
+          savedevices_ble();
         }
         //
         BLERemoteCharacteristic *pRemoteTempCharacteristic = pRemoteService->getCharacteristic(BLEUUID(TEMP_CHARACT_SERVICE_UUID));
@@ -216,6 +222,7 @@ void setupBLE()
 // Поиск BLE устройств и подписка на обновления
 void scanForBLEDevices()
 {
+  Serial.println(F("Start scan ble"));
   BLEScan *pBLEScan = BLEDevice::getScan();
   pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
   pBLEScan->setActiveScan(true);
@@ -223,37 +230,37 @@ void scanForBLEDevices()
 }
 
 // Web server для управления устройствами
-void setupWebServer()
-{
-  server.on("/get", HTTP_GET, [](AsyncWebServerRequest *request)
-            {
-    char* jsonString = convertArrayToJSON();
-    request->send(200, "application/json", jsonString); 
-    free(jsonString); });
+// void setupWebServer()
+// {
+//   server.on("/get", HTTP_GET, [](AsyncWebServerRequest *request)
+//             {
+//     char* jsonString = convertArrayToJSON();
+//     request->send(200, "application/json", jsonString);
+//     free(jsonString); });
 
-  server.on("/set", HTTP_POST, [](AsyncWebServerRequest *request)
-            {
-    if (request->hasArg("update_dev")) {
-      DevInfo newDevs[MAX_DEVICES];
-      int newDevCount;
-      parseArrayFromJSON(request->arg("update_dev").c_str(), newDevs, &newDevCount);
-      if(newDevCount)
-      {
-        updateDevices(newDevs, newDevCount);  
-        savedevices_ble();
-                request->send(200, "text/plain", "Updated");
-                return;
-      }
-      request->send(404, "text/plain", "Device not found");    
-    } else {
-      request->send(400, "text/plain", "Bad Request");
-    } });
+//   server.on("/set", HTTP_POST, [](AsyncWebServerRequest *request)
+//             {
+//     if (request->hasArg("update_dev")) {
+//       DevInfo newDevs[MAX_DEVICES];
+//       int newDevCount;
+//       parseArrayFromJSON(request->arg("update_dev").c_str(), newDevs, &newDevCount);
+//       if(newDevCount)
+//       {
+//         updateDevices(newDevs, newDevCount);
+//         savedevices_ble();
+//                 request->send(200, "text/plain", "Updated");
+//                 return;
+//       }
+//       request->send(404, "text/plain", "Device not found");
+//     } else {
+//       request->send(400, "text/plain", "Bad Request");
+//     } });
 
-  server.on("/start_scan", HTTP_POST, [](AsyncWebServerRequest *request)
-            { scanForBLEDevices();
-            request->send(200, "text/plain", "Scan Started"); });
-  server.begin();
-}
+//   server.on("/start_scan", HTTP_POST, [](AsyncWebServerRequest *request)
+//             { scanForBLEDevices();
+//             request->send(200, "text/plain", "Scan Started"); });
+//   server.begin();
+// }
 
 void setupGPIO()
 {
@@ -315,87 +322,87 @@ void manageDevicesAndControlGPIO()
   // free(findList);
 }
 
-void ScanningLCD()
-{
-  byte error, address;
-  int nDevices;
-  Serial.println(F("Scanning..."));
-  nDevices = 0;
-  for (address = 1; address < 127; address++)
-  {
-    Wire.beginTransmission(address);
-    error = Wire.endTransmission();
-    if (error == 0)
-    {
-      Serial.print(F("I2C device found at address 0x"));
-      if (address < 16)
-      {
-        Serial.print(F("0"));
-      }
-      Serial.println(address, HEX);
-      nDevices++;
-    }
-    else if (error == 4)
-    {
-      Serial.print(F("Unknow error at address 0x"));
-      if (address < 16)
-      {
-        Serial.print("0");
-      }
-      Serial.println(address, HEX);
-    }
-  }
-  if (nDevices == 0)
-  {
-    Serial.println(F("No I2C devices found\n"));
-  }
-  else
-  {
-    Serial.println(F("done\n"));
-  }
-}
+// void ScanningLCD()
+// {
+//   byte error, address;
+//   int nDevices;
+//   Serial.println(F("Scanning..."));
+//   nDevices = 0;
+//   for (address = 1; address < 127; address++)
+//   {
+//     Wire.beginTransmission(address);
+//     error = Wire.endTransmission();
+//     if (error == 0)
+//     {
+//       Serial.print(F("I2C device found at address 0x"));
+//       if (address < 16)
+//       {
+//         Serial.print(F("0"));
+//       }
+//       Serial.println(address, HEX);
+//       nDevices++;
+//     }
+//     else if (error == 4)
+//     {
+//       Serial.print(F("Unknow error at address 0x"));
+//       if (address < 16)
+//       {
+//         Serial.print("0");
+//       }
+//       Serial.println(address, HEX);
+//     }
+//   }
+//   if (nDevices == 0)
+//   {
+//     Serial.println(F("No I2C devices found\n"));
+//   }
+//   else
+//   {
+//     Serial.println(F("done\n"));
+//   }
+// }
 
-void WriteLCD(){
-  // set cursor to first column, first row
-  lcd.setCursor(0, 0);
-  // print message
-  lcd.print("Hello, World!");
-  delay(1000);
-  // clears the display to print new message
-  lcd.clear();
-  // set cursor to first column, second row
-  lcd.setCursor(0,1);
-  lcd.print("Hello, World!");
-  delay(1000);
-  lcd.clear(); 
-}
+// void WriteLCD(){
+//   // set cursor to first column, first row
+//   lcd.setCursor(0, 0);
+//   // print message
+//   lcd.print("Hello, World!");
+//   delay(1000);
+//   // clears the display to print new message
+//   lcd.clear();
+//   // set cursor to first column, second row
+//   lcd.setCursor(0,1);
+//   lcd.print("Hello, World!");
+//   delay(1000);
+//   lcd.clear();
+// }
 
 void setup()
 {
   Wire.begin();
   Serial.begin(115200);
-  loaddevices_ble();
+  // loaddevices_ble();
   setupBLE();
   setupGPIO();
-  setupWebServer();
+  // setupWebServer();
 
   // Подключение к сохраненной WiFi сети
   preferences.begin("wifi-creds", false);
   String ssid = preferences.getString("ssid", "");
   String password = preferences.getString("password", "");
   preferences.end();
-
-  startConnectWifi(ssid, password);
+  scanForBLEDevices();
+  // startConnectWifi(ssid, password);
 
   // initialize LCD
-  lcd.init();
+  // lcd.init();
   // turn on LCD backlight
-  lcd.backlight();
+  // lcd.backlight();
 }
 
 void loop()
 {
-  ScanningLCD();
+  // ScanningLCD();
   manageDevicesAndControlGPIO();
   // server.handleClient(); // Обработка клиентских запросов на web-сервере
   delay(DEELY_LOOP); // Пауза для предотвращения излишней нагрузки на процессор
