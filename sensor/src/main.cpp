@@ -45,16 +45,19 @@ class MyServerCallbacks : public BLEServerCallbacks
 {
   void onConnect(BLEServer *pServer)
   {
+    printf("Device connected, count device connected %d", pServer->getConnectedCount());
     deviceConnected = true;
   };
   void onDisconnect(BLEServer *pServer)
   {
+    printf("Device disconnected, count device connected %d", pServer->getConnectedCount());
     deviceConnected = false;
   }
 };
 
 void initDHTSensor()
 {
+  printf("init DHT sensor");
   dht.begin();
   sensor_t sensor;
   dht.temperature().getSensor(&sensor);
@@ -97,12 +100,13 @@ void initDHTSensor()
   Serial.println(F("------------------------------------"));
   // Set delay between sensor readings based on sensor details.
   delayMS = sensor.min_delay / 1000;
+
+  printf("delayMS is %d", delayMS);
 }
 
-void setup()
-{
-  Serial.begin(115200);
-  
+void setupBleServer()
+{  
+  printf("Create ble server %s", bleServerName);
   // Create the BLE Device
   BLEDevice::init(bleServerName);
 
@@ -122,7 +126,7 @@ void setup()
   // Humidity
   bmeService->addCharacteristic(&bmeHumidityCharacteristics);
   bmeHumidityDescriptor.setValue("BME humidity");
-  bmeHumidityCharacteristics.addDescriptor(new BLE2902());
+  bmeHumidityCharacteristics.addDescriptor(&bmeHumidityDescriptor);
 
   // Start the service
   bmeService->start();
@@ -133,11 +137,17 @@ void setup()
   pServer->getAdvertising()->start();
   Serial.println("Waiting a client connection to notify...");
 
+}
+
+void setup()
+{
+  Serial.begin(115200);  
+  setupBleServer();
   initDHTSensor();
 }
 
 void loopDHT()
-{
+{  
   // Delay between measurements.
   delay(delayMS);
   // Get temperature event and print its value.
