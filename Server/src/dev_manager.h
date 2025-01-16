@@ -13,15 +13,9 @@ typedef struct {
     int totalTimeActive;
 } DevInfo;
 
-RTC_DATA_ATTR extern DevInfo devices_ble[MAX_DEVICES];
-RTC_DATA_ATTR extern int devCount;
+// RTC_DATA_ATTR extern DevInfo devices_ble[MAX_DEVICES];
+// RTC_DATA_ATTR extern int devCount;
 
-// void addDevice(DevInfo dev);
-// DevInfo* findDevice(const char* ble_address);
-// void updateGpioToEnable(DevInfo* dev, int* gpioToEnable, int gpioCount);
-// void removeDevice(const char* ble_address);
-// void filterDevicesByTemp(DevInfo* findList[], int* findCount);
-// void initDevicesFromBuffer(const DevInfo* buffer, int size);
 DevInfo devices_ble[MAX_DEVICES];
 int devCount = 0;
 
@@ -180,8 +174,7 @@ void updateDevices(DevInfo* newDevs, int newDevCount) {
         if (foundDev != NULL) {
             foundDev->enabled = newDevs[i].enabled;
             memcpy(foundDev->name, newDevs[i].name, sizeof foundDev->name);
-            memcpy(foundDev->gpioToEnable, newDevs[i].gpioToEnable, sizeof newDevs[i].gpioToEnable);            
-            //*foundDev = newDevs[i];
+            memcpy(foundDev->gpioToEnable, newDevs[i].gpioToEnable, sizeof newDevs[i].gpioToEnable);
         } else {
             removeDevice(newDevs[i].ble_address);
         }
