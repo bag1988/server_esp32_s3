@@ -9,6 +9,7 @@
 #include <dev_manager.h>
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
+
 //  Имя сервера BLE(другое имя ESP32, на котором выполняется эскиз сервера)
 #define SERVER_NAME "ESP32_BLE_CENTRAL_SERVER"
 #define SERVICE_UUID "33b6ebbe-538f-4d4a-ba39-2ee04516ff39"
@@ -77,18 +78,18 @@ void savedevices_ble()
     preferences.end();
   }
 }
-class ServerConnectedClientCallbacks : public BLEServerCallbacks
-{
-  void onConnect(BLEServer *pServer)
-  {
-    deviceConnected = true;
-  };
+// class ServerConnectedClientCallbacks : public BLEServerCallbacks
+// {
+//   void onConnect(BLEServer *pServer)
+//   {
+//     deviceConnected = true;
+//   };
 
-  void onDisconnect(BLEServer *pServer)
-  {
-    deviceConnected = false;
-  }
-};
+//   void onDisconnect(BLEServer *pServer)
+//   {
+//     deviceConnected = false;
+//   }
+// };
 
 static void temperatureNotifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify)
 {
@@ -124,11 +125,11 @@ void startConnectWifi(String ssid, String password)
     Serial.println(F("Connected to WiFi."));
     Serial.print(F("IP address: "));
     Serial.println(F(WiFi.localIP().toString().c_str()));
-    pCharacteristicSetWifi->setValue(WiFi.localIP().toString().c_str());
-    if (deviceConnected)
-    {
-      pCharacteristicSetWifi->notify();
-    }
+    // pCharacteristicSetWifi->setValue(WiFi.localIP().toString().c_str());
+    // if (deviceConnected)
+    // {
+    //   pCharacteristicSetWifi->notify();
+    // }
   }
   else
   {
@@ -211,7 +212,7 @@ void setupBLE()
 {
   BLEDevice::init(SERVER_NAME);
   pServer = BLEDevice::createServer();
-  pServer->setCallbacks(new ServerConnectedClientCallbacks());
+  //pServer->setCallbacks(new ServerConnectedClientCallbacks());
 
   BLEService *pService = pServer->createService(SERVER_UUID);
   pCharacteristicSetWifi = pService->createCharacteristic(

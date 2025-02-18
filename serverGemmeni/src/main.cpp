@@ -13,28 +13,8 @@
 #include <BLEDescriptor.h>
 #include <BLEScan.h>
 #include <LiquidCrystal_I2C.h>
-#include <ArduinoJson.h>
+#include <convert_to_json.h>
 
-// WiFi Credentials Structure
-struct WifiCredentials
-{
-  std::string ssid;
-  std::string password;
-};
-
-// Client Data Structure (no change required)
-struct ClientData
-{
-  std::string address;
-  std::string name;
-  bool enabled;
-  bool connected;
-  std::vector<int> gpioPins;
-  float targetTemperature;
-  float currentTemperature;
-  float currentHumidity;
-  unsigned long gpioOnTime;
-};
 // Global variable to track scanning state
 extern bool bleScanning;
 // LCD
@@ -52,12 +32,13 @@ const int BUTTON_RST = 12;
 AsyncWebServer server(80);
 
 // BLE
-#define SERVICE_UUID "Your_Service_UUID"
-#define TEMPERATURE_UUID "Your_Temperature_UUID"
-#define HUMIDITY_UUID "Your_Humidity_UUID"
-#define WIFI_SERVICE_UUID "Your_WiFi_Service_UUID"                       // New WiFi Service UUID
-#define SSID_CHARACTERISTIC_UUID "Your_SSID_Characteristic_UUID"         // New SSID Characteristic UUID
-#define PASSWORD_CHARACTERISTIC_UUID "Your_Password_Characteristic_UUID" // New Password Characteristic UUID
+#define SERVER_NAME "ESP32_BLE_CENTRAL_SERVER"
+#define SERVICE_UUID "33b6ebbe-538f-4d4a-ba39-2ee04516ff39"
+#define TEMPERATURE_UUID "ccfe71ea-e98b-4927-98e2-6c1b77d1f756"
+#define HUMIDITY_UUID "6ed76625-573e-4caa-addf-3ddc5a283095"
+#define WIFI_SERVICE_UUID "e1de7d6e-3104-4065-a187-2de5e5727b26"            // New WiFi Service UUID
+#define SSID_CHARACTERISTIC_UUID "93d971b2-4bb8-45d0-9ab3-74d7f881d828"     // New SSID and password Characteristic UUID
+#define PASSWORD_CHARACTERISTIC_UUID "c5481513-22cb-4aae-9fe3-e9db5d06bf6f" // New Password Characteristic UUID
 
 // Data
 std::vector<ClientData> clients;
@@ -94,10 +75,7 @@ String scrollText = "";
 int scrollPosition = 0;
 unsigned long lastScrollTime = 0;
 const unsigned long SCROLL_DELAY = 500;
-
-// JsonDocument Memory Pool
-const size_t JSON_DOCUMENT_SIZE = 4096;
-char jsonBuffer[JSON_DOCUMENT_SIZE];
+const unsigned long CONTROL_DELAY = 5000;
 
 // WiFi Credentials (Global Variable)
 WifiCredentials wifiCredentials;
@@ -108,8 +86,7 @@ const unsigned long WIFI_RECONNECT_DELAY = 10000; // 10 seconds
 // Function Prototypes
 void initLCD();
 void initButtons();
-void initSPIFFS();
-void initBLE();
+// void initSPIFFS();
 void initWebServer();
 void loadClientsFromFile();
 void saveClientsToFile();
@@ -142,16 +119,16 @@ void initButtons()
   pinMode(BUTTON_RST, INPUT_PULLUP);
 }
 
-void initSPIFFS()
-{
-  if (!SPIFFS.begin(true))
-  {
-    Serial.println("An Error has occurred while mounting SPIFFS");
-  }
-}
+// void initSPIFFS()
+// {
+//   if (!SPIFFS.begin(true))
+//   {
+//     Serial.println("An Error has occurred while mounting SPIFFS");
+//   }
+// }
 
-// BLE
-class MyCallbacks : public BLECharacteristicCallbacks
+// BLE +++++++++++++++++++++++++++++++++++
+class SetServerSettingCallbacks : public BLECharacteristicCallbacks
 {
   void onWrite(BLECharacteristic *pCharacteristic)
   {
@@ -160,14 +137,14 @@ class MyCallbacks : public BLECharacteristicCallbacks
     if (pCharacteristic->getUUID().toString() == SSID_CHARACTERISTIC_UUID)
     {
       wifiCredentials.ssid = value;
-      Serial.print("SSID received: ");
-      Serial.println(wifiCredentials.ssid.c_str());
+      Serial.print(F("SSID received: "));
+      Serial.println(F(wifiCredentials.ssid.c_str()));
     }
     else if (pCharacteristic->getUUID().toString() == PASSWORD_CHARACTERISTIC_UUID)
     {
       wifiCredentials.password = value;
-      Serial.print("Password received: ");
-      Serial.println(wifiCredentials.password.c_str());
+      Serial.print(F("Password received: "));
+      Serial.println(F(wifiCredentials.password.c_str()));
     }
 
     saveWifiCredentialsToFile(); // Save credentials to file
@@ -177,9 +154,36 @@ class MyCallbacks : public BLECharacteristicCallbacks
 
 BLEServer *pServer = nullptr;
 
+static void temperatureNotifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify)
+{
+  for (auto &client : clients)
+  {
+    float val = *((float *)(pData)); // Температура
+    if (client.address == pBLERemoteCharacteristic->getRemoteService()->getClient()->getPeerAddress().toString())
+    {
+      client.currentHumidity = val;
+      break;
+    }
+  }
+}
+
+static void humidityNotifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify)
+{
+  for (auto &client : clients)
+  {
+    float val = *((float *)(pData)); // Влажность
+    if (client.address == pBLERemoteCharacteristic->getRemoteService()->getClient()->getPeerAddress().toString())
+    {
+      client.currentHumidity = val;
+      break;
+    }
+  }
+}
+
+// характеристики для установки SSID по BLE ++++++++++++++++++++++++++
 void handleWifiSetupBLE()
 {
-  BLEDevice::init("WiFiSetupServer");
+  BLEDevice::init(SERVER_NAME);
   pServer = BLEDevice::createServer();
   BLEService *pService = pServer->createService(WIFI_SERVICE_UUID);
 
@@ -201,8 +205,8 @@ void handleWifiSetupBLE()
   pPasswordCharacteristic->addDescriptor(new BLEDescriptor(BLEUUID((uint16_t)0x2902)));
   pPasswordCharacteristic->setValue(wifiCredentials.password); // Set initial value
 
-  pSSIDCharacteristic->setCallbacks(new MyCallbacks());
-  pPasswordCharacteristic->setCallbacks(new MyCallbacks());
+  pSSIDCharacteristic->setCallbacks(new SetServerSettingCallbacks());
+  pPasswordCharacteristic->setCallbacks(new SetServerSettingCallbacks());
 
   pService->start();
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
@@ -211,11 +215,11 @@ void handleWifiSetupBLE()
   pAdvertising->setMinPreferred(0x06); // functions that help with iPhone connections issue
   pAdvertising->setMaxPreferred(0x12);
   BLEDevice::startAdvertising();
-  Serial.println("WiFi Setup BLE Started");
+  Serial.println(F("WiFi Setup BLE Started"));
 }
 
-// Definition of the MyAdvertisedDeviceCallbacks class
-class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
+// Definition of the ClientAdvertisedDeviceCallbacks class +++++++++++++++++++++++++++++++++++++
+class ClientAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
 {
   void onResult(BLEAdvertisedDevice advertisedDevice)
   {
@@ -223,8 +227,8 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
 
     if (advertisedDevice.haveServiceUUID() && advertisedDevice.isAdvertisingService(BLEUUID(SERVICE_UUID)))
     {
-      Serial.print("Found our device!  address: ");
-      Serial.println(advertisedDevice.getAddress().toString().c_str());
+      Serial.print(F("Found our device!  address: "));
+      Serial.println(F(advertisedDevice.getAddress().toString().c_str()));
 
       // Check if client already exists
       bool found = false;
@@ -241,7 +245,7 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
       {
         ClientData newClient;
         newClient.address = advertisedDevice.getAddress().toString();
-        // newClient.name = "Client_" + String(clients.size() + 1).c_str(); // Default name
+        newClient.name = ("Client_%d", (clients.size() + 1)); // Default name
         newClient.enabled = false;
         newClient.connected = false;
         newClient.targetTemperature = 20.0;
@@ -249,8 +253,47 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
         newClient.currentHumidity = 0.0;
         newClient.gpioOnTime = 0;
 
-        clients.push_back(newClient);
-        saveClientsToFile(); // Save immediately
+        BLEClient *pClient = BLEDevice::createClient();
+        Serial.println(F("Connecting to device"));
+        if (pClient->connect(&advertisedDevice))
+        {
+          Serial.println(F("Device connected, subscribe service"));
+          // Подписка на обновления характеристик
+          BLERemoteService *pRemoteService = pClient->getService(BLEUUID(SERVICE_UUID));
+
+          if (pRemoteService != nullptr)
+          {
+            newClient.connected = true;
+
+            BLERemoteCharacteristic *pRemoteTempCharacteristic = pRemoteService->getCharacteristic(BLEUUID(TEMPERATURE_UUID));
+            if (pRemoteTempCharacteristic != nullptr)
+            {
+              pRemoteTempCharacteristic->registerForNotify(temperatureNotifyCallback);
+            }
+            else
+            {
+              Serial.println(F("Характеристика температуры не найдена"));
+              return;
+            }
+            BLERemoteCharacteristic *pRemoteHumCharacteristic = pRemoteService->getCharacteristic(BLEUUID(HUMIDITY_UUID));
+            if (pRemoteHumCharacteristic != nullptr)
+            {
+              pRemoteHumCharacteristic->registerForNotify(humidityNotifyCallback);
+            }
+            else
+            {
+              Serial.println(F("Характеристика влажности не найдена"));
+              return;
+            }
+
+            clients.push_back(newClient);
+            saveClientsToFile(); // Save immediately
+          }
+        }
+        else
+        {
+          Serial.printf("Не удалось подключиться к клиенту %s\n", newClient.name.c_str());
+        }
       }
     }
   }
@@ -261,38 +304,33 @@ void startBLEScan()
 {
   if (bleScanning)
   {
-    Serial.println("BLE scan already in progress!");
+    Serial.println(F("BLE scan already in progress!"));
     return;
   }
 
   bleScanning = true; // Set the scanning flag
 
-  Serial.println("Starting BLE scan...");
+  Serial.println(F("Starting BLE scan..."));
   BLEScan *pBLEScan = BLEDevice::getScan();
-  pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
+  pBLEScan->setAdvertisedDeviceCallbacks(new ClientAdvertisedDeviceCallbacks());
   pBLEScan->setActiveScan(true); // Set active scanning, this will increase discovery rate
   pBLEScan->setInterval(1349);
   pBLEScan->setWindow(449);
 
   BLEScanResults foundDevices = pBLEScan->start(5); // Scan for 5 seconds
-  Serial.print("Scan done! Devices found: ");
-  Serial.println(foundDevices.getCount());
+  Serial.print(F("Scan done! Devices found: "));
+  Serial.println(F(foundDevices.getCount()));
 
   bleScanning = false; // Reset the scanning flag
 
   updateLCD(); // Update LCD after scanning
 }
 
-void initBLE()
-{
-  BLEDevice::init("Server");
-}
-
-// Connect to WiFi
+// Connect to WiFi +++++++++++++++++++++++++++++++++++
 void connectWiFi()
 {
-  Serial.print("Connecting to WiFi: ");
-  Serial.println(wifiCredentials.ssid.c_str());
+  Serial.print(F("Connecting to WiFi: "));
+  Serial.println(F(wifiCredentials.ssid.c_str()));
 
   WiFi.begin(wifiCredentials.ssid.c_str(), wifiCredentials.password.c_str());
   lastWiFiAttemptTime = millis();
@@ -301,122 +339,129 @@ void connectWiFi()
   while (WiFi.status() != WL_CONNECTED && attempts < 10)
   {
     delay(1000);
-    Serial.print(".");
+    Serial.print(F("..."));
     attempts++;
   }
 
   if (WiFi.status() == WL_CONNECTED)
   {
-    Serial.println("");
-    Serial.println("WiFi connected");
-    Serial.print("IP address: ");
+    Serial.println(F(""));
+    Serial.println(F("WiFi connected"));
+    Serial.print(F("IP address: "));
     Serial.println(WiFi.localIP());
     wifiConnected = true;
   }
   else
   {
-    Serial.println("");
-    Serial.println("Failed to connect to WiFi");
+    Serial.println(F(""));
+    Serial.println(F("Failed to connect to WiFi"));
     wifiConnected = false;
     if (pServer != nullptr)
     {
-      Serial.println("Restarting BLE Advertising...");
+      Serial.println(F("Restarting BLE Advertising..."));
       pServer->startAdvertising();
     }
     else
     {
-      Serial.println("BLE server not initialized");
+      Serial.println(F("BLE server not initialized"));
     }
   }
 }
-
+// web server +++++++++++++++++++++++++++++++++
 void initWebServer()
 {
   // GET /clients (get list of all clients)
   server.on("/clients", HTTP_GET, [](AsyncWebServerRequest *request)
             {
-      const int capacity = JSON_ARRAY_SIZE(clients.size()) + clients.size() * JSON_OBJECT_SIZE(7);
-      JsonDocument jsonDoc;//(jsonBuffer, JSON_DOCUMENT_SIZE); // Use the shared buffer
-      JsonArray jsonClients = jsonDoc.to<JsonArray>();
+     std::string jsonVal="[";
 
-      for (const auto& client : clients) {
-          JsonObject jsonClient = jsonClients.createNestedObject();
-          jsonClient["address"] = client.address.c_str();
-          jsonClient["name"] = client.name.c_str();
-          jsonClient["enabled"] = client.enabled;
-          jsonClient["connected"] = client.connected;
-          jsonClient["targetTemperature"] = client.targetTemperature;
-          jsonClient["currentTemperature"] = client.currentTemperature;
-          jsonClient["currentHumidity"] = client.currentHumidity;
-
-          // You can add other fields as needed
+     for (size_t i = 0; i < clients.size(); ++i) {
+      jsonVal += toJson(clients[i]);
+      if (i != clients.size() - 1) {
+        jsonVal += ",";
       }
-
-      String jsonString;
-      serializeJson(jsonDoc, jsonString);
-      request->send(200, "application/json", jsonString); });
-
-  // GET /client/{address} (get info about a specific client)
-  server.on("/client/{address}", HTTP_GET, [](AsyncWebServerRequest *request)
-            {
-      String address = request->pathArg(0); // Get address from URL
-
-      // Find the client by address
-      for (const auto& client : clients) {
-          if (client.address == address.c_str()) {
-              const int capacity = JSON_OBJECT_SIZE(7);
-              JsonDocument jsonDoc;//(jsonBuffer, JSON_DOCUMENT_SIZE); // Use the shared buffer
-              jsonDoc["address"] = client.address.c_str();
-              jsonDoc["name"] = client.name.c_str();
-              jsonDoc["enabled"] = client.enabled;
-              jsonDoc["connected"] = client.connected;
-              jsonDoc["targetTemperature"] = client.targetTemperature;
-              jsonDoc["currentTemperature"] = client.currentTemperature;
-              jsonDoc["currentHumidity"] = client.currentHumidity;
-
-              String jsonString;
-              serializeJson(jsonDoc, jsonString);
-              request->send(200, "application/json", jsonString);
-              return; // Client found, end processing
-          }
-      }
-
-      // If client not found
-      request->send(404, "text/plain", "Client not found"); });
+     }
+      jsonVal +="]";      
+      request->send(200, "application/json", jsonVal.c_str()); });
 
   // POST /client/{address} (update info about a client)
   server.on("/client/{address}", HTTP_POST, [](AsyncWebServerRequest *request)
             {
-      String address = request->pathArg(0);
+              if (request->hasParam("address", true))
+              {
+                String address = request->getParam("address", true)->value();
+                bool isSaving = false;
+                // Handle POST parameters
+                if (request->hasParam("name", true))
+                {
+                  String newName = request->getParam("name", true)->value();
+                  // Find the client by address and update the name
+                  for (auto &client : clients)
+                  {
+                    if (client.address == address.c_str())
+                    {
+                      client.name = newName.c_str();
+                      isSaving = true;
+                      break;
+                    }
+                  }
+                }
 
-      // Handle POST parameters
-      if (request->hasParam("name", true)) {
-          String newName = request->getParam("name", true)->value();
-          // Find the client by address and update the name
-          for (auto& client : clients) {
-              if (client.address == address.c_str()) {
-                  client.name = newName.c_str();
+                if (request->hasParam("targetTemperature", true))
+                {
+                  String tempStr = request->getParam("targetTemperature", true)->value();
+                  float newTargetTemperature = tempStr.toFloat();
+                  // Find the client by address and update the target temperature
+                  for (auto &client : clients)
+                  {
+                    if (client.address == address.c_str())
+                    {
+                      client.targetTemperature = newTargetTemperature;
+                      isSaving = true;
+                      break;
+                    }
+                  }
+                }
+
+                if (request->hasParam("enabled", true))
+                {
+                  String tempStr = request->getParam("enabled", true)->value();
+                  bool enabled = tempStr == "true";
+                  // Find the client by address and update the target temperature
+                  for (auto &client : clients)
+                  {
+                    if (client.address == address.c_str())
+                    {
+                      client.enabled = enabled;
+                      isSaving = true;
+                      break;
+                    }
+                  }
+                }
+
+                if (request->hasParam("gpioPins", true))
+                {
+                  String newName = request->getParam("gpioPins", true)->value();
+                  // Find the client by address and update the name
+                  for (auto &client : clients)
+                  {
+                    if (client.address == address.c_str())
+                    {
+                      client.gpioPins = parseGpioPins(newName.c_str());
+                      isSaving = true;
+                      break;
+                    }
+                  }
+                }
+                if (isSaving)
+                {
                   saveClientsToFile(); // Save changes to file
-                  break;
+                  // Send response
+                request->send(200, "text/plain", "Client updated");
+                }
+                
               }
-          }
-      }
-
-      if (request->hasParam("targetTemperature", true)) {
-          String tempStr = request->getParam("targetTemperature", true)->value();
-          float newTargetTemperature = tempStr.toFloat();
-          // Find the client by address and update the target temperature
-          for (auto& client : clients) {
-              if (client.address == address.c_str()) {
-                  client.targetTemperature = newTargetTemperature;
-                  saveClientsToFile(); // Save changes to file
-                  break;
-              }
-          }
-      }
-
-      // Send response
-      request->send(200, "text/plain", "Client updated"); });
+              request->send(200, "text/plain", "Client not find"); });
 
   // GET /scan (start BLE scan)
   server.on("/scan", HTTP_GET, [](AsyncWebServerRequest *request)
@@ -425,165 +470,119 @@ void initWebServer()
       request->send(200, "text/plain", "BLE Scan started"); });
 
   server.begin();
-  Serial.println("Web server started");
+  Serial.println(F("Web server started"));
 }
 
-// JSON
+// Загружаем клиентов из JSON ++++++++++++++++++++++++++++++
 void loadClientsFromFile()
 {
-  Serial.println("Loading clients from file...");
-  File file = SPIFFS.open(CLIENTS_FILE, "r");
-  if (!file || file.size() == 0)
+  if (SPIFFS.begin(true))
   {
-    Serial.println("Clients file doesn't exist or is empty");
-    file.close(); // Ensure file is closed before returning
-    return;
-  }
-
-  JsonDocument doc; //(jsonBuffer, JSON_DOCUMENT_SIZE);
-  DeserializationError error = deserializeJson(doc, file);
-
-  if (error)
-  {
-    Serial.print(F("deserializeJson() failed: "));
-    Serial.println(error.c_str());
-    file.close();
-    return;
-  }
-
-  clients.clear();
-  JsonArray jsonClients = doc.as<JsonArray>();
-  for (JsonObject jsonClient : jsonClients)
-  {
-    ClientData client;
-    client.address = jsonClient["address"].as<String>().c_str();
-    client.name = jsonClient["name"].as<String>().c_str();
-    client.enabled = jsonClient["enabled"].as<bool>();
-    client.connected = jsonClient["connected"].as<bool>();
-    client.targetTemperature = jsonClient["targetTemperature"].as<float>();
-    client.currentTemperature = jsonClient["currentTemperature"].as<float>();
-    client.currentHumidity = jsonClient["currentHumidity"].as<float>();
-    client.gpioOnTime = jsonClient["gpioOnTime"].as<unsigned long>();
-
-    JsonArray gpioArray = jsonClient["gpioPins"].as<JsonArray>();
-    for (JsonVariant value : gpioArray)
+    Serial.println(F("Loading clients from file..."));
+    File file = SPIFFS.open(CLIENTS_FILE, "r");
+    if (!file || file.size() == 0)
     {
-      client.gpioPins.push_back(value.as<int>());
+      Serial.println(F("Clients file doesn't exist or is empty"));
+      file.close(); // Ensure file is closed before returning
+      return;
     }
-
-    clients.push_back(client);
+    clients.clear();
+    while (file.available())
+    {
+      std::string json;
+      while (file.available())
+      {
+        char c = file.read();
+        json += c;
+        if (c == '}')
+          break;
+      }
+      clients.push_back(fromJson(json));
+    }
+    file.close();
+    Serial.println(F("Clients loaded from file"));
   }
-
-  file.close();
-  Serial.println("Clients loaded from file");
 }
-
+// Сохраняме клиентов в JSON +++++++++++++++++++++++++++++
 void saveClientsToFile()
 {
-  Serial.println("Saving clients to file...");
-  File file = SPIFFS.open(CLIENTS_FILE, "w");
-  if (!file)
+  if (SPIFFS.begin(true))
   {
-    Serial.println("Failed to open clients file for writing");
-    return;
-  }
-
-  JsonDocument doc; //(jsonBuffer, JSON_DOCUMENT_SIZE);
-  JsonArray jsonClients = doc.to<JsonArray>();
-
-  for (const auto &client : clients)
-  {
-    JsonObject jsonClient = jsonClients.createNestedObject();
-    jsonClient["address"] = client.address;
-    jsonClient["name"] = client.name;
-    jsonClient["enabled"] = client.enabled;
-    jsonClient["connected"] = client.connected;
-    jsonClient["targetTemperature"] = client.targetTemperature;
-    jsonClient["currentTemperature"] = client.currentTemperature;
-    jsonClient["currentHumidity"] = client.currentHumidity;
-    jsonClient["gpioOnTime"] = client.gpioOnTime;
-
-    JsonArray gpioArray = jsonClient.createNestedArray("gpioPins");
-    for (JsonVariant value : gpioArray)
+    Serial.println(F("Saving clients to file..."));
+    File file = SPIFFS.open(CLIENTS_FILE, "w");
+    if (!file)
     {
-      gpioArray.add(value.as<int>());
+      Serial.println(F("Failed to open clients file for writing"));
+      return;
     }
-  }
 
-  if (serializeJson(doc, file) == 0)
-  {
-    Serial.println("Failed to write to clients file");
+    file.print("[\n");
+    for (size_t i = 0; i < clients.size(); ++i)
+    {
+      file.print(toJson(clients[i]).c_str());
+      if (i != clients.size() - 1)
+      {
+        file.print(",\n");
+      }
+    }
+    file.print("\n]");
+    file.close();
+    Serial.println(F("Clients saved to file"));
   }
-
-  file.close();
-  Serial.println("Clients saved to file");
 }
-
+// Загружаем настройки Wifi +++++++++++++++++++++++++++
 void loadWifiCredentialsFromFile()
 {
-  Serial.println("Loading WiFi credentials from file...");
-  File file = SPIFFS.open(WIFI_CREDENTIALS_FILE, "r");
-  if (!file || file.size() == 0)
+  if (SPIFFS.begin(true))
   {
-    Serial.println("WiFi credentials file doesn't exist or is empty. Using default configuration.");
-    wifiCredentials.ssid = "";
-    wifiCredentials.password = "";
-    file.close(); // Ensure file is closed
-    return;
-  }
+    Serial.println(F("Loading WiFi credentials from file..."));
+    File file = SPIFFS.open(WIFI_CREDENTIALS_FILE, "r");
+    if (!file || file.size() == 0)
+    {
+      Serial.println(F("WiFi credentials file doesn't exist or is empty. Using default configuration."));
+      wifiCredentials.ssid = "";
+      wifiCredentials.password = "";
+      file.close(); // Ensure file is closed
+      return;
+    }
 
-  JsonDocument doc; //(jsonBuffer, JSON_DOCUMENT_SIZE);
-  DeserializationError error = deserializeJson(doc, file);
+    wifiCredentials = fromJsonWifi(file.readString().c_str());
 
-  if (error)
-  {
-    Serial.print(F("deserializeJson (WiFi): "));
-    Serial.println(error.c_str());
     file.close();
-    return;
+    Serial.println(F("WiFi credentials loaded from file"));
   }
-
-  wifiCredentials.ssid = doc["ssid"].as<String>().c_str();
-  wifiCredentials.password = doc["password"].as<String>().c_str();
-
-  file.close();
-  Serial.println("WiFi credentials loaded from file");
 }
-
+// Сохраняем настройки Wifi +++++++++++++++++++++++++++
 void saveWifiCredentialsToFile()
 {
-  Serial.println("Saving WiFi credentials to file...");
-  File file = SPIFFS.open(WIFI_CREDENTIALS_FILE, "w");
-  if (!file)
+  if (SPIFFS.begin(true))
   {
-    Serial.println("Failed to open WiFi credentials file for writing");
-    return;
+    Serial.println(F("Saving WiFi credentials to file..."));
+    File file = SPIFFS.open(WIFI_CREDENTIALS_FILE, "w");
+    if (!file)
+    {
+      Serial.println(F("Failed to open WiFi credentials file for writing"));
+      return;
+    }
+    file.print(toJsonWifi(wifiCredentials).c_str());
+
+    file.close();
+    Serial.println(F("WiFi credentials saved to file"));
   }
-
-  JsonDocument doc; //(jsonBuffer, JSON_DOCUMENT_SIZE);
-  doc["ssid"] = wifiCredentials.ssid;
-  doc["password"] = wifiCredentials.password;
-
-  if (serializeJson(doc, file) == 0)
-  {
-    Serial.println("Failed to write WiFi credentials to file");
-  }
-
-  file.close();
-  Serial.println("WiFi credentials saved to file");
 }
 
-// GPIO Control
+// GPIO Control +++++++++++++++++++++++++++++
 void controlGPIO()
 {
   std::vector<int> gpiosToTurnOn;
 
   // 1. Collect GPIOs to turn on
-  for (const auto &client : clients)
+  for (auto &client : clients)
   {
-    if (client.enabled && client.connected && client.currentTemperature < client.targetTemperature)
+    if (client.enabled && client.connected && (client.currentTemperature + 2) < client.targetTemperature)
     {
       gpiosToTurnOn.insert(gpiosToTurnOn.end(), client.gpioPins.begin(), client.gpioPins.end());
+      client.gpioOnTime += CONTROL_DELAY / 1000;
     }
   }
 
@@ -604,21 +603,6 @@ void controlGPIO()
       }
     }
     digitalWrite(gpio, shouldTurnOn ? HIGH : LOW);
-  }
-
-  // 4. Update GPIO on-time
-  for (auto &client : clients)
-  {
-    if (client.enabled && client.connected)
-    {
-      for (int gpio : client.gpioPins)
-      {
-        if (digitalRead(gpio) == HIGH)
-        {
-          client.gpioOnTime++;
-        }
-      }
-    }
   }
 }
 
@@ -861,16 +845,16 @@ void setup()
   Serial.begin(115200);
   initLCD();
   initButtons();
-  initSPIFFS();
+  // initSPIFFS();
   loadWifiCredentialsFromFile(); // Load WiFi credentials first
   connectWiFi();                 // Connect to WiFi
-  initBLE();
+
   handleWifiSetupBLE(); // Start BLE for WiFi setup
   loadClientsFromFile();
   initWebServer(); // Initialize Web Server if needed
   updateScrollText();
   updateLCD();
-  Serial.println("Setup complete");
+  Serial.println(F("Setup complete"));
 }
 
 void loop()
@@ -892,7 +876,7 @@ void loop()
   }
 
   static unsigned long lastGpioControlTime = 0;
-  if (millis() - lastGpioControlTime > 5000)
+  if (millis() - lastGpioControlTime > CONTROL_DELAY)
   {
     controlGPIO();
     lastGpioControlTime = millis();
