@@ -1,25 +1,8 @@
-#include <vector>
-#include <string>
+#ifndef CONVERT_TO_JSON_H
+#define CONVERT_TO_JSON_H
 
-typedef struct 
-{
-    std::string address;
-    std::string name;
-    bool enabled;
-    bool connected;
-    std::vector<int> gpioPins;
-    float targetTemperature;
-    float currentTemperature;
-    float currentHumidity;
-    unsigned long gpioOnTime;
-} ClientData;
-
-// WiFi Credentials Structure
-typedef struct 
-{
-  std::string ssid;
-  std::string password;
-} WifiCredentials;
+#include <convert_to_json.h>
+#include <variables_info.h>
 
 // Преобразование структуры WifiCredentials в JSON строку
 std::string toJsonWifi(const WifiCredentials& data) {
@@ -114,41 +97,4 @@ ClientData fromJson(const std::string& json) {
     return data;
 }
 
-// // Чтение массива ClientData из SPIFFS
-// std::vector<ClientData> readJsonArrayFromSPIFFS(const std::string& filename) {
-//     std::vector<ClientData> clients;
-//     if (SPIFFS.begin(true)) {
-//         File file = SPIFFS.open(filename.c_str(), FILE_READ);
-//         if (file) {
-//             while (file.available()) {
-//                 std::string json;
-//                 while (file.available()) {
-//                     char c = file.read();
-//                     json += c;
-//                     if (c == '}') break;
-//                 }
-//                 clients.push_back(fromJson(json));
-//             }
-//             file.close();
-//         }
-//     }
-//     return clients;
-// }
-
-// // Запись массива ClientData в SPIFFS
-// void writeJsonArrayToSPIFFS(const std::string& filename, const std::vector<ClientData>& clients) {
-//     if (SPIFFS.begin(true)) {
-//         File file = SPIFFS.open(filename.c_str(), FILE_WRITE);
-//         if (file) {
-//             file.print("[\n");
-//             for (size_t i = 0; i < clients.size(); ++i) {
-//                 file.print(toJson(clients[i]).c_str());
-//                 if (i != clients.size() - 1) {
-//                     file.print(",\n");
-//                 }
-//             }
-//             file.print("\n]");
-//             file.close();
-//         }
-//     }
-// }
+#endif
