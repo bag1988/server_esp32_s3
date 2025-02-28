@@ -1,20 +1,25 @@
 #include <Wire.h>               // Для работы с I2C
-#include <AHT10.h>              // Для работы с AHT10
+#include <SPI.h>                // Для работы с SPI (RFM69)
+#include <RFM69.h>              // Для работы с радиомодулем RFM69
+#include <Adafruit_AHTX0.h>      // Для работы с датчиком AHT10/AHT20
 #include <LiquidCrystal_I2C.h>  // Для работы с сегментным LCD
-#include <VirtualWire.h>        // Для работы с радиомодулем
 
-// Конфигурация AHT10
-AHT10 aht;
+// Конфигурация RFM69
+#define NODE_ADDRESS 1          // Адрес отправителя
+#define NETWORK_ID 100          // ID сети
+#define FREQUENCY RF69_868MHZ   // Частота работы (RF69_433MHZ или RF69_868MHZ)
+#define ENCRYPTION_KEY "sampleEncryptKey1" // Ключ шифрования
+
+RFM69 radio;                    // Объект для работы с радиомодулем
+
+// Конфигурация AHT10/AHT20
+Adafruit_AHTX0 aht;
 
 // Конфигурация LCD
 #define LCD_ADDR 0x27           // Адрес I2C LCD (может быть 0x27 или 0x3F)
 #define LCD_COLS 16             // Количество столбцов
 #define LCD_ROWS 2              // Количество строк
 LiquidCrystal_I2C lcd(LCD_ADDR, LCD_COLS, LCD_ROWS);
-
-// Конфигурация радиомодуля
-#define RADIO_TX_PIN 2          // Пин для передатчика
-#define RADIO_SPEED 2000        // Скорость передачи (2 кбит/с)
 
 void setup() {
     // Инициализация Serial для отладки
@@ -26,33 +31,38 @@ void setup() {
     lcd.setCursor(0, 0);
     lcd.print("Initializing...");
 
-    // Инициализация AHT10
+    // Инициализация AHT10/AHT20
     if (!aht.begin()) {
-        Serial.println("Failed to initialize AHT10!");
+        Serial.println("Failed to initialize AHT10/AHT20!");
         while (1) delay(1000); // Зацикливаемся при ошибке
     }
 
-    // Инициализация радиомодуля
-    vw_set_tx_pin(RADIO_TX_PIN); // Указываем пин для передатчика
-    vw_setup(RADIO_SPEED);       // Настройка скорости передачи
-    vw_set_ptt_inverted(true);   // Инверсия PTT для некоторых модулей
+    // Инициализация RFM69
+    radio.initialize(FREQUENCY, NODE_ADDRESS, NETWORK_ID);
+    radio.setHighPower(true);   // Включаем высокую мощность передатчика
+    radio.encrypt(ENCRYPTION_KEY);
+    Serial.println("RFM69 initialized!");
 }
 
 void loop() {
     static unsigned long lastReadTime = 0;
     const unsigned long interval = 60000; // Интервал чтения данных (1 минута)
 
-    // Читаем данные с AHT10 каждую минуту
+    // Читаем данные с AHT10/AHT20 каждую минуту
     if (millis() - lastReadTime >= interval) {
         lastReadTime = millis();
 
-        // Чтение данных с AHT10
-        float humidity = aht.getHumidity();
-        float temperature = aht.getTemperature();
+        sensors_event_t humidity, temp;
+  
+  aht.getEvent(&humidity, &temp);// populate temp and humidity objects with fresh data
+
+        // Чтение данных с AHT10/AHT20
+        float hum = humidity.relative_humidity;
+        float temperature = temp.temperature;
 
         // Проверка на ошибки чтения
-        if (isnan(humidity) || isnan(temperature)) {
-            Serial.println("Failed to read from AHT10!");
+        if (isnan(hum) || isnan(temperature)) {
+            Serial.println("Failed to read from AHT10/AHT20!");
             return;
         }
 
@@ -65,59 +75,72 @@ void loop() {
 
         lcd.setCursor(0, 1);
         lcd.print("Hum: ");
-        lcd.print(humidity, 2); // Вывод с двумя знаками после запятой
+        lcd.print(hum, 2); // Вывод с двумя знаками после запятой
         lcd.print(" %");
 
         // Подготовка данных для передачи
         char buffer[50];
-        snprintf(buffer, sizeof(buffer), "T:%.2f,H:%.2f", temperature, humidity);
+        snprintf(buffer, sizeof(buffer), "T:%.2f,H:%.2f", temperature, hum);
 
         // Передача данных по радиоканалу
-        vw_send((uint8_t *)buffer, strlen(buffer)); // Отправляем строку
-        vw_wait_tx();                              // Ждем завершения передачи
+        radio.sendWithRetry(2, buffer, strlen(buffer)); // Отправляем на адрес 2
+        radio.sleep(); // Переводим радиомодуль в режим сна
 
         // Вывод в Serial для отладки
         Serial.printf("Sent data: %s\n", buffer);
 
         // Переход в глубокий сон для экономии энергии
         delay(100); // Короткая задержка перед сном
-        esp_deep_sleep_start(); // Глубокий сон до следующего измерения
+        // Добавьте код для глубокого сна, если необходимо
     }
 }
 
-//приемник
-// #include <VirtualWire.h>
+// приемник
+// #include <SPI.h>                // Для работы с SPI
+// #include <RFM69.h>              // Для работы с радиомодулем RFM69
+
+// // Конфигурация RFM69
+// #define NODE_ADDRESS 2          // Адрес приемника
+// #define NETWORK_ID 100          // ID сети
+// #define FREQUENCY RF69_868MHZ   // Частота работы (RF69_433MHZ или RF69_868MHZ)
+// #define ENCRYPTION_KEY "sampleEncryptKey1" // Ключ шифрования
+
+// RFM69 radio;                    // Объект для работы с радиомодулем
 
 // void setup() {
 //     Serial.begin(115200);
 
-//     // Инициализация радиомодуля
-//     vw_set_rx_pin(4); // Указываем пин для приемника
-//     vw_setup(2000);   // Настройка скорости передачи (2 кбит/с)
-//     vw_rx_start();    // Начинаем прием данных
+//     // Инициализация RFM69
+//     radio.initialize(FREQUENCY, NODE_ADDRESS, NETWORK_ID);
+//     radio.setHighPower(true);   // Включаем высокую мощность передатчика
+//     radio.encrypt(ENCRYPTION_KEY);
+//     radio.promiscuousMode(false); // Режим обычного приема
+//     Serial.println("RFM69 receiver initialized!");
 // }
 
 // void loop() {
-//     uint8_t buf[VW_MAX_MESSAGE_LEN];
-//     uint8_t buflen = VW_MAX_MESSAGE_LEN;
+//     // Проверяем наличие входящих данных
+//     if (radio.available()) {
+//         uint8_t buf[RH_RF69_MAX_MESSAGE_LEN];
+//         uint8_t len = sizeof(buf);
 
-//     // Проверяем наличие данных
-//     if (vw_get_message(buf, &buflen)) {
-//         // Преобразуем данные в строку
-//         String message = "";
-//         for (int i = 0; i < buflen; i++) {
-//             message += (char)buf[i];
-//         }
+//         // Получаем данные
+//         if (radio.recv(buf, &len)) {
+//             String message = "";
+//             for (int i = 0; i < len; i++) {
+//                 message += (char)buf[i];
+//             }
 
-//         // Выводим данные в Serial
-//         Serial.println(message);
+//             // Выводим данные в Serial
+//             Serial.println(message);
 
-//         // Можно разобрать строку для получения температуры и влажности
-//         if (message.startsWith("T:")) {
-//             float temperature = extractValue(message, 'T');
-//             float humidity = extractValue(message, 'H');
+//             // Разбор данных
+//             if (message.startsWith("T:")) {
+//                 float temperature = extractValue(message, 'T');
+//                 float humidity = extractValue(message, 'H');
 
-//             Serial.printf("Temperature: %.2f C, Humidity: %.2f %%\n", temperature, humidity);
+//                 Serial.printf("Temperature: %.2f C, Humidity: %.2f %%\n", temperature, humidity);
+//             }
 //         }
 //     }
 // }
