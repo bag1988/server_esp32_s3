@@ -1,12 +1,11 @@
 #include <vector>
 #include <string>
-#include <WiFi.h>
 #include <web_server_setting.h>
 #include <variables_info.h>
 #include <lcd_setting.h>
 #include <ble_setting.h>
 #include <spiffs_setting.h>
-
+#include <xiaomi_ble_scanner.h>
 // Data
 std::vector<ClientData> clients;
 int selectedClientIndex = 0;
@@ -26,6 +25,10 @@ String scrollText = "";
 int scrollPosition = 0;
 unsigned long lastScrollTime = 0;
 
+// Интервал сканирования BLE (в миллисекундах)
+#define BLE_SCAN_INTERVAL 30000 // 30 секунд
+#define BLE_SCAN_DURATION 5     // 5 секунд
+
 // WiFi Credentials (Global Variable)
 WifiCredentials wifiCredentials;
 bool wifiConnected = false;
@@ -39,21 +42,38 @@ void controlGPIO()
 {
   std::vector<int> gpiosToTurnOn;
 
-  // 1. Collect GPIOs to turn on
-  for (auto &client : clients)
+  // Проверяем все датчики Xiaomi
+  for (auto &pair : xiaomiSensors)
   {
-    if (client.enabled && client.connected && (client.currentTemperature + 2) < client.targetTemperature)
+    XiaomiSensorData &sensor = pair.second;
+
+    // Проверяем, онлайн ли датчик и актуальны ли данные
+    if (sensor.isOnline && (millis() - sensor.lastUpdate < 300000))
     {
-      gpiosToTurnOn.insert(gpiosToTurnOn.end(), client.gpioPins.begin(), client.gpioPins.end());
-      client.gpioOnTime += CONTROL_DELAY / 1000;
+      // Находим соответствующего клиента по MAC-адресу
+      for (auto &client : clients)
+      {
+        if (client.address.c_str() == sensor.address.c_str() && client.enabled)
+        {
+          // Проверяем, нужно ли включать обогрев
+          if ((sensor.temperature + 2) < client.targetTemperature)
+          {
+            gpiosToTurnOn.insert(gpiosToTurnOn.end(), client.gpioPins.begin(), client.gpioPins.end());
+            client.gpioOnTime += CONTROL_DELAY / 1000;
+
+            // Обновляем текущую температуру клиента
+            client.currentTemperature = sensor.temperature;
+          }
+        }
+      }
     }
   }
 
-  // 2. Remove duplicate GPIOs
+  // Удаляем дубликаты GPIO
   std::sort(gpiosToTurnOn.begin(), gpiosToTurnOn.end());
   gpiosToTurnOn.erase(std::unique(gpiosToTurnOn.begin(), gpiosToTurnOn.end()), gpiosToTurnOn.end());
 
-  // 3. Turn off all GPIOs not in the list (only from availableGpio)
+  // Управляем GPIO
   for (int gpio : availableGpio)
   {
     bool shouldTurnOn = false;
@@ -75,21 +95,76 @@ void setup()
   Serial.begin(115200);
   initLCD();
   initButtons();
+
+  // Инициализация GPIO
+  for (int gpio : availableGpio)
+  {
+    pinMode(gpio, OUTPUT);
+    digitalWrite(gpio, LOW);
+  }
+
   loadWifiCredentialsFromFile(); // Load WiFi credentials first
   connectWiFi();                 // Connect to WiFi
+
+  // Инициализация сканера Xiaomi
+  setupXiaomiScanner();
 
   handleWifiSetupBLE(); // Start BLE for WiFi setup
   loadClientsFromFile();
   initWebServer(); // Initialize Web Server if needed
   updateScrollText();
   updateLCD();
-  Serial.println(F("Setup complete"));
+  Serial.println(F("Настройка завершена"));
 }
-
+// Обновление статуса датчиков
+void updateSensorsStatus() {
+  unsigned long currentTime = millis();
+  
+  for (auto& pair : xiaomiSensors) {
+      XiaomiSensorData& sensor = pair.second;
+      
+      // Проверяем, не устарели ли данные (более 5 минут)
+      if (currentTime - sensor.lastUpdate > 300000) {
+          if (sensor.isOnline) {
+              sensor.isOnline = false;
+              Serial.print("Датчик ");
+              Serial.print(sensor.name);
+              Serial.println(" перешел в оффлайн (нет данных более 5 минут)");
+          }
+      }
+  }
+  
+  // Обновляем статус подключения клиентов
+  for (auto& client : clients) {
+      bool wasConnected = client.connected;
+      client.connected = false;
+      
+      // Проверяем, есть ли соответствующий онлайн-датчик
+      for (auto& pair : xiaomiSensors) {
+          XiaomiSensorData& sensor = pair.second;
+          if (sensor.address == String(client.address.c_str()) && sensor.isOnline) {
+              client.connected = true;
+              client.currentTemperature = sensor.temperature;
+              break;
+          }
+      }
+      
+      // Если статус изменился, выводим сообщение
+      if (wasConnected != client.connected) {
+          Serial.print("Клиент ");
+          Serial.print(client.name.c_str());
+          Serial.print(client.connected ? " подключен" : " отключен");
+          Serial.println();
+      }
+  }
+  
+  // Обновляем текст прокрутки с новыми данными
+  updateScrollText();
+}
 void loop()
 {
   handleButtons();
-
+  // Обновление прокрутки текста
   if (!isEditing)
   {
     if (millis() - lastScrollTime > SCROLL_DELAY)
@@ -103,17 +178,27 @@ void loop()
       lastScrollTime = millis();
     }
   }
-
+  // Управление GPIO
   static unsigned long lastGpioControlTime = 0;
   if (millis() - lastGpioControlTime > CONTROL_DELAY)
   {
     controlGPIO();
     lastGpioControlTime = millis();
   }
-  // WiFi Reconnect Check
+
+  // Периодическое сканирование BLE
+  static unsigned long lastScanTime = 0;
+  if (millis() - lastScanTime > BLE_SCAN_INTERVAL)
+  {
+    startXiaomiScan(BLE_SCAN_DURATION);
+    updateSensorsStatus();
+    lastScanTime = millis();
+  }
+
+  // Проверка подключения WiFi
   if (!wifiConnected && (millis() - lastWiFiAttemptTime > WIFI_RECONNECT_DELAY))
   {
-    connectWiFi(); // Attempt to reconnect to WiFi every WIFI_RECONNECT_DELAY milliseconds
+    connectWiFi();
   }
-  updateLCD(); // Update LCD to show WiFi status
+  updateLCD();
 }

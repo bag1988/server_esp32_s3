@@ -67,7 +67,8 @@ const int MIN_GPIO = 0;
 enum EditMode
 {
   EDIT_TEMPERATURE,
-  EDIT_GPIO
+  EDIT_GPIO,
+  EDIT_ENABLED
 };
 
 // State Variables
