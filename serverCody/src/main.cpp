@@ -72,6 +72,8 @@ void setup() {
         return;
     }
     
+    loadGpioFromFile();
+
     // Инициализация GPIO
     for (auto& gpio : availableGpio) {
         pinMode(gpio.pin, OUTPUT);
@@ -94,8 +96,7 @@ void setup() {
     
     // Инициализация веб-сервера
     initWebServer();
-
-    loadGpioFromFile();
+    
     // Обновление текста прокрутки
     updateScrollText();
     updateLCD();
