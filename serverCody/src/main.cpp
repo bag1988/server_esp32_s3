@@ -19,7 +19,7 @@ bool isEditing = false;
 int gpioSelectionIndex = 0;
 
 // Прокрутка текста
-String scrollText = "";
+std::string scrollText = "";
 int scrollPosition = 0;
 unsigned long lastScrollTime = 0;
 
@@ -29,8 +29,8 @@ bool wifiConnected = false;
 unsigned long lastWiFiAttemptTime = 0;
 
 // Имена файлов
-String DEVICES_FILE = "/devices.json";
-String WIFI_CREDENTIALS_FILE = "/wifi_credentials.json";
+std::string DEVICES_FILE = "/devices.json";
+std::string WIFI_CREDENTIALS_FILE = "/wifi_credentials.json";
 
 // Управление GPIO
 void controlGPIO() {
@@ -84,7 +84,7 @@ void setup() {
     setupXiaomiScanner();
     
     // Загрузка данных устройств
-    loadDevicesFromFile();
+    loadClientsFromFile();
     
     // Инициализация веб-сервера
     initWebServer();
@@ -132,9 +132,6 @@ void loop() {
     if (!wifiConnected && (millis() - lastWiFiAttemptTime > WIFI_RECONNECT_DELAY)) {
         connectWiFi();
     }
-    
-    // Обработка веб-сервера
-    server.handleClient();
     
     // Обновление LCD
     updateLCD();

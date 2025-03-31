@@ -28,12 +28,12 @@ WifiCredentials fromJsonWifi(const std::string& json) {
 }
 
 // Преобразование структуры ClientData в JSON строку
-std::string toJson(const ClientData& data) {
+std::string toJson(const DeviceData& data) {
     std::string json = "{";
-    json += "\"address\":\"" + data.address + "\",";
+    json += "\"macAddress\":\"" + data.macAddress + "\",";
     json += "\"name\":\"" + data.name + "\",";
     json += "\"enabled\":" + std::string(data.enabled ? "true" : "false") + ",";
-    json += "\"connected\":" + std::string(data.connected ? "true" : "false") + ",";
+    json += "\"isOnline\":" + std::string(data.isOnline ? "true" : "false") + ",";
     json += "\"gpioPins\":[";
     for (size_t i = 0; i < data.gpioPins.size(); ++i) {
         json += std::to_string(data.gpioPins[i]);
@@ -44,7 +44,7 @@ std::string toJson(const ClientData& data) {
     json += "],";
     json += "\"targetTemperature\":" + std::to_string(data.targetTemperature) + ",";
     json += "\"currentTemperature\":" + std::to_string(data.currentTemperature) + ",";
-    json += "\"currentHumidity\":" + std::to_string(data.currentHumidity) + ",";
+    json += "\"humidity\":" + std::to_string(data.humidity) + ",";
     json += "\"gpioOnTime\":" + std::to_string(data.gpioOnTime);
     json += "}";
     return json;
@@ -76,22 +76,22 @@ std::vector<int> parseJsonGpioPins(const std::string& json) {
 
 
 // Преобразование JSON строки в структуру ClientData
-ClientData fromJson(const std::string& json) {
-    ClientData data;
+DeviceData fromJson(const std::string& json) {
+    DeviceData data;
     auto extractValue = [](const std::string& json, const std::string& key) {
         size_t start = json.find(key) + key.length() + 2;
         size_t end = json.find_first_of(",}", start);
         return json.substr(start, end - start - (json[start] == '\"' ? 1 : 0));
     };
 
-    data.address = extractValue(json, "\"address\"");
+    data.macAddress = extractValue(json, "\"address\"");
     data.name = extractValue(json, "\"name\"");
     data.enabled = extractValue(json, "\"enabled\"") == "true";
-    data.connected = extractValue(json, "\"connected\"") == "true";
+    data.isOnline = extractValue(json, "\"connected\"") == "true";
     data.gpioPins = parseJsonGpioPins(json);
     data.targetTemperature = std::stof(extractValue(json, "\"targetTemperature\""));
     data.currentTemperature = std::stof(extractValue(json, "\"currentTemperature\""));
-    data.currentHumidity = std::stof(extractValue(json, "\"currentHumidity\""));
+    data.humidity = std::stof(extractValue(json, "\"currentHumidity\""));
     data.gpioOnTime = std::stoul(extractValue(json, "\"gpioOnTime\""));
 
     return data;

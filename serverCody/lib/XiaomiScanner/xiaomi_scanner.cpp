@@ -1,6 +1,7 @@
 #include "xiaomi_scanner.h"
 #include "variables_info.h"
 #include <algorithm>
+#include <lcd_setting.h>
 
 // Глобальные переменные
 BLEScan* pBLEScan = nullptr;
@@ -15,7 +16,7 @@ class XiaomiAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
 
 // Инициализация сканера BLE
 void setupXiaomiScanner() {
-    BLEDevice::init("serverGemmeni");
+    BLEDevice::init("serverCody");
     pBLEScan = BLEDevice::getScan();
     pBLEScan->setAdvertisedDeviceCallbacks(new XiaomiAdvertisedDeviceCallbacks());
     pBLEScan->setActiveScan(true);
@@ -56,7 +57,7 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice) {
             (uint8_t)manufacturerData[1] == 0x01) {
             
             // Получаем MAC-адрес устройства
-            String deviceAddress = advertisedDevice.getAddress().toString().c_str();
+            std::string deviceAddress = advertisedDevice.getAddress().toString().c_str();
             
             // Парсим данные из рекламного пакета
             float temperature = 0.0;
@@ -78,9 +79,9 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice) {
                     it->updateSensorData(temperature, humidity, battery);
                     
                     Serial.print("Обновлены данные устройства: ");
-                    Serial.print(it->name);
+                    Serial.print(it->name.c_str());
                     Serial.print(" (");
-                    Serial.print(deviceAddress);
+                    Serial.print(deviceAddress.c_str());
                     Serial.print(") - Температура: ");
                     Serial.print(temperature);
                     Serial.print("°C, Влажность: ");
@@ -90,7 +91,7 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice) {
                     Serial.println("%");
                 } else {
                     // Устройство не найдено, создаем новое
-                    String deviceName = "Xiaomi " + deviceAddress.substring(deviceAddress.length() - 5);
+                    std::string deviceName = "Xiaomi " + deviceAddress.substr(deviceAddress.length() - 5);
                     
                     // Если устройство имеет имя, используем его
                     if (advertisedDevice.haveName()) {
@@ -102,9 +103,9 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice) {
                     devices.push_back(newDevice);
                     
                     Serial.print("Найдено новое устройство: ");
-                    Serial.print(deviceName);
+                    Serial.print(deviceName.c_str());
                     Serial.print(" (");
-                    Serial.print(deviceAddress);
+                    Serial.print(deviceAddress.c_str());
                     Serial.println(")");
                 }
             }
@@ -177,7 +178,7 @@ void updateDevicesStatus() {
             statusChanged = true;
             
             Serial.print("Устройство ");
-            Serial.print(device.name);
+            Serial.print(device.name.c_str());
             Serial.println(" перешло в оффлайн (нет данных более 5 минут)");
         }
     }
@@ -198,9 +199,9 @@ void printDevicesData() {
     }
     
     for (const auto& device : devices) {
-        Serial.print(device.name);
+        Serial.print(device.name.c_str());
         Serial.print(" (");
-        Serial.print(device.macAddress);
+        Serial.print(device.macAddress.c_str());
         Serial.print(") - ");
         
         if (device.isOnline) {

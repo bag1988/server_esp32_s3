@@ -1,10 +1,10 @@
 #include <web_server_setting.h>
-#include <ble_setting.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <variables_info.h>
 #include <convert_to_json.h>
 #include <spiffs_setting.h>
+#include "xiaomi_scanner.h"
 // Web Server
 AsyncWebServer server(80);
 
@@ -38,15 +38,6 @@ void connectWiFi()
         Serial.println(F(""));
         Serial.println(F("Failed to connect to WiFi"));
         wifiConnected = false;
-        if (pServer != nullptr)
-        {
-            Serial.println(F("Restarting BLE Advertising..."));
-            pServer->startAdvertising();
-        }
-        else
-        {
-            Serial.println(F("BLE server not initialized"));
-        }
     }
 }
 // web server +++++++++++++++++++++++++++++++++
@@ -57,9 +48,9 @@ void initWebServer()
               {
             std::string jsonVal = "[";
 
-            for (size_t i = 0; i < clients.size(); ++i) {
-                jsonVal += toJson(clients[i]);
-                if (i != clients.size() - 1) {
+            for (size_t i = 0; i < devices.size(); ++i) {
+                jsonVal += toJson(devices[i]);
+                if (i != devices.size() - 1) {
                     jsonVal += ",";
                 }
             }
@@ -101,9 +92,9 @@ void initWebServer()
                 {
                     String newName = request->getParam("name", true)->value();
                     // Find the client by address and update the name
-                    for (auto& client : clients)
+                    for (auto& client : devices)
                     {
-                        if (client.address == address.c_str())
+                        if (client.macAddress == address.c_str())
                         {
                             client.name = newName.c_str();
                             isSaving = true;
@@ -117,9 +108,9 @@ void initWebServer()
                     String tempStr = request->getParam("targetTemperature", true)->value();
                     float newTargetTemperature = tempStr.toFloat();
                     // Find the client by address and update the target temperature
-                    for (auto& client : clients)
+                    for (auto& client : devices)
                     {
-                        if (client.address == address.c_str())
+                        if (client.macAddress == address.c_str())
                         {
                             client.targetTemperature = newTargetTemperature;
                             isSaving = true;
@@ -133,9 +124,9 @@ void initWebServer()
                     String tempStr = request->getParam("enabled", true)->value();
                     bool enabled = tempStr == "true";
                     // Find the client by address and update the target temperature
-                    for (auto& client : clients)
+                    for (auto& client : devices)
                     {
-                        if (client.address == address.c_str())
+                        if (client.macAddress == address.c_str())
                         {
                             client.enabled = enabled;
                             isSaving = true;
@@ -148,9 +139,9 @@ void initWebServer()
                 {
                     String newName = request->getParam("gpioPins", true)->value();
                     // Find the client by address and update the name
-                    for (auto& client : clients)
+                    for (auto& client : devices)
                     {
-                        if (client.address == address.c_str())
+                        if (client.macAddress == address.c_str())
                         {
                             client.gpioPins = parseGpioPins(newName.c_str());
                             isSaving = true;
@@ -171,10 +162,9 @@ void initWebServer()
     // GET /scan (start BLE scan)
     server.on("/scan", HTTP_GET, [](AsyncWebServerRequest *request)
               {
-            startBLEScan();
+                startXiaomiScan();
             request->send(200, "text/plain", "BLE Scan started"); });
 
     server.begin();
     Serial.println(F("Web server started"));
 }
-

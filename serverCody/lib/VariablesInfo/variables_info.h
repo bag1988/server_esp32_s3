@@ -30,7 +30,6 @@
 
 // Режимы редактирования
 enum EditMode {
-    EDIT_NAME,
     EDIT_TEMPERATURE,
     EDIT_GPIO,
     EDIT_ENABLED
@@ -38,14 +37,14 @@ enum EditMode {
 
 // Структура для хранения учетных данных WiFi
 struct WifiCredentials {
-    String ssid;
-    String password;
+    std::string ssid;
+    std::string password;
 };
 
 // Объединенная структура данных для клиента/датчика
 struct DeviceData {
-    String name;                  // Имя устройства
-    String macAddress;            // MAC-адрес датчика
+    std::string name;                  // Имя устройства
+    std::string macAddress;            // MAC-адрес датчика
     float targetTemperature = 20.0; // Целевая температура
     float currentTemperature = 0.0; // Текущая температура
     int humidity = 0;             // Влажность
@@ -65,12 +64,12 @@ struct DeviceData {
         battery(0),
         lastUpdate(0),
         isOnline(false),
-        targetTemperature(20.0),
+        targetTemperature(25.0),
         enabled(false),
         gpioOnTime(0) {}
     
     // Конструктор с основными параметрами
-    DeviceData(const String& _name, const String& _mac) :
+    DeviceData(const std::string& _name, const std::string& _mac) :
         name(_name),
         macAddress(_mac),
         currentTemperature(0.0),
@@ -109,11 +108,12 @@ extern std::vector<int> availableGpio;
 extern EditMode currentEditMode;
 extern bool isEditing;
 extern int gpioSelectionIndex;
-extern String scrollText;
+extern std::string scrollText;
 extern int scrollPosition;
 extern unsigned long lastScrollTime;
 extern WifiCredentials wifiCredentials;
 extern bool wifiConnected;
-extern String DEVICES_FILE;
-extern String WIFI_CREDENTIALS_FILE;
+extern std::string DEVICES_FILE;
+extern std::string WIFI_CREDENTIALS_FILE;
+extern unsigned long lastWiFiAttemptTime;
 #endif // VARIABLES_INFO_H

@@ -18,22 +18,21 @@ void initLCD()
 void initButtons()
 {
   pinMode(BUTTON_SELECT, INPUT_PULLUP);
-  pinMode(BUTTON_LEFT, INPUT_PULLUP);
+  // pinMode(BUTTON_LEFT, INPUT_PULLUP);
   pinMode(BUTTON_UP, INPUT_PULLUP);
   pinMode(BUTTON_DOWN, INPUT_PULLUP);
-  pinMode(BUTTON_RIGHT, INPUT_PULLUP);
-  pinMode(BUTTON_RST, INPUT_PULLUP);
+  // pinMode(BUTTON_RIGHT, INPUT_PULLUP);
+  // pinMode(BUTTON_RST, INPUT_PULLUP);
 }
 
 // Обновление текста для прокрутки
 void updateScrollText()
 {
   scrollText = "";
-
   // Добавляем информацию о WiFi
   if (wifiConnected)
   {
-    scrollText += "WiFi: " + WiFi.localIP().toString() + " | ";
+    scrollText += (("WiFi: %S  | "), WiFi.localIP().toString().c_str());
   }
   else
   {
@@ -45,11 +44,11 @@ void updateScrollText()
   {
     if (device.isDataValid())
     {
-      scrollText += device.name + ": " + String(device.currentTemperature) + "C ";
+      scrollText += ("%S: %S C", device.name, device.currentTemperature);
 
       if (device.enabled)
       {
-        scrollText += "/ " + String(device.targetTemperature) + "C ";
+        scrollText += ("/ %S C", device.targetTemperature);
 
         // Добавляем статус обогрева
         if (device.needsHeating())
@@ -62,8 +61,8 @@ void updateScrollText()
         }
       }
 
-      scrollText += "Влаж: " + String(device.humidity) + "% ";
-      scrollText += "Бат: " + String(device.battery) + "% | ";
+      scrollText += ("Влаж: %S % ", device.humidity);
+      scrollText += ("Бат: %S % | ", device.battery);
     }
     else if (device.enabled)
     {
@@ -109,16 +108,12 @@ void updateLCD()
     // Если в режиме редактирования, показываем текущее выбранное устройство
     if (devices.size() > 0 && selectedDeviceIndex < devices.size())
     {
-      lcd.print(devices[selectedDeviceIndex].name);
+      lcd.print(devices[selectedDeviceIndex].name.c_str());
       lcd.print(" ");
 
       // Показываем параметр, который редактируется
       switch (currentEditMode)
-      {
-      case EDIT_NAME:
-        lcd.print("Имя");
-        break;
-
+      {      
       case EDIT_TEMPERATURE:
         lcd.print("Temp:");
         lcd.print(devices[selectedDeviceIndex].targetTemperature);
@@ -166,13 +161,13 @@ void updateLCD()
       if (endPos > scrollText.length())
       {
         // Если достигли конца текста, показываем начало
-        String textPart = scrollText.substring(scrollPosition);
-        textPart += scrollText.substring(0, endPos - scrollText.length());
-        lcd.print(textPart);
+        auto textPart = scrollText.substr(scrollPosition);
+        textPart += scrollText.substr(0, endPos - scrollText.length());
+        lcd.print(textPart.c_str());
       }
       else
       {
-        lcd.print(scrollText.substring(scrollPosition, endPos));
+        lcd.print(scrollText.substr(scrollPosition, endPos).c_str());
       }
     }
     else
@@ -214,11 +209,7 @@ void handleButtons()
     {
       // Кнопка "Вверх"
       switch (currentEditMode)
-      {
-      case EDIT_NAME:
-        // Имя можно редактировать только через веб-интерфейс
-        break;
-
+      {      
       case EDIT_TEMPERATURE:
         devices[selectedDeviceIndex].targetTemperature += 0.5;
         break;
@@ -236,11 +227,7 @@ void handleButtons()
     {
       // Кнопка "Вниз"
       switch (currentEditMode)
-      {
-      case EDIT_NAME:
-        // Имя можно редактировать только через веб-интерфейс
-        break;
-
+      {      
       case EDIT_TEMPERATURE:
         devices[selectedDeviceIndex].targetTemperature -= 0.5;
         if (devices[selectedDeviceIndex].targetTemperature < 0)
@@ -292,7 +279,7 @@ void handleButtons()
       {
         // Завершаем редактирование
         isEditing = false;
-        saveDevicesToFile();
+        saveClientsToFile();
         updateScrollText();
       }
       else

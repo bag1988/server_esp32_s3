@@ -7,9 +7,9 @@
 
 std::string toJsonWifi(const WifiCredentials& data);
 WifiCredentials fromJsonWifi(const std::string& json);
-std::string toJson(const ClientData& data);
+std::string toJson(const DeviceData& data);
 std::vector<int> parseGpioPins(const std::string& gpioPinsStr);
 std::vector<int> parseJsonGpioPins(const std::string& json);
-ClientData fromJson(const std::string& json);
+DeviceData fromJson(const std::string& json);
 
 #endif
