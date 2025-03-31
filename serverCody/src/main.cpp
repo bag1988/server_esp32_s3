@@ -119,7 +119,6 @@ void loop() {
             lastScrollTime = millis();
         }
     }
-
     // Управление GPIO
     static unsigned long lastGpioControlTime = 0;
     if (millis() - lastGpioControlTime > CONTROL_DELAY) {
@@ -142,4 +141,6 @@ void loop() {
     
     // Обновление LCD
     updateLCD();
+
+    delay(20); // Задержка 10 мс
 }
