@@ -101,10 +101,17 @@ struct DeviceData {
     }
 };
 
+
+struct GpioPin {
+    int pin;
+    std::string name;
+    
+    GpioPin(int p, const std::string& n) : pin(p), name(n) {}
+};
 // Глобальные переменные (объявлены как extern)
 extern std::vector<DeviceData> devices;
 extern int selectedDeviceIndex;
-extern std::vector<int> availableGpio;
+extern std::vector<GpioPin> availableGpio;
 extern EditMode currentEditMode;
 extern bool isEditing;
 extern int gpioSelectionIndex;

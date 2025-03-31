@@ -124,13 +124,13 @@ void updateLCD()
         lcd.print("GPIO:");
         if (gpioSelectionIndex < availableGpio.size())
         {
-          lcd.print(availableGpio[gpioSelectionIndex]);
+          lcd.print(availableGpio[gpioSelectionIndex].pin);
 
           // Показываем, выбран ли этот GPIO
           bool isSelected = false;
           for (int gpio : devices[selectedDeviceIndex].gpioPins)
           {
-            if (gpio == availableGpio[gpioSelectionIndex])
+            if (gpio == availableGpio[gpioSelectionIndex].pin)
             {
               isSelected = true;
               break;
@@ -251,7 +251,7 @@ void handleButtons()
       if (currentEditMode == EDIT_GPIO)
       {
         // Переключаем выбор GPIO
-        int selectedGpio = availableGpio[gpioSelectionIndex];
+        int selectedGpio = availableGpio[gpioSelectionIndex].pin;
         bool isSelected = false;
 
         // Проверяем, выбран ли уже этот GPIO

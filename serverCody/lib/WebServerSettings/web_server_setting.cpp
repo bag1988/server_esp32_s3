@@ -5,6 +5,7 @@
 #include <convert_to_json.h>
 #include <spiffs_setting.h>
 #include "xiaomi_scanner.h"
+#include <SPIFFS.h>
 // Web Server
 AsyncWebServer server(80);
 
@@ -59,27 +60,26 @@ void initWebServer()
 
     server.on("/availablegpio", HTTP_GET, [](AsyncWebServerRequest *request)
               {
-            std::string jsonVal = "[";
-            for (size_t i = 0; i < availableGpio.size(); ++i) {
-                jsonVal += std::to_string(availableGpio[i]);
-                if (i != availableGpio.size() - 1) {
-                    jsonVal += ",";
-                }
-            }
-            jsonVal += "]";
-            request->send(200, "application/json", jsonVal.c_str()); });
+          std::string jsonVal = "[";
+          for (size_t i = 0; i < availableGpio.size(); ++i) {
+              jsonVal += "{\"pin\":" + std::to_string(availableGpio[i].pin) + 
+                        ",\"name\":\"" + availableGpio[i].name + "\"}";
+              if (i != availableGpio.size() - 1) {
+                  jsonVal += ",";
+              }
+          }
+          jsonVal += "]";
+          request->send(200, "application/json", jsonVal.c_str()); });
     server.on("/availablegpio", HTTP_POST, [](AsyncWebServerRequest *request)
               {
-            if (request->hasParam("availablegpio", true))
-            {
-                std::string json = request->getParam("availablegpio", true)->value().c_str();
-                size_t start = json.find("[") + 1;
-                size_t end = json.find("]", start);
-                std::string gpioPinsStr = json.substr(start, end - start);
-                availableGpio = parseGpioPins(gpioPinsStr);
-                request->send(200, "text/plain", "availablegpio update");
-            }
-            request->send(400, "text/plain", "availablegpio no found"); });
+        if (request->hasParam("availablegpio", true))
+        {
+            std::string json = request->getParam("availablegpio", true)->value().c_str();
+            availableGpio = parseGpioPinsWithNames(json);
+            saveGpioToFile();
+            request->send(200, "text/plain", "availablegpio update");
+        }
+        request->send(400, "text/plain", "availablegpio no found"); });
     // POST /client/{address} (update info about a client)
     server.on("/client", HTTP_POST, [](AsyncWebServerRequest *request)
               {
@@ -136,19 +136,20 @@ void initWebServer()
                 }
 
                 if (request->hasParam("gpioPins", true))
-                {
-                    String newName = request->getParam("gpioPins", true)->value();
-                    // Find the client by address and update the name
-                    for (auto& client : devices)
-                    {
-                        if (client.macAddress == address.c_str())
-                        {
-                            client.gpioPins = parseGpioPins(newName.c_str());
-                            isSaving = true;
-                            break;
-                        }
-                    }
-                }
+{
+    String newName = request->getParam("gpioPins", true)->value();
+    // Find the client by address and update the name
+    for (auto& client : devices)
+    {
+        if (client.macAddress == address.c_str())
+        {
+            // Извлекаем только номера пинов для совместимости
+            client.gpioPins = parseGpioPins(newName.c_str());
+            isSaving = true;
+            break;
+        }
+    }
+}
                 if (isSaving)
                 {
                     saveClientsToFile(); // Save changes to file
@@ -164,6 +165,14 @@ void initWebServer()
               {
                 startXiaomiScan();
             request->send(200, "text/plain", "BLE Scan started"); });
+    // Добавьте этот код в функцию initWebServer() в файле web_server_setting.cpp
+
+    // Обработчик для корневого пути и /index
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
+              { request->send(SPIFFS, "/index.html", "text/html"); });
+
+    server.on("/index", HTTP_GET, [](AsyncWebServerRequest *request)
+              { request->send(SPIFFS, "/index.html", "text/html"); });
 
     server.begin();
     Serial.println(F("Web server started"));

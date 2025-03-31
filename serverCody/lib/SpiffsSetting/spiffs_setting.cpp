@@ -100,3 +100,40 @@ void saveWifiCredentialsToFile()
     Serial.println(F("WiFi credentials saved to file"));
   }
 }
+// Функция для сохранения GPIO в файл
+void saveGpioToFile() {
+  File file = SPIFFS.open("/gpio.json", FILE_WRITE);
+  if (!file) {
+      Serial.println("Failed to open gpio.json for writing");
+      return;
+  }
+  
+  String json = "[";
+  for (size_t i = 0; i < availableGpio.size(); i++) {
+      json += "{\"pin\":" + String(availableGpio[i].pin) + 
+              ",\"name\":\"" + availableGpio[i].name.c_str() + "\"}";
+      if (i < availableGpio.size() - 1) {
+          json += ",";
+      }
+  }
+  json += "]";
+  
+  file.println(json);
+  file.close();
+}
+
+// Функция для загрузки GPIO из файла
+void loadGpioFromFile() {
+  if (SPIFFS.exists("/gpio.json")) {
+      File file = SPIFFS.open("/gpio.json", FILE_READ);
+      if (!file) {
+          Serial.println("Failed to open gpio.json for reading");
+          return;
+      }
+      
+      String json = file.readString();
+      file.close();
+      
+      availableGpio = parseGpioPinsWithNames(json.c_str());
+  }
+}

@@ -11,7 +11,13 @@
 // Глобальные переменные
 std::vector<DeviceData> devices;
 int selectedDeviceIndex = 0;
-std::vector<int> availableGpio = {25, 26, 27, 32, 33};
+std::vector<GpioPin> availableGpio = {
+    {25, "Реле 1"},
+    {26, "Реле 2"},
+    {27, "Реле 3"},
+    {32, "Датчик 1"},
+    {33, "Датчик 2"}
+};
 
 // Состояние
 EditMode currentEditMode = EDIT_TEMPERATURE;
@@ -49,9 +55,9 @@ void controlGPIO() {
     gpiosToTurnOn.erase(std::unique(gpiosToTurnOn.begin(), gpiosToTurnOn.end()), gpiosToTurnOn.end());
 
     // Управляем GPIO
-    for (int gpio : availableGpio) {
-        bool shouldTurnOn = std::find(gpiosToTurnOn.begin(), gpiosToTurnOn.end(), gpio) != gpiosToTurnOn.end();
-        digitalWrite(gpio, shouldTurnOn ? HIGH : LOW);
+    for (auto& gpio : availableGpio) {
+        bool shouldTurnOn = std::find(gpiosToTurnOn.begin(), gpiosToTurnOn.end(), gpio.pin) != gpiosToTurnOn.end();
+        digitalWrite(gpio.pin, shouldTurnOn ? HIGH : LOW);
     }
 }
 
@@ -67,9 +73,9 @@ void setup() {
     }
     
     // Инициализация GPIO
-    for (int gpio : availableGpio) {
-        pinMode(gpio, OUTPUT);
-        digitalWrite(gpio, LOW);
+    for (auto& gpio : availableGpio) {
+        pinMode(gpio.pin, OUTPUT);
+        digitalWrite(gpio.pin, LOW);
     }
     
     // Инициализация LCD и кнопок
@@ -88,7 +94,8 @@ void setup() {
     
     // Инициализация веб-сервера
     initWebServer();
-    
+
+    loadGpioFromFile();
     // Обновление текста прокрутки
     updateScrollText();
     updateLCD();

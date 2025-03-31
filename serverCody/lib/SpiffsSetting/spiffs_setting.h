@@ -5,5 +5,6 @@ void loadClientsFromFile();
 void saveClientsToFile();
 void loadWifiCredentialsFromFile();
 void saveWifiCredentialsToFile();
-
+void saveGpioToFile();
+void loadGpioFromFile();
 #endif

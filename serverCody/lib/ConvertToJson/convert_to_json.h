@@ -10,6 +10,7 @@ WifiCredentials fromJsonWifi(const std::string& json);
 std::string toJson(const DeviceData& data);
 std::vector<int> parseGpioPins(const std::string& gpioPinsStr);
 std::vector<int> parseJsonGpioPins(const std::string& json);
+std::vector<GpioPin> parseGpioPinsWithNames(const std::string& jsonStr);
 DeviceData fromJson(const std::string& json);
 
 #endif
