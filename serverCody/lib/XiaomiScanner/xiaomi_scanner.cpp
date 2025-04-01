@@ -50,7 +50,7 @@ void startXiaomiScan(uint32_t duration)
     Serial.println(foundDevices.getCount());
 
     pBLEScan->clearResults();
-    scanningActive = false;   
+    scanningActive = false;
 }
 
 // Обработка рекламного пакета
@@ -261,80 +261,89 @@ void printDevicesData()
     Serial.println("-----------------------------\n");
 }
 
-
 // Инициализация эмуляции устройств
-void initXiaomiDeviceEmulation() {
+void initXiaomiDeviceEmulation()
+{
     // Очищаем массив
     emulatedDevices.clear();
-    
+
     // Создаем эмулируемые устройства на основе обнаруженных датчиков
-    if (xSemaphoreTake(devicesMutex, portMAX_DELAY) == pdTRUE) {
-        for (const auto& device : devices) {
+    if (xSemaphoreTake(devicesMutex, portMAX_DELAY) == pdTRUE)
+    {
+        for (const auto &device : devices)
+        {
             EmulatedXiaomiDevice emulated;
             emulated.did = generateDeviceDid(device.macAddress.c_str());
             emulated.model = "lumi.sensor_ht.v1";
             emulated.name = device.name.c_str();
             emulated.type = "zigbee"; // Эмулируем Zigbee устройства
             emulated.online = true;
-            
+
             // Добавляем устройство в массив
             emulatedDevices.push_back(emulated);
         }
-        
+
         xSemaphoreGive(devicesMutex);
     }
-    
+
     Serial.printf("Создано %d эмулируемых устройств Xiaomi\n", emulatedDevices.size());
 }
 
 // Обновление данных эмулируемых устройств
-void updateEmulatedDevices() {
-    if (xSemaphoreTake(devicesMutex, portMAX_DELAY) == pdTRUE) {
-        for (size_t i = 0; i < devices.size() && i < emulatedDevices.size(); i++) {
+void updateEmulatedDevices()
+{
+    if (xSemaphoreTake(devicesMutex, portMAX_DELAY) == pdTRUE)
+    {
+        for (size_t i = 0; i < devices.size() && i < emulatedDevices.size(); i++)
+        {
             // Обновляем свойства устройства
             emulatedDevices[i].name = devices[i].name.c_str();
             emulatedDevices[i].online = true;
-            
+
             // Обновляем DID, если MAC-адрес изменился
             String newDid = generateDeviceDid(devices[i].macAddress.c_str());
-            if (emulatedDevices[i].did != newDid) {
+            if (emulatedDevices[i].did != newDid)
+            {
                 emulatedDevices[i].did = newDid;
             }
         }
-        
+
         // Если количество устройств изменилось, пересоздаем массив
-        if (devices.size() != emulatedDevices.size()) {
+        if (devices.size() != emulatedDevices.size())
+        {
             initXiaomiDeviceEmulation();
         }
-        
+
         xSemaphoreGive(devicesMutex);
     }
 }
 
 // Генерация DID на основе MAC-адреса
-String generateDeviceDid(const String& macAddress) {
+String generateDeviceDid(const String &macAddress)
+{
     // Используем последние 6 символов MAC-адреса
     String shortMac = macAddress;
     shortMac.replace(":", "");
     shortMac = shortMac.substring(6);
-    
+
     // Формат: lumi.sensor_ht.XXXXXX
     return "lumi.sensor_ht." + shortMac;
 }
 
 // Получение свойств устройства в формате JSON
-JsonObject getDeviceProperties(const DeviceData& device, JsonDocument& doc) {
+JsonObject getDeviceProperties(const DeviceData &device, JsonDocument &doc)
+{
     JsonObject props = doc.add<JsonObject>();
-    
+
     // Добавляем свойства устройства
     props["temperature"] = device.currentTemperature;
-    props["humidity"] = 50; // Заглушка для влажности
+    props["humidity"] = 50;                                // Заглушка для влажности
     props["voltage"] = 3000 - (100 - device.battery) * 10; // Примерное преобразование процента в милливольты
     props["battery"] = device.battery;
-    
+
     // Добавляем дополнительные свойства, которые ожидает Mi Home
     props["version"] = 1;
     props["state"] = device.enabled ? 1 : 0;
-    
+
     return props;
 }

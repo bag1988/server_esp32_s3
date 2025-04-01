@@ -212,11 +212,11 @@ void initWebServer()
     server.on("/heating_stats", HTTP_GET, [](AsyncWebServerRequest *request)
               {
     JsonDocument doc;
-    JsonArray statsArray = doc.createNestedArray("devices");
+    JsonArray statsArray = doc["devices"].to<JsonArray>();
     
     if (xSemaphoreTake(devicesMutex, portMAX_DELAY) == pdTRUE) {
         for (const auto& device : devices) {
-            JsonObject deviceObj = statsArray.createNestedObject();
+            JsonObject deviceObj = statsArray.add<JsonObject>();
             deviceObj["name"] = device.name;
             deviceObj["macAddress"] = device.macAddress;
             deviceObj["currentTemperature"] = device.currentTemperature;

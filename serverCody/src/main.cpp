@@ -177,6 +177,16 @@ void networkTaskFunction(void *parameter)
     }
 }
 
+// Функция для мониторинга памяти
+void monitorMemory()
+{
+    Serial.printf("Свободно HEAP: %d байт\n", ESP.getFreeHeap());
+    if (psramFound())
+    {
+        Serial.printf("Свободно PSRAM: %d байт\n", ESP.getFreePsram());
+    }
+}
+
 // Функция задачи для основной логики (ядро 1)
 void mainLogicTaskFunction(void *parameter)
 {
@@ -224,8 +234,98 @@ void mainLogicTaskFunction(void *parameter)
         // Обновление LCD
         updateLCD();
 
+        monitorMemory();
         // Даем время другим задачам
         vTaskDelay(20 / portTICK_PERIOD_MS); // Небольшая задержка для предотвращения перегрузки CPU
+    }
+}
+
+// Создание задач с большим стеком в PSRAM
+void createTasks()
+{
+    // Размер стека в словах (1 слово = 4 байта)
+    const uint32_t stackSize = 8192;
+
+    // Создаем задачу с использованием PSRAM для стека
+    if (psramFound())
+    {
+        // Выделяем память для стека в PSRAM
+        StackType_t *taskStack = (StackType_t *)ps_malloc(stackSize * sizeof(StackType_t));
+        StaticTask_t *taskBuffer = (StaticTask_t *)ps_malloc(sizeof(StaticTask_t));
+
+        if (taskStack && taskBuffer)
+        {
+            xTaskCreateStatic(
+                mainLogicTaskFunction,
+                "MainLogicTask",
+                stackSize,
+                NULL,
+                1,
+                taskStack,
+                taskBuffer);
+        }
+        else
+        {
+            // Создание задачи для основной логики на ядре 1
+            xTaskCreatePinnedToCore(
+                mainLogicTaskFunction, // Функция задачи
+                "MainLogicTask",       // Имя задачи
+                4096,                  // Размер стека
+                NULL,                  // Параметры
+                1,                     // Приоритет
+                &mainLogicTask,        // Указатель на задачу
+                1);                    // Ядро 1
+        }
+
+        StackType_t *taskStackN = (StackType_t *)ps_malloc(stackSize * sizeof(StackType_t));
+        StaticTask_t *taskBufferN = (StaticTask_t *)ps_malloc(sizeof(StaticTask_t));
+
+        if (taskStackN && taskBufferN)
+        {
+            xTaskCreateStatic(
+                networkTaskFunction,
+                "NetworkTask",
+                stackSize,
+                NULL,
+                1,
+                taskStackN,
+                taskBufferN);
+        }
+        else
+        {
+            // Создание задачи для сетевых операций на ядре 0
+            xTaskCreatePinnedToCore(
+                networkTaskFunction, // Функция задачи
+                "NetworkTask",       // Имя задачи
+                8192,                // Размер стека (больше для сетевых операций)
+                NULL,                // Параметры
+                1,                   // Приоритет
+                &networkTask,        // Указатель на задачу
+                0);                  // Ядро 0
+        }
+    }
+    else
+    {
+        // Если PSRAM не доступна, используем обычное создание задачи
+        // Создание задачи для сетевых операций на ядре 0
+        xTaskCreatePinnedToCore(
+            networkTaskFunction, // Функция задачи
+            "NetworkTask",       // Имя задачи
+            8192,                // Размер стека (больше для сетевых операций)
+            NULL,                // Параметры
+            1,                   // Приоритет
+            &networkTask,        // Указатель на задачу
+            0);                  // Ядро 0
+
+        // Создание задачи для основной логики на ядре 1
+        xTaskCreatePinnedToCore(
+            mainLogicTaskFunction, // Функция задачи
+            "MainLogicTask",       // Имя задачи
+            4096,                  // Размер стека
+            NULL,                  // Параметры
+            1,                     // Приоритет
+            &mainLogicTask,        // Указатель на задачу
+            1);                    // Ядро 1
     }
 }
 
@@ -234,6 +334,17 @@ void setup()
 {
     Serial.begin(115200);
     Serial.println("Запуск системы...");
+
+    // Инициализация и проверка PSRAM
+    if (psramFound())
+    {
+        Serial.println("PSRAM найдена и инициализирована");
+        Serial.printf("Доступно PSRAM: %d байт\n", ESP.getFreePsram());
+    }
+    else
+    {
+        Serial.println("PSRAM не найдена! Некоторые функции могут работать некорректно");
+    }
 
     // Инициализация случайного генератора
     randomSeed(analogRead(0));
@@ -289,26 +400,7 @@ void setup()
 
     Serial.println("Система готова к работе");
     Serial.println("Токен устройства: " + token);
-    // Создание задачи для сетевых операций на ядре 0
-    xTaskCreatePinnedToCore(
-        networkTaskFunction, // Функция задачи
-        "NetworkTask",       // Имя задачи
-        8192,                // Размер стека (больше для сетевых операций)
-        NULL,                // Параметры
-        1,                   // Приоритет
-        &networkTask,        // Указатель на задачу
-        0);                  // Ядро 0
-
-    // Создание задачи для основной логики на ядре 1
-    xTaskCreatePinnedToCore(
-        mainLogicTaskFunction, // Функция задачи
-        "MainLogicTask",       // Имя задачи
-        4096,                  // Размер стека
-        NULL,                  // Параметры
-        1,                     // Приоритет
-        &mainLogicTask,        // Указатель на задачу
-        1);                    // Ядро 1
-
+    createTasks();
     Serial.println("Настройка завершена");
 }
 
