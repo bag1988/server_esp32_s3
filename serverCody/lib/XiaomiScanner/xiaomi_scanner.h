@@ -7,6 +7,24 @@
 #include <BLEScan.h>
 #include <BLEAdvertisedDevice.h>
 #include "variables_info.h"
+#include <ArduinoJson.h>
+
+// Структура для эмуляции устройства Xiaomi
+struct EmulatedXiaomiDevice {
+    String did;           // Идентификатор устройства
+    String model;         // Модель устройства
+    String name;          // Имя устройства
+    String type;          // Тип устройства (zigbee, ble, etc)
+    bool online;          // Статус онлайн
+    JsonObject properties; // Свойства устройства
+};
+
+// Функции для эмуляции устройств Xiaomi
+void initXiaomiDeviceEmulation();
+void updateEmulatedDevices();
+String generateDeviceDid(const String& macAddress);
+JsonObject getDeviceProperties(const DeviceData& device);
+
 
 // Глобальные переменные
 extern BLEScan* pBLEScan;

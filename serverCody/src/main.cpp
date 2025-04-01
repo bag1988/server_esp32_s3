@@ -7,7 +7,8 @@
 #include "web_server_setting.h"
 #include "spiffs_setting.h"
 #include "xiaomi_scanner.h"
-
+#include "mi_io_protocol.h"
+#include "mdns_service.h"
 // Глобальные переменные
 std::vector<DeviceData> devices;
 int selectedDeviceIndex = 0;
