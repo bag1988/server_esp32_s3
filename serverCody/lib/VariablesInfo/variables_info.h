@@ -9,10 +9,8 @@
 #define SCROLL_DELAY 300           // Задержка прокрутки текста (мс)
 #define CONTROL_DELAY 30000        // Интервал проверки и управления GPIO (мс)
 #define WIFI_RECONNECT_DELAY 60000 // Интервал попыток переподключения к WiFi (мс)
-#define BUTTON_DEBOUNCE_DELAY 200  // Задержка для устранения дребезга кнопок (мс)
 #define XIAOMI_SCAN_INTERVAL 60000 // Интервал сканирования датчиков Xiaomi (мс)
 #define XIAOMI_SCAN_DURATION 5000  // Продолжительность сканирования BLE (мс)
-#define DATA_TIMEOUT 300000        // Таймаут для данных датчика (5 минут)
 #define XIAOMI_OFFLINE_TIMEOUT 300000 // 5 минут до перехода в оффлайн
 
 // Структура для хранения учетных данных WiFi
