@@ -42,9 +42,9 @@ std::vector<GpioPin> availableGpio = {
     {39, "GPIO 39 (только вход)"}};
 
 // Состояние
-EditMode currentEditMode = EDIT_TEMPERATURE;
+//EditMode currentEditMode = EDIT_TEMPERATURE;
 bool isEditing = false;
-int gpioSelectionIndex = 0;
+//int gpioSelectionIndex = 0;
 
 // Прокрутка текста
 std::string scrollText = "";
@@ -232,7 +232,7 @@ void mainLogicTaskFunction(void *parameter)
         }
 
         // Обновление LCD
-        updateLCD();
+        updateLCDTask();
 
         monitorMemory();
         // Даем время другим задачам
@@ -368,6 +368,7 @@ void setup()
 
     // Инициализация LCD и кнопок
     initLCD();
+    updateScrollText();
     initButtons();
 
     // Загрузка настроек WiFi и подключение

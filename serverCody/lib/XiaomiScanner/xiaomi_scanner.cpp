@@ -129,6 +129,7 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
                     }
                     xSemaphoreGive(devicesMutex);
                 }
+                refreshLCDData();
             }
         }
     }
@@ -217,7 +218,7 @@ void updateDevicesStatus()
     // Если статус изменился, обновляем текст прокрутки
     if (statusChanged)
     {
-        updateScrollText();
+        refreshLCDData();
     }
 }
 
