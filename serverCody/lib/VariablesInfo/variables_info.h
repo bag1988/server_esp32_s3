@@ -15,21 +15,6 @@
 #define DATA_TIMEOUT 300000        // Таймаут для данных датчика (5 минут)
 #define XIAOMI_OFFLINE_TIMEOUT 300000 // 5 минут до перехода в оффлайн
 
-// Пины для LCD дисплея
-#define LCD_RS 19
-#define LCD_EN 23
-#define LCD_D4 18
-#define LCD_D5 17
-#define LCD_D6 16
-#define LCD_D7 15
-
-// Режимы редактирования
-// enum EditMode {
-//     EDIT_TEMPERATURE,
-//     EDIT_GPIO,
-//     EDIT_ENABLED
-// };
-
 // Структура для хранения учетных данных WiFi
 struct WifiCredentials {
     std::string ssid;
@@ -104,15 +89,8 @@ struct GpioPin {
 };
 // Глобальные переменные (объявлены как extern)
 extern std::vector<DeviceData> devices;
-extern int selectedDeviceIndex;
 extern std::vector<GpioPin> availableGpio;
-//extern EditMode currentEditMode;
-extern bool isEditing;
 extern int gpioSelectionIndex;
-// Переменные для прокрутки текста на LCD
-extern std::string scrollText;
-extern int scrollPosition;
-extern unsigned long lastScrollTime;
 extern WifiCredentials wifiCredentials;
 extern bool wifiConnected;
 extern std::string DEVICES_FILE;

@@ -7,7 +7,9 @@
 
 // LCD
 LiquidCrystal_I2C lcd(0x27, 16, 2);
-
+// Прокрутка текста
+std::string scrollText = "";
+int scrollPosition = 0;
 // Состояния для меню
 enum MenuState {
   MAIN_SCREEN,       // Главный экран с информацией
@@ -457,7 +459,7 @@ void scrollMainScreenText() {
   static unsigned long lastScrollTime = 0;
   
   // Прокручиваем текст каждые 500 мс
-  if (currentMenu == MAIN_SCREEN && millis() - lastScrollTime > 500) {
+  if (currentMenu == MAIN_SCREEN && millis() - lastScrollTime > SCROLL_DELAY) {
     scrollPosition = (scrollPosition + 1) % scrollText.length();
     lastScrollTime = millis();
     

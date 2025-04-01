@@ -11,7 +11,6 @@
 #include "mdns_service.h"
 // Глобальные переменные
 std::vector<DeviceData> devices;
-int selectedDeviceIndex = 0;
 // Доступные GPIO пины для ESP32-DevKitC-32
 // GPIO 34-39 могут использоваться только как входы
 // GPIO 6-11 обычно используются для подключения флеш-памяти и не рекомендуются для общего использования
@@ -41,15 +40,7 @@ std::vector<GpioPin> availableGpio = {
     {36, "GPIO 36 (только вход)"},
     {39, "GPIO 39 (только вход)"}};
 
-// Состояние
-//EditMode currentEditMode = EDIT_TEMPERATURE;
-bool isEditing = false;
-//int gpioSelectionIndex = 0;
 
-// Прокрутка текста
-std::string scrollText = "";
-int scrollPosition = 0;
-unsigned long lastScrollTime = 0;
 
 // WiFi
 WifiCredentials wifiCredentials;
@@ -194,21 +185,9 @@ void mainLogicTaskFunction(void *parameter)
     {
         // Обработка нажатий кнопок
         handleButtons();
+        // Обновление LCD
+        updateLCDTask();
 
-        // Обновление прокрутки текста
-        if (!isEditing)
-        {
-            if (millis() - lastScrollTime > SCROLL_DELAY)
-            {
-                scrollPosition++;
-                if (scrollPosition > scrollText.length())
-                {
-                    scrollPosition = 0;
-                }
-                updateLCD();
-                lastScrollTime = millis();
-            }
-        }
         // Управление GPIO
         static unsigned long lastGpioControlTime = 0;
         if (millis() - lastGpioControlTime > CONTROL_DELAY)
@@ -230,9 +209,6 @@ void mainLogicTaskFunction(void *parameter)
             saveClientsToFile();
             lastStatsSaveTime = currentTime;
         }
-
-        // Обновление LCD
-        updateLCDTask();
 
         monitorMemory();
         // Даем время другим задачам
