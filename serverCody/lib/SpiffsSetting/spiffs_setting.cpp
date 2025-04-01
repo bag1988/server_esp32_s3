@@ -16,21 +16,25 @@ void loadClientsFromFile()
       file.close(); // Ensure file is closed before returning
       return;
     }
-    devices.clear();
-    while (file.available())
+    if (xSemaphoreTake(devicesMutex, portMAX_DELAY) == pdTRUE)
     {
-      std::string json;
+      devices.clear();
       while (file.available())
       {
-        char c = file.read();
-        json += c;
-        if (c == '}')
-          break;
+        std::string json;
+        while (file.available())
+        {
+          char c = file.read();
+          json += c;
+          if (c == '}')
+            break;
+        }
+        devices.push_back(fromJson(json));
       }
-      devices.push_back(fromJson(json));
+      file.close();
+      Serial.println(F("Clients loaded from file"));
+      xSemaphoreGive(devicesMutex);
     }
-    file.close();
-    Serial.println(F("Clients loaded from file"));
   }
 }
 // Сохраняме клиентов в JSON +++++++++++++++++++++++++++++
@@ -47,17 +51,21 @@ void saveClientsToFile()
     }
 
     file.print("[\n");
-    for (size_t i = 0; i < devices.size(); ++i)
+    if (xSemaphoreTake(devicesMutex, portMAX_DELAY) == pdTRUE)
     {
-      file.print(toJson(devices[i]).c_str());
-      if (i != devices.size() - 1)
+      for (size_t i = 0; i < devices.size(); ++i)
       {
-        file.print(",\n");
+        file.print(toJson(devices[i]).c_str());
+        if (i != devices.size() - 1)
+        {
+          file.print(",\n");
+        }
       }
+      file.print("\n]");
+      file.close();
+      Serial.println(F("Clients saved to file"));
+      xSemaphoreGive(devicesMutex);
     }
-    file.print("\n]");
-    file.close();
-    Serial.println(F("Clients saved to file"));
   }
 }
 // Загружаем настройки Wifi +++++++++++++++++++++++++++
@@ -101,39 +109,106 @@ void saveWifiCredentialsToFile()
   }
 }
 // Функция для сохранения GPIO в файл
-void saveGpioToFile() {
+void saveGpioToFile()
+{
   File file = SPIFFS.open("/gpio.json", FILE_WRITE);
-  if (!file) {
-      Serial.println("Failed to open gpio.json for writing");
-      return;
+  if (!file)
+  {
+    Serial.println("Failed to open gpio.json for writing");
+    return;
   }
-  
+
   String json = "[";
-  for (size_t i = 0; i < availableGpio.size(); i++) {
-      json += "{\"pin\":" + String(availableGpio[i].pin) + 
-              ",\"name\":\"" + availableGpio[i].name.c_str() + "\"}";
-      if (i < availableGpio.size() - 1) {
-          json += ",";
-      }
+  for (size_t i = 0; i < availableGpio.size(); i++)
+  {
+    json += "{\"pin\":" + String(availableGpio[i].pin) +
+            ",\"name\":\"" + availableGpio[i].name.c_str() + "\"}";
+    if (i < availableGpio.size() - 1)
+    {
+      json += ",";
+    }
   }
   json += "]";
-  
+
   file.println(json);
   file.close();
 }
 
 // Функция для загрузки GPIO из файла
-void loadGpioFromFile() {
-  if (SPIFFS.exists("/gpio.json")) {
-      File file = SPIFFS.open("/gpio.json", FILE_READ);
-      if (!file) {
-          Serial.println("Failed to open gpio.json for reading");
-          return;
-      }
-      
-      String json = file.readString();
-      file.close();
-      
-      availableGpio = parseGpioPinsWithNames(json.c_str());
+void loadGpioFromFile()
+{
+  if (SPIFFS.exists("/gpio.json"))
+  {
+    File file = SPIFFS.open("/gpio.json", FILE_READ);
+    if (!file)
+    {
+      Serial.println("Failed to open gpio.json for reading");
+      return;
+    }
+
+    String json = file.readString();
+    file.close();
+
+    availableGpio = parseGpioPinsWithNames(json.c_str());
   }
+}
+
+// Добавляем функции для работы с токеном устройства
+
+// Сохранение токена устройства
+void saveDeviceToken(const char* token) {
+  File file = SPIFFS.open("/device_token.txt", FILE_WRITE);
+  if (!file) {
+      Serial.println("Ошибка при открытии файла для записи токена");
+      return;
+  }
+  
+  file.print(token);
+  file.close();
+  Serial.println("Токен устройства сохранен");
+}
+
+// Загрузка токена устройства
+String loadDeviceToken() {
+  if (!SPIFFS.exists("/device_token.txt")) {
+      // Файл не существует, генерируем новый токен
+      char token[33];
+      for (int i = 0; i < 32; i++) {
+          token[i] = "0123456789abcdef"[random(0, 16)];
+      }
+      token[32] = '\0';
+      
+      // Сохраняем новый токен
+      saveDeviceToken(token);
+      
+      return String(token);
+  }
+  
+  File file = SPIFFS.open("/device_token.txt", FILE_READ);
+  if (!file) {
+      Serial.println("Ошибка при открытии файла для чтения токена");
+      return "00000000000000000000000000000000"; // Токен по умолчанию
+  }
+  
+  String token = file.readString();
+  file.close();
+  
+  // Проверяем, что токен имеет правильную длину
+  if (token.length() != 32) {
+      Serial.println("Некорректный токен в файле, генерируем новый");
+      
+      char newToken[33];
+      for (int i = 0; i < 32; i++) {
+          newToken[i] = "0123456789abcdef"[random(0, 16)];
+      }
+      newToken[32] = '\0';
+      
+      // Сохраняем новый токен
+      saveDeviceToken(newToken);
+      
+      return String(newToken);
+  }
+  
+  Serial.println("Загружен токен устройства: " + token);
+  return token;
 }

@@ -123,4 +123,6 @@ extern bool wifiConnected;
 extern std::string DEVICES_FILE;
 extern std::string WIFI_CREDENTIALS_FILE;
 extern unsigned long lastWiFiAttemptTime;
+// Мьютекс для защиты доступа к общим данным
+extern SemaphoreHandle_t devicesMutex;
 #endif // VARIABLES_INFO_H

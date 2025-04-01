@@ -29,7 +29,6 @@ JsonObject getDeviceProperties(const DeviceData& device);
 // Глобальные переменные
 extern BLEScan* pBLEScan;
 extern bool scanningActive;
-
 // Функции
 void setupXiaomiScanner();
 void startXiaomiScan(uint32_t duration = XIAOMI_SCAN_DURATION);

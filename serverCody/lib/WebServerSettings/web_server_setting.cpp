@@ -80,11 +80,14 @@ void initWebServer()
               {
             std::string jsonVal = "[";
 
-            for (size_t i = 0; i < devices.size(); ++i) {
-                jsonVal += toJson(devices[i]);
-                if (i != devices.size() - 1) {
-                    jsonVal += ",";
+            if (xSemaphoreTake(devicesMutex, portMAX_DELAY) == pdTRUE) {
+                for (size_t i = 0; i < devices.size(); ++i) {
+                    jsonVal += toJson(devices[i]);
+                    if (i != devices.size() - 1) {
+                        jsonVal += ",";
+                    }
                 }
+                xSemaphoreGive(devicesMutex);
             }
             jsonVal += "]";
             request->send(200, "application/json", jsonVal.c_str()); });
@@ -118,6 +121,7 @@ void initWebServer()
             {
                 String address = request->getParam("address", true)->value();
                 bool isSaving = false;
+                if (xSemaphoreTake(devicesMutex, portMAX_DELAY) == pdTRUE) {
                 // Handle POST parameters
                 if (request->hasParam("name", true))
                 {
@@ -167,27 +171,28 @@ void initWebServer()
                 }
 
                 if (request->hasParam("gpioPins", true))
-{
-    String newName = request->getParam("gpioPins", true)->value();
-    // Find the client by address and update the name
-    for (auto& client : devices)
-    {
-        if (client.macAddress == address.c_str())
-        {
-            // Извлекаем только номера пинов для совместимости
-            client.gpioPins = parseGpioPins(newName.c_str());
-            isSaving = true;
-            break;
-        }
-    }
-}
+                {
+                    String newName = request->getParam("gpioPins", true)->value();
+                    // Find the client by address and update the name
+                    for (auto& client : devices)
+                    {
+                        if (client.macAddress == address.c_str())
+                        {
+                            // Извлекаем только номера пинов для совместимости
+                            client.gpioPins = parseGpioPins(newName.c_str());
+                            isSaving = true;
+                            break;
+                        }
+                    }
+                }
+                xSemaphoreGive(devicesMutex);
                 if (isSaving)
                 {
                     saveClientsToFile(); // Save changes to file
                     // Send response
                     request->send(200, "text/plain", "Client updated");
                 }
-
+            }
             }
             request->send(200, "text/plain", "Client not find"); });
 
