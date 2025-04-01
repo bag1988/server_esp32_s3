@@ -82,6 +82,45 @@ PlatformIO will compile them to static libraries and link into the executable fi
 The source code of each library should be placed in a separate directory
 ("lib/your_library_name/[Code]").
 
+# Name,   Type, SubType, Offset,  Size, Flags
+nvs,      data, nvs,     0x9000,  0x6000,
+phy_init, data, phy,     0xf000,  0x1000,
+factory,  app,  factory, 0x10000, 3M,
+spiffs,   data, spiffs,  0x310000,12M,
+Объяснение разделов
+nvs (Non-Volatile Storage) - 24 КБ
+
+Используется для хранения настроек Wi-Fi, Bluetooth и других системных параметров
+phy_init - 4 КБ
+
+Данные калибровки для радиочастотного модуля
+factory - 3 МБ
+
+Основной раздел для вашего приложения (прошивки)
+3 МБ достаточно для большинства сложных приложений
+spiffs - 12 МБ
+
+Файловая система для хранения веб-страниц, конфигурационных файлов и других данных
+Большой размер позволяет хранить много файлов и данных
+
+
+# Name,   Type, SubType, Offset,  Size, Flags
+nvs,      data, nvs,     0x9000,  0x6000,
+phy_init, data, phy,     0xf000,  0x1000,
+factory,  app,  factory, 0x10000, 2M,
+otadata,  data, ota,     0x210000,0x2000,
+ota_0,    app,  ota_0,   0x220000,2M,
+ota_1,    app,  ota_1,   0x420000,2M,
+spiffs,   data, spiffs,  0x620000,10M,
+
+Этот вариант разделяет память на:
+
+2 МБ для основного приложения
+2 МБ для OTA слота 0
+2 МБ для OTA слота 1
+10 МБ для файловой системы SPIFFS
+
+
 For example, see the structure of the following example libraries `Foo` and `Bar`:
 
 |--lib
