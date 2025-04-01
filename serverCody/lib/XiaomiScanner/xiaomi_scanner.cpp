@@ -2,11 +2,11 @@
 #include "variables_info.h"
 #include <algorithm>
 #include <lcd_setting.h>
-
+#include <spiffs_setting.h>
 // Глобальные переменные
 BLEScan *pBLEScan = nullptr;
 bool scanningActive = false;
-
+BLEServer *pServer = nullptr;
 // Глобальный массив эмулируемых устройств
 std::vector<EmulatedXiaomiDevice> emulatedDevices;
 
@@ -19,10 +19,33 @@ class XiaomiAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
     }
 };
 
+// BLE +++++++++++++++++++++++++++++++++++
+class SetServerSettingCallbacks : public BLECharacteristicCallbacks
+{
+    void onWrite(BLECharacteristic *pCharacteristic)
+    {
+        std::string value = pCharacteristic->getValue();
+
+        if (pCharacteristic->getUUID().toString() == SSID_CHARACTERISTIC_UUID)
+        {
+            wifiCredentials.ssid = value;
+            Serial.print(F("SSID received: "));
+            Serial.println(F(wifiCredentials.ssid.c_str()));
+        }
+        else if (pCharacteristic->getUUID().toString() == PASSWORD_CHARACTERISTIC_UUID)
+        {
+            wifiCredentials.password = value;
+            Serial.print(F("Password received: "));
+            Serial.println(F(wifiCredentials.password.c_str()));
+        }
+        saveWifiCredentialsToFile(); // Save credentials to file
+    }
+};
+
 // Инициализация сканера BLE
 void setupXiaomiScanner()
 {
-    BLEDevice::init("serverCody");
+    BLEDevice::init(SERVER_NAME);
     pBLEScan = BLEDevice::getScan();
     pBLEScan->setAdvertisedDeviceCallbacks(new XiaomiAdvertisedDeviceCallbacks());
     pBLEScan->setActiveScan(true);
@@ -33,6 +56,39 @@ void setupXiaomiScanner()
     esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_SCAN, ESP_PWR_LVL_N9); // -9 dBm
 
     Serial.println("Сканер датчиков Xiaomi инициализирован");
+    Serial.println("Запускаем сервисы редактирования SSID и пароля");
+    pServer = BLEDevice::createServer();
+    BLEService *pService = pServer->createService(WIFI_SERVICE_UUID);
+
+    // SSID Characteristic
+    BLECharacteristic *pSSIDCharacteristic = pService->createCharacteristic(
+        SSID_CHARACTERISTIC_UUID,
+        BLECharacteristic::PROPERTY_READ |
+            BLECharacteristic::PROPERTY_WRITE |
+            BLECharacteristic::PROPERTY_NOTIFY);
+    pSSIDCharacteristic->addDescriptor(new BLEDescriptor(BLEUUID((uint16_t)0x2902)));
+    pSSIDCharacteristic->setValue(wifiCredentials.ssid); // Set initial value
+
+    // Password Characteristic
+    BLECharacteristic *pPasswordCharacteristic = pService->createCharacteristic(
+        PASSWORD_CHARACTERISTIC_UUID,
+        BLECharacteristic::PROPERTY_READ |
+            BLECharacteristic::PROPERTY_WRITE |
+            BLECharacteristic::PROPERTY_NOTIFY);
+    pPasswordCharacteristic->addDescriptor(new BLEDescriptor(BLEUUID((uint16_t)0x2902)));
+    pPasswordCharacteristic->setValue(wifiCredentials.password); // Set initial value
+
+    pSSIDCharacteristic->setCallbacks(new SetServerSettingCallbacks());
+    pPasswordCharacteristic->setCallbacks(new SetServerSettingCallbacks());
+
+    pService->start();
+    BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
+    pAdvertising->addServiceUUID(WIFI_SERVICE_UUID);
+    pAdvertising->setScanResponse(true);
+    pAdvertising->setMinPreferred(0x06); // functions that help with iPhone connections issue
+    pAdvertising->setMaxPreferred(0x12);
+    BLEDevice::startAdvertising();
+    Serial.println(F("Сервисы редактирования SSID и пароля запущены"));
 }
 
 // Запуск сканирования BLE
