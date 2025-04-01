@@ -52,8 +52,10 @@ struct DeviceData {
     bool enabled = true;          // Включено ли устройство
     bool isOnline = false;        // Находится ли устройство в сети
     unsigned long lastUpdate = 0; // Время последнего обновления данных
-    std::vector<int> gpioPins;    // Пины GPIO для управления
-    unsigned long gpioOnTime = 0; // Время работы GPIO в секундах
+    std::vector<int> gpioPins;    // Пины GPIO для управления    
+    bool heatingActive; // Добавляем поле для отслеживания текущего состояния обогрева
+    unsigned long heatingStartTime;    // Время последнего включения обогрева
+    unsigned long totalHeatingTime;    // Общее время работы обогрева в миллисекундах
     
     // Конструктор по умолчанию
     DeviceData() : 
@@ -66,7 +68,8 @@ struct DeviceData {
         isOnline(false),
         targetTemperature(25.0),
         enabled(false),
-        gpioOnTime(0) {}
+        heatingStartTime(0),
+        totalHeatingTime(0) {}
     
     // Конструктор с основными параметрами
     DeviceData(const std::string& _name, const std::string& _mac) :
@@ -79,13 +82,9 @@ struct DeviceData {
         isOnline(false),
         targetTemperature(20.0),
         enabled(true),
-        gpioOnTime(0) {}
-    
-    // Метод для проверки необходимости включения обогрева
-    bool needsHeating() const {
-        return enabled && isOnline && (currentTemperature + 2) < targetTemperature;
-    }
-    
+        heatingStartTime(0),
+        totalHeatingTime(0) {}
+        
     // Метод для обновления данных датчика
     void updateSensorData(float temp, uint8_t hum, uint8_t bat) {
         currentTemperature = temp;
@@ -96,7 +95,7 @@ struct DeviceData {
     }
     
     // Метод для проверки актуальности данных
-    bool isDataValid(unsigned long timeout = 300000) const {
+    bool isDataValid(unsigned long timeout = XIAOMI_OFFLINE_TIMEOUT) const {
         return isOnline && (millis() - lastUpdate < timeout);
     }
 };

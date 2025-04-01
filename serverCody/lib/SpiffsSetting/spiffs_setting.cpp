@@ -29,7 +29,13 @@ void loadClientsFromFile()
           if (c == '}')
             break;
         }
-        devices.push_back(fromJson(json));
+        auto d = fromJson(json);
+        d.heatingStartTime=0;
+        d.totalHeatingTime = 0;
+        d.isOnline = false;
+        d.currentTemperature = d.targetTemperature;
+        d.heatingActive = false;
+        devices.push_back(d);
       }
       file.close();
       Serial.println(F("Clients loaded from file"));

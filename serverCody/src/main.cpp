@@ -67,18 +67,69 @@ TaskHandle_t mainLogicTask;
 // Мьютекс для защиты доступа к общим данным
 SemaphoreHandle_t devicesMutex;
 
+// Функция для безопасного вычисления разницы времени с учетом переполнения millis()
+unsigned long safeTimeDifference(unsigned long currentTime, unsigned long previousTime)
+{
+    // Если произошло переполнение
+    if (currentTime < previousTime)
+    {
+        return (ULONG_MAX - previousTime) + currentTime + 1;
+    }
+    else
+    {
+        return currentTime - previousTime;
+    }
+}
+
 // Управление GPIO
 void controlGPIO()
 {
     std::vector<int> gpiosToTurnOn;
-
+    unsigned long currentTime = millis();
     // Собираем GPIO для включения
     for (auto &device : devices)
     {
-        if (device.needsHeating())
+        if (device.isDataValid())
         {
-            gpiosToTurnOn.insert(gpiosToTurnOn.end(), device.gpioPins.begin(), device.gpioPins.end());
-            device.gpioOnTime += CONTROL_DELAY / 1000;
+            if (device.heatingActive)
+            {
+                // Вычисляем время, прошедшее с момента последнего обновления
+                unsigned long elapsedTime = safeTimeDifference(currentTime, device.heatingStartTime);
+                // Обновляем общее время работы
+                device.totalHeatingTime += elapsedTime;
+                // Обновляем время начала для следующего расчета
+                device.heatingStartTime = currentTime;
+            }
+
+            if (!device.heatingActive && device.enabled && device.isOnline && (device.currentTemperature + 2) < device.targetTemperature)
+            {
+                device.heatingActive = true;
+                device.heatingStartTime = currentTime; // Запоминаем время включения
+                gpiosToTurnOn.insert(gpiosToTurnOn.end(), device.gpioPins.begin(), device.gpioPins.end());
+
+                Serial.printf("Устройство %s: включаем обогрев (температура %.1f°C, целевая %.1f°C)\n",
+                              device.name.c_str(), device.currentTemperature, device.targetTemperature);
+            }
+            else if (device.heatingActive && device.currentTemperature >= device.targetTemperature)
+            {
+                // Температура достигла целевой - выключаем обогрев
+                device.heatingActive = false;
+                Serial.printf("Устройство %s: выключаем обогрев (температура %.1f°C, целевая %.1f°C)\n",
+                              device.name.c_str(), device.currentTemperature, device.targetTemperature);
+            }
+            else if (!device.enabled && device.heatingActive)
+            {
+                // Если обогрев был активен, обновляем общее время работы перед выключением
+                unsigned long elapsedTime = safeTimeDifference(currentTime, device.heatingStartTime);
+                device.totalHeatingTime += elapsedTime;
+                device.heatingActive = false;
+            }
+        }
+        else if (device.isOnline)
+        {
+            device.isOnline = false;
+            device.heatingActive = false;
+            Serial.printf("Устройство %s: нет данных\n", device.name.c_str());
         }
     }
 
@@ -160,6 +211,16 @@ void mainLogicTaskFunction(void *parameter)
                 lastGpioControlTime = millis();
             }
         }
+        // Добавляем переменную для отслеживания времени последнего сохранения
+        unsigned long lastStatsSaveTime = 0;
+        // Периодически сохраняем статистику (каждые 5 минут)
+        unsigned long currentTime = millis();
+        if (currentTime - lastStatsSaveTime > 300000 || currentTime < lastStatsSaveTime)
+        {
+            saveClientsToFile();
+            lastStatsSaveTime = currentTime;
+        }
+
         // Обновление LCD
         updateLCD();
 

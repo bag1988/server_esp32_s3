@@ -71,10 +71,9 @@ void initWebServer()
                 String response;
                 serializeJson(doc, response);
                 request->send(200, "application/json", response); });
-// Добавляем обработчик для страницы настройки Mi Home
-    server.on("/mihome", HTTP_GET, [](AsyncWebServerRequest *request) {
-        request->send(SPIFFS, "/mihome.html", "text/html");
-    });
+    // Добавляем обработчик для страницы настройки Mi Home
+    server.on("/mihome", HTTP_GET, [](AsyncWebServerRequest *request)
+              { request->send(SPIFFS, "/mihome.html", "text/html"); });
     // GET /clients (get list of all clients)
     server.on("/clients", HTTP_GET, [](AsyncWebServerRequest *request)
               {
@@ -209,7 +208,78 @@ void initWebServer()
 
     server.on("/index", HTTP_GET, [](AsyncWebServerRequest *request)
               { request->send(SPIFFS, "/index.html", "text/html"); });
-
+    // Добавляем обработчик для получения статистики обогрева
+    server.on("/heating_stats", HTTP_GET, [](AsyncWebServerRequest *request)
+              {
+    JsonDocument doc;
+    JsonArray statsArray = doc.createNestedArray("devices");
+    
+    if (xSemaphoreTake(devicesMutex, portMAX_DELAY) == pdTRUE) {
+        for (const auto& device : devices) {
+            JsonObject deviceObj = statsArray.createNestedObject();
+            deviceObj["name"] = device.name;
+            deviceObj["macAddress"] = device.macAddress;
+            deviceObj["currentTemperature"] = device.currentTemperature;
+            deviceObj["targetTemperature"] = device.targetTemperature;
+            deviceObj["heatingActive"] = device.heatingActive;
+            
+            // Вычисляем текущее общее время работы
+            unsigned long totalHeatingTime = device.totalHeatingTime;
+            if (device.heatingActive) {
+                // Если обогрев активен, добавляем текущий период
+                totalHeatingTime += (millis() - device.heatingStartTime);
+            }
+            
+            // Форматируем время для вывода
+            unsigned long totalSeconds = totalHeatingTime / 1000;
+            unsigned long hours = totalSeconds / 3600;
+            unsigned long minutes = (totalSeconds % 3600) / 60;
+            unsigned long seconds = totalSeconds % 60;
+            
+            deviceObj["totalHeatingTimeMs"] = totalHeatingTime;
+            deviceObj["totalHeatingTimeFormatted"] = 
+                String(hours) + ":" + 
+                (minutes < 10 ? "0" : "") + String(minutes) + ":" + 
+                (seconds < 10 ? "0" : "") + String(seconds);
+        }
+        xSemaphoreGive(devicesMutex);
+    }
+    
+    String response;
+    serializeJson(doc, response);
+    request->send(200, "application/json", response); });
+    // Добавляем обработчик для страницы статистики обогрева
+    server.on("/stats", HTTP_GET, [](AsyncWebServerRequest *request)
+              { request->send(SPIFFS, "/heating_stats.html", "text/html"); });
+    // Добавляем обработчик для сброса статистики обогрева
+    server.on("/reset_stats", HTTP_POST, [](AsyncWebServerRequest *request)
+              {
+    bool resetAll = true;
+    String deviceMac = "";
+    
+    // Проверяем, нужно ли сбросить статистику для конкретного устройства
+    if (request->hasParam("device", true)) {
+        deviceMac = request->getParam("device", true)->value();
+        resetAll = false;
+    }
+    
+    if (xSemaphoreTake(devicesMutex, portMAX_DELAY) == pdTRUE) {
+        for (auto& device : devices) {
+            if (resetAll || device.macAddress == deviceMac.c_str()) {
+                device.totalHeatingTime = 0;
+                if (device.heatingActive) {
+                    // Если обогрев активен, сбрасываем время начала
+                    device.heatingStartTime = millis();
+                }
+            }
+        }
+        xSemaphoreGive(devicesMutex);
+    }
+    
+    // Сохраняем изменения
+    saveClientsToFile();
+    
+    request->send(200, "text/plain", "Статистика сброшена"); });
     server.begin();
     Serial.println(F("Web server started"));
 }

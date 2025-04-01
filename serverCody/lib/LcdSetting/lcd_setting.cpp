@@ -51,7 +51,7 @@ void updateScrollText()
         scrollText += ("/ %S C", device.targetTemperature);
 
         // Добавляем статус обогрева
-        if (device.needsHeating())
+        if (device.heatingActive)
         {
           scrollText += "(Обогрев) ";
         }

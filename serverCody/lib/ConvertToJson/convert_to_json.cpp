@@ -45,7 +45,9 @@ std::string toJson(const DeviceData& data) {
     json += "\"targetTemperature\":" + std::to_string(data.targetTemperature) + ",";
     json += "\"currentTemperature\":" + std::to_string(data.currentTemperature) + ",";
     json += "\"humidity\":" + std::to_string(data.humidity) + ",";
-    json += "\"gpioOnTime\":" + std::to_string(data.gpioOnTime);
+    json += "\"heatingActive\":" + std::to_string(data.heatingActive);
+    json += "\"heatingStartTime\":" + std::to_string(data.heatingStartTime);
+    json += "\"totalHeatingTime\":" + std::to_string(data.totalHeatingTime);
     json += "}";
     return json;
 }
@@ -126,8 +128,9 @@ DeviceData fromJson(const std::string& json) {
     data.targetTemperature = std::stof(extractValue(json, "\"targetTemperature\""));
     data.currentTemperature = std::stof(extractValue(json, "\"currentTemperature\""));
     data.humidity = std::stof(extractValue(json, "\"currentHumidity\""));
-    data.gpioOnTime = std::stoul(extractValue(json, "\"gpioOnTime\""));
-
+    data.heatingActive  = extractValue(json, "\"heatingActive\"") == "true";
+    data.heatingStartTime  = std::stol(extractValue(json, "\"heatingStartTime \""));
+    data.totalHeatingTime  = std::stol(extractValue(json, "\"totalHeatingTime \""));
     return data;
 }
 
