@@ -208,6 +208,8 @@ void initWebServer()
 
     server.on("/index", HTTP_GET, [](AsyncWebServerRequest *request)
               { request->send(SPIFFS, "/index.html", "text/html"); });
+    server.on("/index2", HTTP_GET, [](AsyncWebServerRequest *request)
+              { request->send(SPIFFS, "/index2.html", "text/html"); });
     // Добавляем обработчик для получения статистики обогрева
     server.on("/heating_stats", HTTP_GET, [](AsyncWebServerRequest *request)
               {
