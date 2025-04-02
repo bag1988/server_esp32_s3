@@ -9,6 +9,7 @@
 #include "xiaomi_scanner.h"
 #include "mi_io_protocol.h"
 #include "mdns_service.h"
+#include "ota_setting.h"
 // Глобальные переменные
 std::vector<DeviceData> devices;
 
@@ -61,8 +62,7 @@ std::vector<GpioPin> availableGpio = {
     {45, "GPIO 45"},
     {46, "GPIO 46"},
     {47, "GPIO 47"},
-    {48, "GPIO 48"}
-};
+    {48, "GPIO 48"}};
 
 // WiFi
 WifiCredentials wifiCredentials;
@@ -163,6 +163,12 @@ void networkTaskFunction(void *parameter)
 {
     for (;;)
     {
+        // Если активен режим OTA, пропускаем обычную обработку
+        if (isOtaActive())
+        {
+            vTaskDelay(20 / portTICK_PERIOD_MS); // Небольшая задержка для стабильности
+            return;
+        }
         // Обработка пакетов miIO
         miIO.handlePackets();
 
@@ -171,6 +177,13 @@ void networkTaskFunction(void *parameter)
         {
             connectWiFi();
         }
+
+        // Обработка OTA обновлений
+        if (wifiConnected)
+        {
+            handleOTA();
+        }
+
         // Сканирование BLE устройств
         // Периодическое сканирование BLE
         static unsigned long lastScanTime = 0;
@@ -205,6 +218,12 @@ void mainLogicTaskFunction(void *parameter)
 {
     for (;;)
     {
+        // Если активен режим OTA, пропускаем обычную обработку
+        if (isOtaActive())
+        {
+            vTaskDelay(20 / portTICK_PERIOD_MS); // Небольшая задержка для стабильности
+            return;
+        }
         // Обработка нажатий кнопок
         handleButtons();
         // Обновление LCD
@@ -383,6 +402,12 @@ void setup()
     // Загрузка настроек WiFi и подключение
     loadWifiCredentialsFromFile();
     connectWiFi();
+
+    // Инициализация OTA после подключения к WiFi
+    if (wifiConnected)
+    {
+        initOTA();
+    }
 
     // Инициализация BLE сканера
     setupXiaomiScanner();

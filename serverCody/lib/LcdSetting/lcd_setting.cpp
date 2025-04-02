@@ -4,12 +4,13 @@
 #include <variables_info.h>
 #include <WiFi.h>
 #include <xiaomi_scanner.h>
+#include "ota_setting.h"
 
 // LCD Keypad Shield использует следующие пины для подключения LCD
 // RS, E, D4, D5, D6, D7
-//LiquidCrystal lcd(8, 9, 4, 5, 6, 7); // Стандартные пины для LCD Keypad Shield
+// LiquidCrystal lcd(8, 9, 4, 5, 6, 7); // Стандартные пины для LCD Keypad Shield
 // Для ESP32-S3 UNO с LCD Keypad Shield
-LiquidCrystal lcd(8, 9, 4, 5, 6, 7);  // Пины для ESP32-S3 UNO
+LiquidCrystal lcd(8, 9, 4, 5, 6, 7); // Пины для ESP32-S3 UNO
 // Прокрутка текста
 std::string scrollText = "";
 int scrollPosition = 0;
@@ -22,7 +23,8 @@ enum MenuState
   DEVICE_MENU,      // Меню настроек устройства
   EDIT_TEMPERATURE, // Редактирование целевой температуры
   EDIT_GPIO,        // Редактирование GPIO пинов
-  EDIT_ENABLED      // Включение/выключение устройства
+  EDIT_ENABLED,     // Включение/выключение устройства
+  WAIT_OTA          // Ожидание OTA обновления
 };
 
 // Текущее состояние меню
@@ -34,8 +36,8 @@ int deviceMenuIndex = 0;    // Индекс в меню устройства
 int gpioSelectionIndex = 0; // Индекс для выбора GPIO
 
 // Опции меню устройства
-const char *deviceMenuOptions[] = {"Температура", "GPIO пины", "Вкл/Выкл", "Назад"};
-const int deviceMenuOptionsCount = 4;
+const char *deviceMenuOptions[] = {"Температура", "GPIO пины", "Вкл/Выкл", "OTA Update", "Назад"};
+const int deviceMenuOptionsCount = 5;
 
 // Флаг для обновления экрана
 bool needLcdUpdate = true;
@@ -446,7 +448,11 @@ void handleButtons()
       case 2: // Вкл/Выкл
         currentMenu = EDIT_ENABLED;
         break;
-      case 3: // Назад
+      case 3: // OTA
+        currentMenu = WAIT_OTA;
+        enterOtaMode();
+        break;
+      case 4: // Назад
         currentMenu = DEVICE_LIST;
         break;
       }
@@ -774,4 +780,43 @@ void cycleInfoScreens()
       break;
     }
   }
+}
+
+// Метод для отображения текста с указанием столбца и строки
+void displayText(const String &text, int column, int row, bool clearLine, bool center)
+{
+  // Проверка корректности параметров
+  if (row < 0 || row > 1)
+  {
+    Serial.println("Ошибка: Некорректный номер строки. Допустимые значения: 0 или 1");
+    return;
+  }
+
+  // Если нужно очистить всю строку перед выводом
+  if (clearLine)
+  {
+    lcd.setCursor(0, row);
+    lcd.print("                "); // 16 пробелов для очистки строки
+  }
+
+  // Если нужно центрировать текст
+  if (center)
+  {
+    int textLength = text.length();
+    if (textLength < 16)
+    {
+      column = (16 - textLength) / 2;
+    }
+    else
+    {
+      column = 0;
+    }
+  }
+
+  // Ограничиваем столбец допустимыми значениями
+  column = constrain(column, 0, 15);
+
+  // Устанавливаем курсор и выводим текст
+  lcd.setCursor(column, row);
+  lcd.print(text);
 }

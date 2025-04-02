@@ -88,4 +88,7 @@ void cycleInfoScreens();
 // Функция для форматирования времени работы обогрева
 String formatHeatingTime(unsigned long timeInMillis);
 
+// Метод для отображения текста с указанием столбца и строки
+void displayText(const String& text, int column, int row, bool clearLine = false, bool center = false);
+
 #endif // LCD_SETTING_H
