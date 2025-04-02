@@ -34,29 +34,35 @@ std::vector<DeviceData> devices;
 // UART: GPIO43 (TX), GPIO44 (RX) - если не используются для отладки
 
 std::vector<GpioPin> availableGpio = {
-    {2, "GPIO 2 (LED)"},
-    {4, "GPIO 4"},
-    {5, "GPIO 5"},
-    {12, "GPIO 12"},
-    {13, "GPIO 13"},
+    {2, "GPIO 2"},
+    {3, "GPIO 3"},
+    {10, "GPIO 10 (SPI CS)"},
+    {11, "GPIO 11 (SPI MOSI)"},
+    {12, "GPIO 12 (SPI MISO)"},
+    {13, "GPIO 13 (SPI CLK)"},
     {14, "GPIO 14"},
     {15, "GPIO 15"},
     {16, "GPIO 16"},
     {17, "GPIO 17"},
     {18, "GPIO 18"},
     {19, "GPIO 19"},
+    {20, "GPIO 20"},
     {21, "GPIO 21"},
-    {22, "GPIO 22"},
-    {23, "GPIO 23"},
-    {25, "GPIO 25"},
-    {26, "GPIO 26"},
-    {27, "GPIO 27"},
-    {32, "GPIO 32"},
-    {33, "GPIO 33"},
-    {34, "GPIO 34 (только вход)"},
-    {35, "GPIO 35 (только вход)"},
-    {36, "GPIO 36 (только вход)"},
-    {39, "GPIO 39 (только вход)"}};
+    {35, "GPIO 35"},
+    {36, "GPIO 36 (I2C SCL)"},
+    {37, "GPIO 37 (I2C SDA)"},
+    {38, "GPIO 38"},
+    {39, "GPIO 39"},
+    {40, "GPIO 40"},
+    {41, "GPIO 41"},
+    {42, "GPIO 42"},
+    {43, "GPIO 43 (UART TX)"},
+    {44, "GPIO 44 (UART RX)"},
+    {45, "GPIO 45"},
+    {46, "GPIO 46"},
+    {47, "GPIO 47"},
+    {48, "GPIO 48"}
+};
 
 // WiFi
 WifiCredentials wifiCredentials;
