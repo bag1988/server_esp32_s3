@@ -11,10 +11,28 @@
 #include "mdns_service.h"
 // Глобальные переменные
 std::vector<DeviceData> devices;
-// Доступные GPIO пины для ESP32-DevKitC-32
-// GPIO 34-39 могут использоваться только как входы
-// GPIO 6-11 обычно используются для подключения флеш-памяти и не рекомендуются для общего использования
-// GPIO 0 имеет специальное назначение при загрузке (boot mode)
+
+// При подключении LCD Keypad Shield к ESP32-S3 UNO WROOM-1-N16R8 используются следующие пины:
+
+// LCD интерфейс: GPIO8, GPIO9, GPIO4, GPIO5, GPIO6, GPIO7
+// Кнопки: GPIO1 (аналоговый вход A0)
+// Свободные пины ESP32-S3 UNO:
+// Цифровые пины:
+
+// GPIO0 (D0)
+// GPIO2, GPIO3 (D2, D3)
+// GPIO10-GPIO21 (D10-D13, и другие пины, не имеющие прямого соответствия с Arduino UNO)
+// GPIO35-GPIO48 (дополнительные пины ESP32-S3)
+// Аналоговые входы:
+
+// GPIO2-GPIO7 (A1-A5) - обратите внимание, что некоторые из них уже используются для LCD (GPIO4-GPIO7)
+// Другие ADC пины ESP32-S3
+// Специальные пины:
+
+// I2C: GPIO37 (SDA), GPIO36 (SCL) - если не используются для других целей
+// SPI: GPIO11 (MOSI), GPIO13 (MISO), GPIO12 (SCK), GPIO10 (SS) - если не используются для других целей
+// UART: GPIO43 (TX), GPIO44 (RX) - если не используются для отладки
+
 std::vector<GpioPin> availableGpio = {
     {2, "GPIO 2 (LED)"},
     {4, "GPIO 4"},
@@ -39,8 +57,6 @@ std::vector<GpioPin> availableGpio = {
     {35, "GPIO 35 (только вход)"},
     {36, "GPIO 36 (только вход)"},
     {39, "GPIO 39 (только вход)"}};
-
-
 
 // WiFi
 WifiCredentials wifiCredentials;
@@ -311,6 +327,18 @@ void setup()
     Serial.begin(115200);
     Serial.println("Запуск системы...");
 
+    // Калибровка кнопок LCD Keypad Shield
+    Serial.println("Калибровка кнопок LCD Keypad Shield");
+    Serial.println("Нажимайте каждую кнопку по очереди и записывайте значения:");
+
+    for (int i = 0; i < 10; i++)
+    {
+        int adcValue = analogRead(KEYPAD_PIN);
+        Serial.print("ADC Value: ");
+        Serial.println(adcValue);
+        delay(500);
+    }
+
     // Инициализация и проверка PSRAM
     if (psramFound())
     {
@@ -345,7 +373,6 @@ void setup()
     // Инициализация LCD и кнопок
     initLCD();
     updateScrollText();
-    initButtons();
 
     // Загрузка настроек WiFi и подключение
     loadWifiCredentialsFromFile();

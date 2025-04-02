@@ -3,16 +3,32 @@
 
 #include <Arduino.h>
 
-// Определение пинов для кнопок
-#define BUTTON_SELECT 13  // Кнопка выбора
-#define BUTTON_LEFT   12  // Кнопка влево
-#define BUTTON_UP     14  // Кнопка вверх
-#define BUTTON_DOWN   27  // Кнопка вниз
-#define BUTTON_RIGHT  26  // Кнопка вправо
-#define BUTTON_RST    25  // Кнопка сброса
+// Определение кодов кнопок для LCD Keypad Shield
+#define BUTTON_RIGHT 0
+#define BUTTON_UP 1
+#define BUTTON_DOWN 2
+#define BUTTON_LEFT 3
+#define BUTTON_SELECT 4
+#define BUTTON_NONE 5
 
 // Задержка для устранения дребезга контактов (мс)
 #define BUTTON_DEBOUNCE_DELAY 200
+
+// Определение кнопок LCD Keypad Shield
+// Аналоговый пин для кнопок на ESP32-S3 UNO
+#define KEYPAD_PIN 1  // GPIO1 соответствует A0 на ESP32-S3 UNO
+
+// Значения для ESP32-S3 (12-битный ADC, 0-4095)
+// Эти значения требуют калибровки для конкретного устройства
+#define KEY_RIGHT_VAL  0     // Значение около 0
+#define KEY_UP_VAL     600   // Примерные значения
+#define KEY_DOWN_VAL   1300  // Требуют калибровки
+#define KEY_LEFT_VAL   2000
+#define KEY_SELECT_VAL 3000
+#define KEY_NONE_VAL   4095  // Ни одна кнопка не нажата
+
+// Допустимое отклонение для значений кнопок
+#define KEY_THRESHOLD 50
 
 // Переменные для прокрутки текста
 extern std::string scrollText;
@@ -21,8 +37,8 @@ extern int scrollPosition;
 // Инициализация LCD дисплея
 void initLCD();
 
-// Инициализация кнопок
-void initButtons();
+// Чтение состояния кнопок LCD Keypad Shield
+int readKeypad();
 
 // Обновление текста для прокрутки
 void updateScrollText();

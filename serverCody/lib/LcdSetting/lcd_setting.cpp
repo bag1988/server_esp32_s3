@@ -1,15 +1,19 @@
 #include <lcd_setting.h>
-#include <LiquidCrystal_I2C.h>
+#include <LiquidCrystal.h> // Используем стандартную библиотеку LiquidCrystal вместо I2C
 #include <spiffs_setting.h>
 #include <variables_info.h>
 #include <WiFi.h>
 #include <xiaomi_scanner.h>
 
-// LCD
-LiquidCrystal_I2C lcd(0x27, 16, 2);
+// LCD Keypad Shield использует следующие пины для подключения LCD
+// RS, E, D4, D5, D6, D7
+//LiquidCrystal lcd(8, 9, 4, 5, 6, 7); // Стандартные пины для LCD Keypad Shield
+// Для ESP32-S3 UNO с LCD Keypad Shield
+LiquidCrystal lcd(8, 9, 4, 5, 6, 7);  // Пины для ESP32-S3 UNO
 // Прокрутка текста
 std::string scrollText = "";
 int scrollPosition = 0;
+
 // Состояния для меню
 enum MenuState
 {
@@ -36,25 +40,44 @@ const int deviceMenuOptionsCount = 4;
 // Флаг для обновления экрана
 bool needLcdUpdate = true;
 
+// Функция для определения нажатой кнопки
+int readKeypad()
+{
+  int adcValue = analogRead(KEYPAD_PIN);
+
+  if (adcValue < KEY_RIGHT_VAL + KEY_THRESHOLD)
+  {
+    return BUTTON_RIGHT;
+  }
+  else if (adcValue < KEY_UP_VAL + KEY_THRESHOLD)
+  {
+    return BUTTON_UP;
+  }
+  else if (adcValue < KEY_DOWN_VAL + KEY_THRESHOLD)
+  {
+    return BUTTON_DOWN;
+  }
+  else if (adcValue < KEY_LEFT_VAL + KEY_THRESHOLD)
+  {
+    return BUTTON_LEFT;
+  }
+  else if (adcValue < KEY_SELECT_VAL + KEY_THRESHOLD)
+  {
+    return BUTTON_SELECT;
+  }
+
+  return BUTTON_NONE; // Ни одна кнопка не нажата
+}
+
 void initLCD()
 {
-  lcd.init();
-  lcd.backlight();
+  // Инициализация LCD
+  lcd.begin(16, 2);
   lcd.clear();
   lcd.print("Инициализация...");
 
-  // Инициализация кнопок
-  initButtons();
-}
-
-void initButtons()
-{
-  pinMode(BUTTON_SELECT, INPUT_PULLUP);
-  pinMode(BUTTON_LEFT, INPUT_PULLUP);
-  pinMode(BUTTON_UP, INPUT_PULLUP);
-  pinMode(BUTTON_DOWN, INPUT_PULLUP);
-  pinMode(BUTTON_RIGHT, INPUT_PULLUP);
-  pinMode(BUTTON_RST, INPUT_PULLUP);
+  // Настройка пина для считывания кнопок
+  pinMode(KEYPAD_PIN, INPUT);
 }
 
 // Функция для отображения главного экрана
@@ -314,54 +337,45 @@ void updateScrollText()
 void handleButtons()
 {
   // Чтение состояния кнопок
-  bool leftPressed = digitalRead(BUTTON_LEFT) == LOW;
-  bool rightPressed = digitalRead(BUTTON_RIGHT) == LOW;
-  bool upPressed = digitalRead(BUTTON_UP) == LOW;
-  bool downPressed = digitalRead(BUTTON_DOWN) == LOW;
-  bool selectPressed = digitalRead(BUTTON_SELECT) == LOW;
-  bool resetPressed = digitalRead(BUTTON_RST) == LOW;
+  int pressedButton = readKeypad();
+
+  // Если ни одна кнопка не нажата, выходим
+  if (pressedButton == BUTTON_NONE)
+  {
+    return;
+  }
 
   // Обработка дребезга контактов
   static unsigned long lastButtonTime = 0;
-  if (millis() - lastButtonTime < BUTTON_DEBOUNCE_DELAY)
+  static int lastButton = BUTTON_NONE;
+
+  // Проверяем, не та же ли кнопка нажата и прошло ли достаточно времени
+  if (pressedButton == lastButton && millis() - lastButtonTime < BUTTON_DEBOUNCE_DELAY)
   {
     return;
   }
 
-  // Если ни одна кнопка не нажата, выходим
-  if (!leftPressed && !rightPressed && !upPressed && !downPressed && !selectPressed && !resetPressed)
-  {
-    return;
-  }
-
-  // Обновляем время последнего нажатия
+  // Обновляем время последнего нажатия и последнюю нажатую кнопку
   lastButtonTime = millis();
+  lastButton = pressedButton;
 
   // Флаг для обновления экрана
   needLcdUpdate = true;
-
-  // Обработка кнопки сброса - всегда возвращает на главный экран
-  if (resetPressed)
-  {
-    currentMenu = MAIN_SCREEN;
-    updateScrollText();
-    return;
-  }
 
   // Обработка нажатий в зависимости от текущего состояния меню
   switch (currentMenu)
   {
   case MAIN_SCREEN:
     // На главном экране
-    if (selectPressed)
+    if (pressedButton == BUTTON_SELECT)
     {
       // Переход к списку устройств
       currentMenu = DEVICE_LIST;
     }
-    else if (leftPressed || rightPressed)
+    else if (pressedButton == BUTTON_LEFT || pressedButton == BUTTON_RIGHT)
     {
       // Прокрутка текста влево/вправо
-      if (leftPressed)
+      if (pressedButton == BUTTON_LEFT)
       {
         scrollPosition = (scrollPosition + 1) % scrollText.length();
       }
@@ -376,29 +390,29 @@ void handleButtons()
     // В списке устройств
     if (devices.size() > 0)
     {
-      if (upPressed)
+      if (pressedButton == BUTTON_UP)
       {
         // Предыдущее устройство
         deviceListIndex = (deviceListIndex + devices.size() - 1) % devices.size();
       }
-      else if (downPressed)
+      else if (pressedButton == BUTTON_DOWN)
       {
         // Следующее устройство
         deviceListIndex = (deviceListIndex + 1) % devices.size();
       }
-      else if (selectPressed)
+      else if (pressedButton == BUTTON_SELECT || pressedButton == BUTTON_RIGHT)
       {
         // Выбор устройства - переход в меню устройства
         currentMenu = DEVICE_MENU;
         deviceMenuIndex = 0;
       }
-      else if (leftPressed)
+      else if (pressedButton == BUTTON_LEFT)
       {
         // Возврат на главный экран
         currentMenu = MAIN_SCREEN;
       }
     }
-    else if (leftPressed)
+    else if (pressedButton == BUTTON_LEFT)
     {
       // Возврат на главный экран
       currentMenu = MAIN_SCREEN;
@@ -407,17 +421,17 @@ void handleButtons()
 
   case DEVICE_MENU:
     // В меню устройства
-    if (upPressed)
+    if (pressedButton == BUTTON_UP)
     {
       // Предыдущий пункт меню
       deviceMenuIndex = (deviceMenuIndex + deviceMenuOptionsCount - 1) % deviceMenuOptionsCount;
     }
-    else if (downPressed)
+    else if (pressedButton == BUTTON_DOWN)
     {
       // Следующий пункт меню
       deviceMenuIndex = (deviceMenuIndex + 1) % deviceMenuOptionsCount;
     }
-    else if (selectPressed)
+    else if (pressedButton == BUTTON_SELECT || pressedButton == BUTTON_RIGHT)
     {
       // Выбор пункта меню
       switch (deviceMenuIndex)
@@ -437,7 +451,7 @@ void handleButtons()
         break;
       }
     }
-    else if (leftPressed)
+    else if (pressedButton == BUTTON_LEFT)
     {
       // Возврат к списку устройств
       currentMenu = DEVICE_LIST;
@@ -446,12 +460,12 @@ void handleButtons()
 
   case EDIT_TEMPERATURE:
     // Редактирование температуры
-    if (upPressed)
+    if (pressedButton == BUTTON_UP)
     {
       // Увеличение температуры
       devices[deviceListIndex].targetTemperature += 0.5;
     }
-    else if (downPressed)
+    else if (pressedButton == BUTTON_DOWN)
     {
       // Уменьшение температуры
       devices[deviceListIndex].targetTemperature -= 0.5;
@@ -460,7 +474,7 @@ void handleButtons()
         devices[deviceListIndex].targetTemperature = 0;
       }
     }
-    else if (selectPressed || leftPressed)
+    else if (pressedButton == BUTTON_SELECT || pressedButton == BUTTON_LEFT)
     {
       // Сохранение и возврат в меню устройства
       saveClientsToFile();
@@ -472,17 +486,17 @@ void handleButtons()
     // Редактирование GPIO
     if (availableGpio.size() > 0)
     {
-      if (upPressed)
+      if (pressedButton == BUTTON_UP)
       {
         // Предыдущий GPIO
         gpioSelectionIndex = (gpioSelectionIndex + availableGpio.size() - 1) % availableGpio.size();
       }
-      else if (downPressed)
+      else if (pressedButton == BUTTON_DOWN)
       {
         // Следующий GPIO
         gpioSelectionIndex = (gpioSelectionIndex + 1) % availableGpio.size();
       }
-      else if (selectPressed)
+      else if (pressedButton == BUTTON_SELECT)
       {
         // Выбор/отмена выбора текущего GPIO
         int selectedGpio = availableGpio[gpioSelectionIndex].pin;
@@ -509,13 +523,13 @@ void handleButtons()
         // Сохраняем изменения
         saveClientsToFile();
       }
-      else if (leftPressed || rightPressed)
+      else if (pressedButton == BUTTON_LEFT || pressedButton == BUTTON_RIGHT)
       {
         // Возврат в меню устройства
         currentMenu = DEVICE_MENU;
       }
     }
-    else if (leftPressed || selectPressed)
+    else if (pressedButton == BUTTON_LEFT || pressedButton == BUTTON_SELECT)
     {
       // Если нет доступных GPIO, возвращаемся в меню
       currentMenu = DEVICE_MENU;
@@ -524,7 +538,7 @@ void handleButtons()
 
   case EDIT_ENABLED:
     // Включение/выключение устройства
-    if (upPressed || downPressed)
+    if (pressedButton == BUTTON_UP || pressedButton == BUTTON_DOWN)
     {
       // Переключение состояния
       devices[deviceListIndex].enabled = !devices[deviceListIndex].enabled;
@@ -538,7 +552,7 @@ void handleButtons()
       // Сохраняем изменения
       saveClientsToFile();
     }
-    else if (selectPressed || leftPressed)
+    else if (pressedButton == BUTTON_SELECT || pressedButton == BUTTON_LEFT)
     {
       // Возврат в меню устройства
       currentMenu = DEVICE_MENU;
