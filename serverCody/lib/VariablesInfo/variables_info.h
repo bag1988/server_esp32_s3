@@ -23,7 +23,7 @@ struct WifiCredentials {
 struct DeviceData {
     std::string name;                  // Имя устройства
     std::string macAddress;            // MAC-адрес датчика
-    float targetTemperature = 20.0; // Целевая температура
+    float targetTemperature = 25.0; // Целевая температура
     float currentTemperature = 0.0; // Текущая температура
     int humidity = 0;             // Влажность
     int battery = 0;              // Уровень заряда батареи
@@ -39,7 +39,7 @@ struct DeviceData {
     DeviceData() : 
         name(""),
         macAddress(""),
-        currentTemperature(0.0),
+        currentTemperature(25.0),
         humidity(0),
         battery(0),
         lastUpdate(0),
@@ -53,13 +53,13 @@ struct DeviceData {
     DeviceData(const std::string& _name, const std::string& _mac) :
         name(_name),
         macAddress(_mac),
-        currentTemperature(0.0),
+        currentTemperature(25.0),
         humidity(0),
         battery(0),
         lastUpdate(0),
-        isOnline(false),
-        targetTemperature(20.0),
-        enabled(true),
+        isOnline(true),
+        targetTemperature(25.0),
+        enabled(false),
         heatingStartTime(0),
         totalHeatingTime(0) {}
         
