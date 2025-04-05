@@ -349,13 +349,36 @@ void createTasks()
 // Настройка
 void setup()
 {
+    delay(1000); // Увеличьте задержку
+    // pinMode(0, INPUT_PULLUP);  // Явно настраиваем GPIO0 как вход с подтяжкой
     Serial.begin(115200);
+    delay(100); // Добавьте задержку после инициализации
+
+    // Информация о процессоре
+    Serial.printf("Частота CPU: %d MHz\n", ESP.getCpuFreqMHz());
+    Serial.printf("Ревизия чипа: %d\n", ESP.getChipRevision());
+    Serial.printf("Ядер процессора: %d \n", ESP.getChipCores());
+    Serial.printf("Версия SDK: %s\n", ESP.getSdkVersion());
+    Serial.printf("Размер SRAM: %d bytes\n", ESP.getHeapSize());
+    Serial.printf("Свободная SRAM: %d bytes\n", ESP.getFreeHeap());
+
+    // Flash и PSRAM
+    Serial.printf("Размер Flash: %d bytes\n", ESP.getFlashChipSize());
+    Serial.printf("Частота Flash: %d MHz\n", ESP.getFlashChipSpeed() / 1000000);
+    Serial.printf("Размер PSRAM: %d bytes\n", ESP.getPsramSize());
+    Serial.printf("Flash режим: %s\n", ESP.getFlashChipMode() == FM_QIO ? "QIO" : "DIO");
+
+    // Уникальный ID чипа
+    Serial.printf("ID чипа: %llu\n", ESP.getEfuseMac());
+
+    Serial.flush(); // Принудительно отправьте данные
+
     Serial.println("Запуск системы...");
 
     // Калибровка кнопок LCD Keypad Shield
     Serial.println("Калибровка кнопок LCD Keypad Shield");
     Serial.println("Нажимайте каждую кнопку по очереди и записывайте значения:");
-
+    //pinMode(LED_BUILTIN, OUTPUT);
     for (int i = 0; i < 10; i++)
     {
         int adcValue = analogRead(KEYPAD_PIN);
@@ -376,7 +399,7 @@ void setup()
     }
 
     // Инициализация случайного генератора
-    randomSeed(analogRead(0));
+    // randomSeed(analogRead(0));
 
     // Инициализация SPIFFS
     if (!SPIFFS.begin(true))
@@ -442,6 +465,8 @@ void setup()
 // Основной цикл
 void loop()
 {
-    // Основной цикл пуст, так как используются задачи FreeRTOS
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    // digitalWrite(LED_BUILTIN, HIGH);
+    // vTaskDelay(500 / portTICK_PERIOD_MS);
+    // digitalWrite(LED_BUILTIN, LOW);
+    vTaskDelay(500 / portTICK_PERIOD_MS);
 }
