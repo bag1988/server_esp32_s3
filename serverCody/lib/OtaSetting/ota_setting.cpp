@@ -18,7 +18,7 @@ bool initOTA() {
         Serial.println("OTA: WiFi не подключен. OTA не инициализирован.");
         return false;
     }
-
+    Serial.println("OTA инициализация.");
     // Настройка имени устройства для OTA
     ArduinoOTA.setHostname(OTA_HOSTNAME);
     
@@ -154,9 +154,6 @@ void enterOtaMode() {
     if (!wifiConnected) {
         displayText("Connecting WiFi", 0, 0, true, true);
         displayText("for OTA...", 0, 1, true, true);
-        
-        // Попытка подключения к WiFi
-        connectWiFi();
         
         if (!wifiConnected) {
             displayText("WiFi Failed", 0, 0, true, true);

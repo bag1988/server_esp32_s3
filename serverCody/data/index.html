@@ -20,6 +20,7 @@
             padding: 20px;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
             margin-bottom: 20px;
+            overflow-x: auto;
         }
 
         h1,
@@ -126,10 +127,10 @@
         <h1>Управление устройствами Xiaomi</h1>
         <div>
             <a href="/stats">Статистика обогрева</a>
-            <a href="/mihome">Настройка Mi Home</a>
+            <!-- <a href="/mihome">Настройка Mi Home</a> -->
             <a href="/index2">Сканирование</a>
         </div>
-        <br/>
+        <br />
         <div>
             <button class="scan" onclick="startScan()">Запустить BLE сканирование</button>
             <button onclick="loadClients()">Обновить список устройств</button>
@@ -166,6 +167,12 @@
         </div>
         <button class="save" onclick="saveGpioPins()">Сохранить GPIO пины</button>
         <div id="gpioStatus"></div>
+    </div>
+    <div class="container">
+        <h2>Информация о сервере</h2>
+        <div id="serverInfoContainer">
+            <!-- Отображение информации о сервере -->
+        </div>
     </div>
 
     <script>
@@ -421,10 +428,53 @@
                 });
         }
 
+        function loadServerInfo() {
+            fetch('/serverinfo')
+                .then(response => response.json())
+                .then(data => {
+                    const serverContainer = document.getElementById('serverInfoContainer');
+                    serverContainer.innerHTML = '';
+
+                    const temperature = document.createElement("div");
+                    temperature.innerHTML = `Температура: ${data.board_temperature} C`;
+                    serverContainer.appendChild(temperature);
+                   
+                    const workTime = document.createElement("div");
+                    workTime.innerHTML = `Время работы: ${data.millis}`;
+                    serverContainer.appendChild(workTime);
+
+                    const cpu_frequency_mhz = document.createElement("div");
+                    cpu_frequency_mhz.innerHTML = `Частота CPU: ${data.cpu_frequency_mhz}`;
+                    serverContainer.appendChild(cpu_frequency_mhz);
+                    const sram_size_bytes = document.createElement("div");
+                    sram_size_bytes.innerHTML = `Размер SRAM: ${data.sram_size_bytes}`;
+                    serverContainer.appendChild(sram_size_bytes);
+                    const free_sram_bytes = document.createElement("div");
+                    free_sram_bytes.innerHTML = `Свободная SRAM: ${data.free_sram_bytes}`;
+                    serverContainer.appendChild(free_sram_bytes);
+
+                    const flash_size_bytes = document.createElement("div");
+                    flash_size_bytes.innerHTML = `Размер Flash: ${data.flash_size_bytes}`;
+                    serverContainer.appendChild(flash_size_bytes);
+
+                    const psram_size_bytes = document.createElement("div");
+                    psram_size_bytes.innerHTML = `Размер PSRAM: ${data.psram_size_bytes}`;
+                    serverContainer.appendChild(psram_size_bytes);
+                    const free_psram_bytes = document.createElement("div");
+                    free_psram_bytes.innerHTML = `Свободная PSRAM: ${data.free_psram_bytes}`;
+                    serverContainer.appendChild(free_psram_bytes);
+                })
+                .catch(error => {
+                    console.error('Ошибка при загрузке информации о сервере:', error);
+                });
+        }
+
         // Инициализация страницы
         window.onload = function () {
             loadClients();
             loadGpioPins();
+
+            loadServerInfo();
         };
     </script>
 </body>

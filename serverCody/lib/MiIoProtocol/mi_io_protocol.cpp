@@ -232,16 +232,19 @@ void MiIOProtocol::handleCommand(uint8_t *buffer, size_t len, IPAddress &remote_
                         // Обрабатываем различные свойства
                         if (strcmp(prop, "target_temperature") == 0)
                         {
+                            Serial.println("Изменена целевая температура, сохраняем результаты");
                             device.targetTemperature = value.as<float>();
                             saveClientsToFile(); // Сохраняем изменения
                         }
                         else if (strcmp(prop, "enabled") == 0)
                         {
+                            Serial.println("Изменения доступности устройства, сохраняем результаты");
                             device.enabled = value.as<bool>();
                             saveClientsToFile(); // Сохраняем изменения
                         }
                         else if (strcmp(prop, "name") == 0)
                         {
+                            Serial.println("Изменено наименование, сохраняем результаты");
                             device.name = value.as<String>().c_str();
                             saveClientsToFile(); // Сохраняем изменения
                         }

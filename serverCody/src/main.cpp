@@ -7,12 +7,22 @@
 #include "web_server_setting.h"
 #include "spiffs_setting.h"
 #include "xiaomi_scanner.h"
-#include "mi_io_protocol.h"
-#include "mdns_service.h"
-#include "ota_setting.h"
+// #include "mi_io_protocol.h"
+// #include "mdns_service.h"
+// #include "ota_setting.h"
+#include <atomic>
+#include "esp_system.h"         // Библиотека ESP-IDF для работы с системными функциями
+#include "driver/temp_sensor.h" // Библиотека для работы с датчиком температуры
+#include <Adafruit_NeoPixel.h>
+#define KEYPAD_PIN 2 // GPIO1 соответствует A0 на ESP32-S3 UNO
+#define NUM_LEDS 1   // Один светодиод
 // Глобальные переменные
 std::vector<DeviceData> devices;
 
+// Глобальные флаги для отслеживания активности WiFi и BLE
+std::atomic<bool> wifiActive(false);
+std::atomic<bool> bleActive(false);
+Adafruit_NeoPixel pixels(NUM_LEDS, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
 // При подключении LCD Keypad Shield к ESP32-S3 UNO WROOM-1-N16R8 используются следующие пины:
 
 // LCD интерфейс: GPIO8, GPIO9, GPIO4, GPIO5, GPIO6, GPIO7
@@ -35,40 +45,22 @@ std::vector<DeviceData> devices;
 // UART: GPIO43 (TX), GPIO44 (RX) - если не используются для отладки
 
 std::vector<GpioPin> availableGpio = {
-    {2, "GPIO 2"},
-    {3, "GPIO 3"},
-    {10, "GPIO 10 (SPI CS)"},
-    {11, "GPIO 11 (SPI MOSI)"},
-    {12, "GPIO 12 (SPI MISO)"},
-    {13, "GPIO 13 (SPI CLK)"},
-    {14, "GPIO 14"},
     {15, "GPIO 15"},
     {16, "GPIO 16"},
     {17, "GPIO 17"},
     {18, "GPIO 18"},
-    {19, "GPIO 19"},
-    {20, "GPIO 20"},
-    {21, "GPIO 21"},
-    {35, "GPIO 35"},
-    {36, "GPIO 36 (I2C SCL)"},
-    {37, "GPIO 37 (I2C SDA)"},
     {38, "GPIO 38"},
     {39, "GPIO 39"},
     {40, "GPIO 40"},
-    {41, "GPIO 41"},
-    {42, "GPIO 42"},
-    {43, "GPIO 43 (UART TX)"},
-    {44, "GPIO 44 (UART RX)"},
+    {42, "GPIO 41"},
     {45, "GPIO 45"},
-    {46, "GPIO 46"},
-    {47, "GPIO 47"},
-    {48, "GPIO 48"}};
+    {47, "GPIO 47"}};
 
 // WiFi
 WifiCredentials wifiCredentials;
 bool wifiConnected = false;
 unsigned long lastWiFiAttemptTime = 0;
-
+float board_temperature = 0.0;
 // Имена файлов
 std::string DEVICES_FILE = "/devices.json";
 std::string WIFI_CREDENTIALS_FILE = "/wifi_credentials.json";
@@ -78,7 +70,21 @@ TaskHandle_t networkTask;
 TaskHandle_t mainLogicTask;
 
 // Мьютекс для защиты доступа к общим данным
-SemaphoreHandle_t devicesMutex;
+// Создаем мьютекс для защиты доступа к данным
+SemaphoreHandle_t devicesMutex = xSemaphoreCreateMutex();
+SemaphoreHandle_t wifiMutex = xSemaphoreCreateMutex();
+SemaphoreHandle_t bleMutex = xSemaphoreCreateMutex();
+
+// Функция для создания эффекта радуги
+void rainbow(int wait)
+{
+    for (long firstPixelHue = 0; firstPixelHue < 65536; firstPixelHue += 256)
+    {
+        pixels.setPixelColor(0, pixels.gamma32(pixels.ColorHSV(firstPixelHue)));
+        pixels.show();
+        delay(wait);
+    }
+}
 
 // Функция для безопасного вычисления разницы времени с учетом переполнения millis()
 unsigned long safeTimeDifference(unsigned long currentTime, unsigned long previousTime)
@@ -158,59 +164,147 @@ void controlGPIO()
     }
 }
 
+void networkFunc()
+{
+    // Если активен режим OTA, пропускаем обычную обработку
+    // if (isOtaActive())
+    // {
+    //     vTaskDelay(20 / portTICK_PERIOD_MS); // Небольшая задержка для стабильности
+    //     return;
+    // }
+
+    // Обработка пакетов miIO с защитой
+    // if (xSemaphoreTake(wifiMutex, portMAX_DELAY) == pdTRUE)
+    // {
+    //     // Обработка пакетов miIO
+    //     if (!bleActive)
+    //     {
+    //         wifiActive = true;
+    //         miIO.handlePackets();
+    //         xSemaphoreGive(wifiMutex);
+    //         vTaskDelay(20 / portTICK_PERIOD_MS);
+    //         wifiActive = false;
+    //     }
+    // }
+
+    // Проверка подключения WiFi
+    if (!wifiConnected && !bleActive && (millis() - lastWiFiAttemptTime > WIFI_RECONNECT_DELAY))
+    {
+        wifiActive = true;
+        if (xSemaphoreTake(wifiMutex, portMAX_DELAY) == pdTRUE)
+        {
+            if (!heap_caps_check_integrity_all(true))
+            {
+                Serial.println("Проблема с целостностью памяти!");
+            }
+            connectWiFi();
+            xSemaphoreGive(wifiMutex);
+            vTaskDelay(20 / portTICK_PERIOD_MS); // Добавьте задержку
+        }
+        wifiActive = false;
+    }
+
+    // Обработка OTA обновлений
+    // if (wifiConnected && !bleActive)
+    // {
+    //     wifiActive = true;
+    //     handleOTA();
+    //     wifiActive = false;
+    // }
+
+    // Сканирование BLE устройств
+    // Периодическое сканирование BLE
+    static unsigned long lastScanTime = 0;
+    if (millis() - lastScanTime > XIAOMI_SCAN_INTERVAL && !wifiActive)
+    {
+        bleActive = true;
+        if (xSemaphoreTake(bleMutex, portMAX_DELAY) == pdTRUE)
+        {
+            startXiaomiScan(XIAOMI_SCAN_DURATION);
+            vTaskDelay(20 / portTICK_PERIOD_MS); // Добавьте задержку
+            updateDevicesStatus();
+            xSemaphoreGive(bleMutex);
+            // Обновляем время последнего сканирования
+            lastScanTime = millis();
+        }
+        bleActive = false;
+    }
+
+    // Обновляем данные эмулируемых устройств
+    // if (!wifiActive)
+    // {
+    //     bleActive = true;
+    //     updateEmulatedDevices();
+    //     bleActive = false;
+    // }
+
+    // Даем время другим задачам
+    vTaskDelay(3000 / portTICK_PERIOD_MS); // Небольшая задержка для предотвращения перегрузки CPU
+}
+
 // Функция задачи для сетевых операций (ядро 0)
 void networkTaskFunction(void *parameter)
 {
     for (;;)
     {
-        // Если активен режим OTA, пропускаем обычную обработку
-        if (isOtaActive())
-        {
-            vTaskDelay(20 / portTICK_PERIOD_MS); // Небольшая задержка для стабильности
-            return;
-        }
-        // Обработка пакетов miIO
-        miIO.handlePackets();
-
-        // Проверка подключения WiFi
-        if (!wifiConnected && (millis() - lastWiFiAttemptTime > WIFI_RECONNECT_DELAY))
-        {
-            connectWiFi();
-        }
-
-        // Обработка OTA обновлений
-        if (wifiConnected)
-        {
-            handleOTA();
-        }
-
-        // Сканирование BLE устройств
-        // Периодическое сканирование BLE
-        static unsigned long lastScanTime = 0;
-        if (millis() - lastScanTime > XIAOMI_SCAN_INTERVAL)
-        {
-            startXiaomiScan(XIAOMI_SCAN_DURATION);
-            updateDevicesStatus();
-            // Обновляем время последнего сканирования
-            lastScanTime = millis();
-        }
-
-        // Обновляем данные эмулируемых устройств
-        updateEmulatedDevices();
-
-        // Даем время другим задачам
-        vTaskDelay(100 / portTICK_PERIOD_MS); // Небольшая задержка для предотвращения перегрузки CPU
+        networkFunc();
     }
 }
 
 // Функция для мониторинга памяти
 void monitorMemory()
 {
-    Serial.printf("Свободно HEAP: %d байт\n", ESP.getFreeHeap());
-    if (psramFound())
+    static unsigned long lastWriteStatistic = 0;
+    if (millis() - lastWriteStatistic > 5000)
     {
-        Serial.printf("Свободно PSRAM: %d байт\n", ESP.getFreePsram());
+        Serial.printf("Свободно HEAP: %d байт\n", ESP.getFreeHeap());
+        if (psramFound())
+        {
+            Serial.printf("Свободно PSRAM: %d байт\n", ESP.getFreePsram());
+            Serial.printf("Наибольший свободный блок: %d байт\n", heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+        }
+        lastWriteStatistic = millis();
     }
+}
+
+void mainlogicFunc()
+{
+    // Если активен режим OTA, пропускаем обычную обработку
+    // if (isOtaActive())
+    // {
+    //     vTaskDelay(20 / portTICK_PERIOD_MS); // Небольшая задержка для стабильности
+    //     return;
+    // }
+    // Обработка нажатий кнопок
+    handleButtons();
+    // Обновление LCD
+    updateLCDTask();
+
+    // // Управление GPIO
+    static unsigned long lastGpioControlTime = 0;
+    if (millis() - lastGpioControlTime > CONTROL_DELAY)
+    {
+        // Обработка логики управления устройствами
+        if (xSemaphoreTake(devicesMutex, portMAX_DELAY) == pdTRUE)
+        {
+            controlGPIO();
+            xSemaphoreGive(devicesMutex);
+            lastGpioControlTime = millis();
+        }
+    }
+    // Добавляем переменную для отслеживания времени последнего сохранения
+    static unsigned long lastStatsSaveTime = 0;
+    // Периодически сохраняем статистику (каждые 5 минут)
+    unsigned long currentTime = millis();
+    if ((currentTime - lastStatsSaveTime > 300000) || (currentTime < lastStatsSaveTime))
+    {
+        Serial.println("Сохранение статистики согласно таймаута, сохраняем результаты");
+        saveClientsToFile();
+        lastStatsSaveTime = currentTime;
+    }
+    // monitorMemory();
+    //  Даем время другим задачам
+    vTaskDelay(200 / portTICK_PERIOD_MS); // Небольшая задержка для предотвращения перегрузки CPU
 }
 
 // Функция задачи для основной логики (ядро 1)
@@ -218,179 +312,289 @@ void mainLogicTaskFunction(void *parameter)
 {
     for (;;)
     {
-        // Если активен режим OTA, пропускаем обычную обработку
-        if (isOtaActive())
-        {
-            vTaskDelay(20 / portTICK_PERIOD_MS); // Небольшая задержка для стабильности
-            return;
-        }
-        // Обработка нажатий кнопок
-        handleButtons();
-        // Обновление LCD
-        updateLCDTask();
-
-        // Управление GPIO
-        static unsigned long lastGpioControlTime = 0;
-        if (millis() - lastGpioControlTime > CONTROL_DELAY)
-        {
-            // Обработка логики управления устройствами
-            if (xSemaphoreTake(devicesMutex, portMAX_DELAY) == pdTRUE)
-            {
-                controlGPIO();
-                xSemaphoreGive(devicesMutex);
-                lastGpioControlTime = millis();
-            }
-        }
-        // Добавляем переменную для отслеживания времени последнего сохранения
-        unsigned long lastStatsSaveTime = 0;
-        // Периодически сохраняем статистику (каждые 5 минут)
-        unsigned long currentTime = millis();
-        if (currentTime - lastStatsSaveTime > 300000 || currentTime < lastStatsSaveTime)
-        {
-            saveClientsToFile();
-            lastStatsSaveTime = currentTime;
-        }
-
-        monitorMemory();
-        // Даем время другим задачам
-        vTaskDelay(20 / portTICK_PERIOD_MS); // Небольшая задержка для предотвращения перегрузки CPU
+        mainlogicFunc();
     }
 }
-
-// Создание задач с большим стеком в PSRAM
 void createTasks()
 {
-    // Размер стека в словах (1 слово = 4 байта)
-    const uint32_t stackSize = 8192;
+    const uint32_t networkStackSize = 8192;
+    const uint32_t logicStackSize = 4096;
 
-    // Создаем задачу с использованием PSRAM для стека
-    if (psramFound())
-    {
-        // Выделяем память для стека в PSRAM
-        StackType_t *taskStack = (StackType_t *)ps_malloc(stackSize * sizeof(StackType_t));
-        StaticTask_t *taskBuffer = (StaticTask_t *)ps_malloc(sizeof(StaticTask_t));
+    xTaskCreatePinnedToCore(
+        networkTaskFunction,
+        "NetworkTask",
+        networkStackSize,
+        NULL,
+        1,
+        &networkTask,
+        1);
 
-        if (taskStack && taskBuffer)
-        {
-            xTaskCreateStatic(
-                mainLogicTaskFunction,
-                "MainLogicTask",
-                stackSize,
-                NULL,
-                1,
-                taskStack,
-                taskBuffer);
-        }
-        else
-        {
-            // Создание задачи для основной логики на ядре 1
-            xTaskCreatePinnedToCore(
-                mainLogicTaskFunction, // Функция задачи
-                "MainLogicTask",       // Имя задачи
-                4096,                  // Размер стека
-                NULL,                  // Параметры
-                1,                     // Приоритет
-                &mainLogicTask,        // Указатель на задачу
-                1);                    // Ядро 1
-        }
+    xTaskCreatePinnedToCore(
+        mainLogicTaskFunction,
+        "MainLogicTask",
+        logicStackSize,
+        NULL,
+        1,
+        &mainLogicTask,
+        0);
+}
 
-        StackType_t *taskStackN = (StackType_t *)ps_malloc(stackSize * sizeof(StackType_t));
-        StaticTask_t *taskBufferN = (StaticTask_t *)ps_malloc(sizeof(StaticTask_t));
+// void createTasksOlddd()
+// {
+//     // Размер стека в словах (1 слово = 4 байта)
+//     const uint32_t networkStackSize = 8192; // Для сетевых операций
+//     const uint32_t logicStackSize = 4096;   // Для основной логики
 
-        if (taskStackN && taskBufferN)
-        {
-            xTaskCreateStatic(
-                networkTaskFunction,
-                "NetworkTask",
-                stackSize,
-                NULL,
-                1,
-                taskStackN,
-                taskBufferN);
-        }
-        else
-        {
-            // Создание задачи для сетевых операций на ядре 0
-            xTaskCreatePinnedToCore(
-                networkTaskFunction, // Функция задачи
-                "NetworkTask",       // Имя задачи
-                8192,                // Размер стека (больше для сетевых операций)
-                NULL,                // Параметры
-                1,                   // Приоритет
-                &networkTask,        // Указатель на задачу
-                0);                  // Ядро 0
-        }
-    }
-    else
-    {
-        // Если PSRAM не доступна, используем обычное создание задачи
-        // Создание задачи для сетевых операций на ядре 0
-        xTaskCreatePinnedToCore(
-            networkTaskFunction, // Функция задачи
-            "NetworkTask",       // Имя задачи
-            8192,                // Размер стека (больше для сетевых операций)
-            NULL,                // Параметры
-            1,                   // Приоритет
-            &networkTask,        // Указатель на задачу
-            0);                  // Ядро 0
+//     Serial.println("Создание задач FreeRTOS с использованием PSRAM...");
 
-        // Создание задачи для основной логики на ядре 1
-        xTaskCreatePinnedToCore(
-            mainLogicTaskFunction, // Функция задачи
-            "MainLogicTask",       // Имя задачи
-            4096,                  // Размер стека
-            NULL,                  // Параметры
-            1,                     // Приоритет
-            &mainLogicTask,        // Указатель на задачу
-            1);                    // Ядро 1
-    }
+//     // Проверяем наличие PSRAM
+//     if (psramFound())
+//     {
+//         Serial.println("PSRAM найдена, размер: " + String(ESP.getFreePsram() / 1024) + " КБ");
+
+//         // Настраиваем использование PSRAM для malloc
+//         heap_caps_malloc_extmem_enable(4096); // Минимальный размер для внешней памяти
+
+//         // Создаем задачу для сетевых операций на ядре 0
+//         // Используем CONFIG_FREERTOS_SUPPORT_STATIC_ALLOCATION для размещения стека в PSRAM
+//         BaseType_t networkTaskResult = xTaskCreatePinnedToCore(
+//             networkTaskFunction, // Функция задачи
+//             "NetworkTask",       // Имя задачи
+//             networkStackSize,    // Размер стека
+//             NULL,                // Параметры
+//             1,                   // Приоритет (повышенный)
+//             &networkTask,        // Указатель на задачу
+//             0);                  // Ядро 0
+
+//         if (networkTaskResult != pdPASS)
+//         {
+//             Serial.println("Ошибка создания NetworkTask, код: " + String(networkTaskResult));
+
+//             // Пробуем создать с меньшим стеком
+//             networkTaskResult = xTaskCreatePinnedToCore(
+//                 networkTaskFunction, "NetworkTask", networkStackSize / 2, NULL, 1, &networkTask, 0);
+
+//             if (networkTaskResult != pdPASS)
+//             {
+//                 Serial.println("Повторная ошибка создания NetworkTask");
+//             }
+//             else
+//             {
+//                 Serial.println("NetworkTask создана с уменьшенным стеком");
+//             }
+//         }
+//         else
+//         {
+//             Serial.println("NetworkTask создана успешно");
+//         }
+
+//         // Небольшая задержка между созданием задач
+//         delay(100);
+
+//         // Создаем задачу для основной логики на ядре 1
+//         BaseType_t logicTaskResult = xTaskCreatePinnedToCore(
+//             mainLogicTaskFunction, // Функция задачи
+//             "MainLogicTask",       // Имя задачи
+//             logicStackSize,        // Размер стека
+//             NULL,                  // Параметры
+//             1,                     // Приоритет
+//             &mainLogicTask,        // Указатель на задачу
+//             1);                    // Ядро 1
+
+//         if (logicTaskResult != pdPASS)
+//         {
+//             Serial.println("Ошибка создания MainLogicTask, код: " + String(logicTaskResult));
+
+//             // Пробуем создать с меньшим стеком
+//             logicTaskResult = xTaskCreatePinnedToCore(
+//                 mainLogicTaskFunction, "MainLogicTask", logicStackSize / 2, NULL, 1, &mainLogicTask, 1);
+
+//             if (logicTaskResult != pdPASS)
+//             {
+//                 Serial.println("Повторная ошибка создания MainLogicTask");
+//             }
+//             else
+//             {
+//                 Serial.println("MainLogicTask создана с уменьшенным стеком");
+//             }
+//         }
+//         else
+//         {
+//             Serial.println("MainLogicTask создана успешно");
+//         }
+
+//         // Мониторинг памяти после создания задач
+//         Serial.println("Свободно HEAP: " + String(ESP.getFreeHeap() / 1024) + " КБ");
+//         Serial.println("Свободно PSRAM: " + String(ESP.getFreePsram() / 1024) + " КБ");
+//     }
+//     else
+//     {
+//         Serial.println("PSRAM не найдена, используем стандартное создание задач");
+
+//         // Создаем задачи с меньшим стеком
+//         const uint32_t reducedNetworkStackSize = 8192;
+//         const uint32_t reducedLogicStackSize = 4096;
+
+//         // Создаем задачу для сетевых операций на ядре 0
+//         xTaskCreatePinnedToCore(
+//             networkTaskFunction,     // Функция задачи
+//             "NetworkTask",           // Имя задачи
+//             reducedNetworkStackSize, // Уменьшенный размер стека
+//             NULL,                    // Параметры
+//             1,                       // Приоритет
+//             &networkTask,            // Указатель на задачу
+//             0);                      // Ядро 0
+
+//         // Создаем задачу для основной логики на ядре 1
+//         xTaskCreatePinnedToCore(
+//             mainLogicTaskFunction, // Функция задачи
+//             "MainLogicTask",       // Имя задачи
+//             reducedLogicStackSize, // Уменьшенный размер стека
+//             NULL,                  // Параметры
+//             1,                     // Приоритет
+//             &mainLogicTask,        // Указатель на задачу
+//             1);                    // Ядро 1
+//     }
+
+//     // Проверка успешности создания задач
+//     if (networkTask != NULL && mainLogicTask != NULL)
+//     {
+//         Serial.println("Все задачи созданы успешно");
+//     }
+//     else
+//     {
+//         Serial.println("Ошибка при создании задач");
+//     }
+
+//     // Настройка мониторинга использования стека
+//     // Будем периодически проверять в основном цикле
+//     Serial.println("Настройка мониторинга стека завершена");
+// }
+
+// // Создание задач с большим стеком в PSRAM
+// void createTasksOld()
+// {
+//     // Размер стека в словах (1 слово = 4 байта)
+//     const uint32_t stackSize = 16384 * 2;
+
+//     // Создаем задачу с использованием PSRAM для стека
+//     if (psramFound())
+//     {
+//         // Выделяем память для стека в PSRAM
+//         // Выделяем память для стека в PSRAM с выравниванием
+//         StackType_t *taskStack = (StackType_t *)heap_caps_aligned_alloc(16, stackSize * sizeof(StackType_t), MALLOC_CAP_SPIRAM);
+//         // TCB во внутренней памяти
+//         StaticTask_t *taskBuffer = (StaticTask_t *)heap_caps_malloc(sizeof(StaticTask_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+
+//         if (taskStack && taskBuffer)
+//         {
+//             Serial.println("Используем создание задачи PSRAM");
+//             xTaskCreateStatic(
+//                 mainLogicTaskFunction,
+//                 "MainLogicTask",
+//                 stackSize,
+//                 NULL,
+//                 1,
+//                 taskStack,
+//                 taskBuffer);
+//         }
+//         else
+//         {
+//             Serial.println("Используем обычное создание задачи");
+//             // Создание задачи для основной логики на ядре 1
+//             xTaskCreatePinnedToCore(
+//                 mainLogicTaskFunction, // Функция задачи
+//                 "MainLogicTask",       // Имя задачи
+//                 8192,                  // Размер стека
+//                 NULL,                  // Параметры
+//                 1,                     // Приоритет
+//                 &mainLogicTask,        // Указатель на задачу
+//                 1);                    // Ядро 1
+//         }
+
+//         // Выделяем память для стека в PSRAM с выравниванием
+//         StackType_t *taskStackN = (StackType_t *)heap_caps_aligned_alloc(16, stackSize * sizeof(StackType_t), MALLOC_CAP_SPIRAM);
+//         // TCB во внутренней памяти
+//         StaticTask_t *taskBufferN = (StaticTask_t *)heap_caps_malloc(sizeof(StaticTask_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+
+//         if (taskStackN && taskBufferN)
+//         {
+//             Serial.println("Используем создание задачи PSRAM");
+//             xTaskCreateStatic(
+//                 networkTaskFunction,
+//                 "NetworkTask",
+//                 stackSize,
+//                 NULL,
+//                 2,
+//                 taskStackN,
+//                 taskBufferN);
+//         }
+//         else
+//         {
+//             Serial.println("Используем обычное создание задачи");
+//             // Создание задачи для сетевых операций на ядре 0
+//             xTaskCreatePinnedToCore(
+//                 networkTaskFunction, // Функция задачи
+//                 "NetworkTask",       // Имя задачи
+//                 8192,                // Размер стека (больше для сетевых операций)
+//                 NULL,                // Параметры
+//                 2,                   // Приоритет
+//                 &networkTask,        // Указатель на задачу
+//                 0);                  // Ядро 0
+//         }
+//     }
+//     else
+//     {
+//         Serial.println("Используем обычное создание задачи");
+//         // Если PSRAM не доступна, используем обычное создание задачи
+//         // Создание задачи для сетевых операций на ядре 0
+//         xTaskCreatePinnedToCore(
+//             networkTaskFunction, // Функция задачи
+//             "NetworkTask",       // Имя задачи
+//             8192,                // Размер стека (больше для сетевых операций)
+//             NULL,                // Параметры
+//             2,                   // Приоритет
+//             &networkTask,        // Указатель на задачу
+//             0);                  // Ядро 0
+
+//         // Создание задачи для основной логики на ядре 1
+//         xTaskCreatePinnedToCore(
+//             mainLogicTaskFunction, // Функция задачи
+//             "MainLogicTask",       // Имя задачи
+//             8192,                  // Размер стека
+//             NULL,                  // Параметры
+//             1,                     // Приоритет
+//             &mainLogicTask,        // Указатель на задачу
+//             1);                    // Ядро 1
+//     }
+// }
+
+void ReadDataInSPIFFS()
+{
+    loadGpioFromFile();
+     // Загрузка данных устройств
+     loadClientsFromFile();
 }
 
 // Настройка
 void setup()
 {
-    delay(1000); // Увеличьте задержку
-    // pinMode(0, INPUT_PULLUP);  // Явно настраиваем GPIO0 как вход с подтяжкой
     Serial.begin(115200);
-    delay(100); // Добавьте задержку после инициализации
-
-    // Информация о процессоре
-    Serial.printf("Частота CPU: %d MHz\n", ESP.getCpuFreqMHz());
-    Serial.printf("Ревизия чипа: %d\n", ESP.getChipRevision());
-    Serial.printf("Ядер процессора: %d \n", ESP.getChipCores());
-    Serial.printf("Версия SDK: %s\n", ESP.getSdkVersion());
-    Serial.printf("Размер SRAM: %d bytes\n", ESP.getHeapSize());
-    Serial.printf("Свободная SRAM: %d bytes\n", ESP.getFreeHeap());
-
-    // Flash и PSRAM
-    Serial.printf("Размер Flash: %d bytes\n", ESP.getFlashChipSize());
-    Serial.printf("Частота Flash: %d MHz\n", ESP.getFlashChipSpeed() / 1000000);
-    Serial.printf("Размер PSRAM: %d bytes\n", ESP.getPsramSize());
-    Serial.printf("Flash режим: %s\n", ESP.getFlashChipMode() == FM_QIO ? "QIO" : "DIO");
-
-    // Уникальный ID чипа
-    Serial.printf("ID чипа: %llu\n", ESP.getEfuseMac());
-
-    Serial.flush(); // Принудительно отправьте данные
-
     Serial.println("Запуск системы...");
-
-    // Калибровка кнопок LCD Keypad Shield
-    Serial.println("Калибровка кнопок LCD Keypad Shield");
-    Serial.println("Нажимайте каждую кнопку по очереди и записывайте значения:");
-    //pinMode(LED_BUILTIN, OUTPUT);
-    for (int i = 0; i < 10; i++)
-    {
-        int adcValue = analogRead(KEYPAD_PIN);
-        Serial.print("ADC Value: ");
-        Serial.println(adcValue);
-        delay(500);
-    }
+    // esp_task_wdt_init(10, true); // 10 секунд таймаут, с перезагрузкой
+    pixels.begin();           // Инициализация NeoPixel
+    pixels.setBrightness(50); // Установка яркости (0-255)
+    pixels.show();            // Инициализация всех пикселей в 'выключено'
+    //  #if CONFIG_BTDM_CTRL_MODE_BTDM
+    //      // Установите режим совместимости
+    //      esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
+    //  #endif
 
     // Инициализация и проверка PSRAM
     if (psramFound())
     {
         Serial.println("PSRAM найдена и инициализирована");
+        // heap_caps_malloc_extmem_enable(20000); //
         Serial.printf("Доступно PSRAM: %d байт\n", ESP.getFreePsram());
     }
     else
@@ -398,19 +602,17 @@ void setup()
         Serial.println("PSRAM не найдена! Некоторые функции могут работать некорректно");
     }
 
-    // Инициализация случайного генератора
-    // randomSeed(analogRead(0));
-
     // Инициализация SPIFFS
     if (!SPIFFS.begin(true))
     {
         Serial.println("Ошибка инициализации SPIFFS");
         return;
     }
-    // Создаем мьютекс для защиты доступа к данным
-    devicesMutex = xSemaphoreCreateMutex();
-    loadGpioFromFile();
 
+    xTaskCreate([](void *parameter)
+                {
+                    ReadDataInSPIFFS();
+                    vTaskDelete(NULL); }, "ReadSPIFFS", 4096, NULL, 1, NULL);
     // Инициализация GPIO
     for (auto &gpio : availableGpio)
     {
@@ -420,53 +622,99 @@ void setup()
 
     // Инициализация LCD и кнопок
     initLCD();
-    updateScrollText();
+    // updateScrollText();
 
     // Загрузка настроек WiFi и подключение
-    loadWifiCredentialsFromFile();
+    // loadWifiCredentialsFromFile();
+
     connectWiFi();
 
     // Инициализация OTA после подключения к WiFi
-    if (wifiConnected)
-    {
-        initOTA();
-    }
+    // if (wifiConnected)
+    // {
+    //     initOTA();
+    // }
 
     // Инициализация BLE сканера
     setupXiaomiScanner();
 
-    // Загрузка данных устройств
-    loadClientsFromFile();
-
-    // Инициализация веб-сервера    initWebServer();
+    // Инициализация веб-сервера
+    initWebServer();
 
     // Обновление текста прокрутки
-    // updateScrollText();
-    // updateLCD();
+    updateScrollText();
+    updateLCD();
     // Загрузка сохраненного токена устройства
-    String token = loadDeviceToken();
+    // String token = loadDeviceToken();
     // Инициализация протокола miIO
-    miIO.begin();
+    // miIO.begin();
 
-    miIO.setDeviceToken(token.c_str());
+    // miIO.setDeviceToken(token.c_str());
 
     // Инициализация эмуляции устройств Xiaomi
-    initXiaomiDeviceEmulation();
+    // initXiaomiDeviceEmulation();
 
     // Настройка mDNS для обнаружения в Mi Home
-    setupMDNS();
+    // setupMDNS();
 
     Serial.println("Система готова к работе");
-    Serial.println("Токен устройства: " + token);
+    // Serial.println("Токен устройства: " + token);
     createTasks();
     Serial.println("Настройка завершена");
+
+    // Инициализация датчика температуры (старый API)
+    temp_sensor_config_t temp_sensor = TSENS_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK(temp_sensor_set_config(temp_sensor));
+    ESP_ERROR_CHECK(temp_sensor_start());
+
+    Serial.println("Датчик температуры инициализирован");
 }
 
-// Основной цикл
 void loop()
 {
-    // digitalWrite(LED_BUILTIN, HIGH);
-    // vTaskDelay(500 / portTICK_PERIOD_MS);
-    // digitalWrite(LED_BUILTIN, LOW);
-    vTaskDelay(500 / portTICK_PERIOD_MS);
+    if (WiFi.status() == WL_CONNECTED)
+    {
+        // Зеленый
+        pixels.setPixelColor(0, pixels.Color(0, 255, 0));
+        pixels.show();
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }
+    else
+    {
+        // Красный
+        pixels.setPixelColor(0, pixels.Color(255, 0, 0));
+        pixels.show();
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        pixels.clear();
+        pixels.show();
+    }
+
+    //     // Синий
+    //     Serial.println("Blue");
+    //     pixels.setPixelColor(0, pixels.Color(0, 0, 255));
+    //     pixels.show();
+    //     delay(1000);
+    //     // Белый
+    //     Serial.println("White");
+    //     pixels.setPixelColor(0, pixels.Color(255, 255, 255));
+    //     pixels.show();
+    //     delay(1000);
+    //     // Радуга
+    //     Serial.println("Rainbow");
+    //     rainbow(10);
+
+    // Чтение температуры (старый API)
+
+    esp_err_t ret = temp_sensor_read_celsius(&board_temperature);
+
+    // if (ret == ESP_OK)
+    // {
+    //     Serial.printf("Внутренняя температура: %.2f °C\n", board_temperature);
+    // }
+    // else
+    // {
+    //     Serial.println("Ошибка при чтении датчика температуры");
+    // }
+
+    vTaskDelay(1000 / portTICK_PERIOD_MS); // Небольшая задержка для предотвращения перегрузки CPU
 }

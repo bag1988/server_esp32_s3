@@ -8,14 +8,15 @@
 #include <SPIFFS.h>
 // Web Server
 AsyncWebServer server(80);
-
+// server.setStackSize(8192);
 // Connect to WiFi +++++++++++++++++++++++++++++++++++
 void connectWiFi()
 {
     Serial.print(F("Connecting to WiFi: "));
-    Serial.println(F(wifiCredentials.ssid.c_str()));
-
-    WiFi.begin(wifiCredentials.ssid.c_str(), wifiCredentials.password.c_str());
+    Serial.print(F(wifiCredentials.ssid.c_str()));
+    Serial.print(F(", password: "));
+    Serial.println(F(wifiCredentials.password.c_str()));
+    WiFi.begin("Bag", "01123581321");
     lastWiFiAttemptTime = millis();
 
     int attempts = 0;
@@ -113,6 +114,33 @@ void initWebServer()
             request->send(200, "text/plain", "availablegpio update");
         }
         request->send(400, "text/plain", "availablegpio no found"); });
+    server.on("/serverinfo", HTTP_GET, [](AsyncWebServerRequest *request)
+              {
+
+                unsigned long seconds = millis() / 1000;
+                unsigned long minutes = seconds / 60;
+                unsigned long hours = minutes / 60;
+                char buffer[20];
+                sprintf(buffer, "%02lu:%02lu:%02lu", hours, minutes % 60, seconds % 60);
+                JsonDocument doc;
+                doc["cpu_frequency_mhz"] = ESP.getCpuFreqMHz();//Частота CPU
+                doc["chip_revision"] = ESP.getChipRevision();//Ревизия чипа
+                doc["processor_cores"] = ESP.getChipCores();//Ядер процессора
+                doc["sdk_version"] = ESP.getSdkVersion();//Версия SDK
+                doc["sram_size_bytes"] = ESP.getHeapSize();//Размер SRAM
+                doc["free_sram_bytes"] = ESP.getFreeHeap();//Свободная SRAM
+                doc["flash_size_bytes"] = ESP.getFlashChipSize();//Размер Flash
+                doc["flash_frequency_mhz"] = ESP.getFlashChipSpeed() / 1000000;//Частота Flash
+                doc["psram_size_bytes"] = ESP.getPsramSize();//Размер PSRAM
+                doc["free_psram_bytes"] = ESP.getFreePsram();//Свободная PSRAM
+                doc["flash_mode"] = ESP.getFlashChipMode() == FM_QIO ? "QIO" : "DIO";//Flash режим
+                doc["chip_id"] = ESP.getEfuseMac();//Уникальный ID чипа
+                doc["millis"] = String(buffer);
+                doc["board_temperature"] = board_temperature;
+                // Сериализуем JSON
+                String payload;
+                serializeJson(doc, payload);
+                request->send(200, "application/json", payload.c_str()); });
     // POST /client/{address} (update info about a client)
     server.on("/client", HTTP_POST, [](AsyncWebServerRequest *request)
               {
@@ -187,6 +215,7 @@ void initWebServer()
                 xSemaphoreGive(devicesMutex);
                 if (isSaving)
                 {
+                    Serial.println("Получены изменения по HTTP, сохраняем результаты");
                     saveClientsToFile(); // Save changes to file
                     // Send response
                     request->send(200, "text/plain", "Client updated");
@@ -198,7 +227,8 @@ void initWebServer()
     // GET /scan (start BLE scan)
     server.on("/scan", HTTP_GET, [](AsyncWebServerRequest *request)
               {
-                startXiaomiScan();
+                Serial.println("Получен запрос на запуск сканирования устройств");
+                startXiaomiScan(XIAOMI_SCAN_DURATION);
             request->send(200, "text/plain", "BLE Scan started"); });
     // Добавьте этот код в функцию initWebServer() в файле web_server_setting.cpp
 
@@ -256,32 +286,31 @@ void initWebServer()
     // Добавляем обработчик для сброса статистики обогрева
     server.on("/reset_stats", HTTP_POST, [](AsyncWebServerRequest *request)
               {
-    bool resetAll = true;
-    String deviceMac = "";
-    
-    // Проверяем, нужно ли сбросить статистику для конкретного устройства
-    if (request->hasParam("device", true)) {
-        deviceMac = request->getParam("device", true)->value();
-        resetAll = false;
-    }
-    
-    if (xSemaphoreTake(devicesMutex, portMAX_DELAY) == pdTRUE) {
-        for (auto& device : devices) {
-            if (resetAll || device.macAddress == deviceMac.c_str()) {
-                device.totalHeatingTime = 0;
-                if (device.heatingActive) {
-                    // Если обогрев активен, сбрасываем время начала
-                    device.heatingStartTime = millis();
+        bool resetAll = true;
+        String deviceMac = "";
+        
+        // Проверяем, нужно ли сбросить статистику для конкретного устройства
+        if (request->hasParam("device", true)) {
+            deviceMac = request->getParam("device", true)->value();
+            resetAll = false;
+        }
+        
+        if (xSemaphoreTake(devicesMutex, portMAX_DELAY) == pdTRUE) {
+            for (auto& device : devices) {
+                if (resetAll || device.macAddress == deviceMac.c_str()) {
+                    device.totalHeatingTime = 0;
+                    if (device.heatingActive) {
+                        // Если обогрев активен, сбрасываем время начала
+                        device.heatingStartTime = millis();
+                    }
                 }
             }
-        }
-        xSemaphoreGive(devicesMutex);
-    }
-    
-    // Сохраняем изменения
-    saveClientsToFile();
-    
-    request->send(200, "text/plain", "Статистика сброшена"); });
+            xSemaphoreGive(devicesMutex);
+        }        
+        Serial.println("Сброшена статистика, сохраняем результаты");
+        // Сохраняем изменения
+        saveClientsToFile();    
+        request->send(200, "text/plain", "Статистика сброшена"); });
     server.begin();
     Serial.println(F("Web server started"));
 }

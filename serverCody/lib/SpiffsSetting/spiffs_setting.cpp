@@ -84,8 +84,8 @@ void loadWifiCredentialsFromFile()
     if (!file || file.size() == 0)
     {
       Serial.println(F("WiFi credentials file doesn't exist or is empty. Using default configuration."));
-      wifiCredentials.ssid = "";
-      wifiCredentials.password = "";
+      wifiCredentials.ssid = "Bag";
+      wifiCredentials.password = "01123581321";
       file.close(); // Ensure file is closed
       return;
     }

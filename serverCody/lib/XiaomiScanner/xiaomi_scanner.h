@@ -8,7 +8,8 @@
 #include <BLEAdvertisedDevice.h>
 #include "variables_info.h"
 #include <ArduinoJson.h>
-
+// #define CONFIG_BT_BLE_DYNAMIC_ENV_MEMORY 1
+// #define CONFIG_BT_BTU_TASK_STACK_SIZE 4096
 #define SERVER_NAME "ESP32_BLE_CENTRAL_SERVER"
 #define SERVICE_UUID "33b6ebbe-538f-4d4a-ba39-2ee04516ff39"
 #define TEMPERATURE_UUID "ccfe71ea-e98b-4927-98e2-6c1b77d1f756"

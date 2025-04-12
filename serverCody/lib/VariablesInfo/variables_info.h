@@ -10,7 +10,7 @@
 #define CONTROL_DELAY 30000        // Интервал проверки и управления GPIO (мс)
 #define WIFI_RECONNECT_DELAY 60000 // Интервал попыток переподключения к WiFi (мс)
 #define XIAOMI_SCAN_INTERVAL 60000 // Интервал сканирования датчиков Xiaomi (мс)
-#define XIAOMI_SCAN_DURATION 5000  // Продолжительность сканирования BLE (мс)
+#define XIAOMI_SCAN_DURATION 15000  // Продолжительность сканирования BLE (мс)
 #define XIAOMI_OFFLINE_TIMEOUT 300000 // 5 минут до перехода в оффлайн
 
 // Структура для хранения учетных данных WiFi
@@ -96,4 +96,5 @@ extern std::string WIFI_CREDENTIALS_FILE;
 extern unsigned long lastWiFiAttemptTime;
 // Мьютекс для защиты доступа к общим данным
 extern SemaphoreHandle_t devicesMutex;
+extern float board_temperature;
 #endif // VARIABLES_INFO_H

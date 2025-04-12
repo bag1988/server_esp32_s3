@@ -45,8 +45,8 @@ std::string toJson(const DeviceData& data) {
     json += "\"targetTemperature\":" + std::to_string(data.targetTemperature) + ",";
     json += "\"currentTemperature\":" + std::to_string(data.currentTemperature) + ",";
     json += "\"humidity\":" + std::to_string(data.humidity) + ",";
-    json += "\"heatingActive\":" + std::to_string(data.heatingActive);
-    json += "\"heatingStartTime\":" + std::to_string(data.heatingStartTime);
+    json += "\"heatingActive\":" + std::to_string(data.heatingActive)+ ",";
+    json += "\"heatingStartTime\":" + std::to_string(data.heatingStartTime)+ ",";
     json += "\"totalHeatingTime\":" + std::to_string(data.totalHeatingTime);
     json += "}";
     return json;

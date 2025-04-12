@@ -16,19 +16,19 @@
 
 // Определение кнопок LCD Keypad Shield
 // Аналоговый пин для кнопок на ESP32-S3 UNO
-#define KEYPAD_PIN 1  // GPIO1 соответствует A0 на ESP32-S3 UNO
+#define KEYPAD_PIN 2  // GPIO2 соответствует A0 на arduino UNO
 
 // Значения для ESP32-S3 (12-битный ADC, 0-4095)
 // Эти значения требуют калибровки для конкретного устройства
-#define KEY_RIGHT_VAL  0     // Значение около 0
-#define KEY_UP_VAL     600   // Примерные значения
-#define KEY_DOWN_VAL   1300  // Требуют калибровки
-#define KEY_LEFT_VAL   2000
+#define KEY_RIGHT_VAL  0     // Значение около 0//0
+#define KEY_UP_VAL     700   // Примерные значения//790
+#define KEY_DOWN_VAL   1700  // Требуют калибровки//1860
+#define KEY_LEFT_VAL   2800 //2937
 #define KEY_SELECT_VAL 3000
 #define KEY_NONE_VAL   4095  // Ни одна кнопка не нажата
 
 // Допустимое отклонение для значений кнопок
-#define KEY_THRESHOLD 50
+#define KEY_THRESHOLD 200
 
 // Переменные для прокрутки текста
 extern std::string scrollText;
