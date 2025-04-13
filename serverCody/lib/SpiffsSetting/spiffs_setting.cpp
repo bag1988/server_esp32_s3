@@ -2,6 +2,9 @@
 #include <variables_info.h>
 #include <convert_to_json.h>
 #include <SPIFFS.h>
+#include <Preferences.h>
+
+Preferences preferences;
 
 // Загружаем клиентов из JSON ++++++++++++++++++++++++++++++
 void loadClientsFromFile()
@@ -30,7 +33,7 @@ void loadClientsFromFile()
             break;
         }
         auto d = fromJson(json);
-        d.heatingStartTime=0;
+        d.heatingStartTime = 0;
         d.totalHeatingTime = 0;
         d.isOnline = false;
         d.currentTemperature = d.targetTemperature;
@@ -77,41 +80,37 @@ void saveClientsToFile()
 // Загружаем настройки Wifi +++++++++++++++++++++++++++
 void loadWifiCredentialsFromFile()
 {
-  if (SPIFFS.begin(true))
+  if (preferences.begin("wifi", true)) // true = только чтение
   {
-    Serial.println(F("Loading WiFi credentials from file..."));
-    File file = SPIFFS.open(WIFI_CREDENTIALS_FILE.c_str(), "r");
-    if (!file || file.size() == 0)
-    {
-      Serial.println(F("WiFi credentials file doesn't exist or is empty. Using default configuration."));
-      wifiCredentials.ssid = "Bag";
-      wifiCredentials.password = "01123581321";
-      file.close(); // Ensure file is closed
-      return;
-    }
+    preferences.begin("wifi", true); // true = только чтение
 
-    wifiCredentials = fromJsonWifi(file.readString().c_str());
+    wifiCredentials.ssid = preferences.getString("ssid", "Bag").c_str();
+    wifiCredentials.password = preferences.getString("password", "01123581321").c_str();
 
-    file.close();
-    Serial.println(F("WiFi credentials loaded from file"));
+    preferences.end();
+
+    Serial.println("WiFi-креденциалы загружены из Preferences");
+  }
+  else
+  {
+    Serial.println("Нет доступа для чтения данных wifi");
   }
 }
 // Сохраняем настройки Wifi +++++++++++++++++++++++++++
 void saveWifiCredentialsToFile()
 {
-  if (SPIFFS.begin(true))
+  if (preferences.begin("wifi", false)) // false = чтение-запись
   {
-    Serial.println(F("Saving WiFi credentials to file..."));
-    File file = SPIFFS.open(WIFI_CREDENTIALS_FILE.c_str(), "w");
-    if (!file)
-    {
-      Serial.println(F("Failed to open WiFi credentials file for writing"));
-      return;
-    }
-    file.print(toJsonWifi(wifiCredentials).c_str());
+    preferences.putString("ssid", wifiCredentials.ssid.c_str());
+    preferences.putString("password", wifiCredentials.password.c_str());
 
-    file.close();
-    Serial.println(F("WiFi credentials saved to file"));
+    preferences.end();
+
+    Serial.println("WiFi-креденциалы сохранены в Preferences");
+  }
+  else
+  {
+    Serial.println("Нет доступа для записи данных wifi");
   }
 }
 // Функция для сохранения GPIO в файл
@@ -162,59 +161,60 @@ void loadGpioFromFile()
 // Добавляем функции для работы с токеном устройства
 
 // Сохранение токена устройства
-void saveDeviceToken(const char* token) {
-  File file = SPIFFS.open("/device_token.txt", FILE_WRITE);
-  if (!file) {
-      Serial.println("Ошибка при открытии файла для записи токена");
-      return;
+// Сохранение токена устройства
+void saveDeviceToken(const char *token)
+{
+  if (preferences.begin("tokens", false)) // false = чтение-запись
+  {
+    preferences.putString("device_token", token);
+    preferences.end();
+    Serial.println("Токен устройства сохранен в Preferences");
   }
-  
-  file.print(token);
-  file.close();
-  Serial.println("Токен устройства сохранен");
+  else
+  {
+    Serial.println("Ошибка при сохранении токена устройства");
+
+    // Для обратной совместимости также сохраняем в SPIFFS
+    File file = SPIFFS.open("/device_token.txt", FILE_WRITE);
+    if (file)
+    {
+      file.print(token);
+      file.close();
+      Serial.println("Токен устройства сохранен в SPIFFS (для обратной совместимости)");
+    }
+  }
 }
 
 // Загрузка токена устройства
-String loadDeviceToken() {
-  if (!SPIFFS.exists("/device_token.txt")) {
-      // Файл не существует, генерируем новый токен
-      char token[33];
-      for (int i = 0; i < 32; i++) {
-          token[i] = "0123456789abcdef"[random(0, 16)];
-      }
-      token[32] = '\0';
-      
-      // Сохраняем новый токен
-      saveDeviceToken(token);
-      
-      return String(token);
+String loadDeviceToken()
+{
+  String token = "";
+
+  // Пытаемся загрузить из Preferences
+  if (preferences.begin("tokens", true)) // true = только чтение
+  {
+    token = preferences.getString("device_token", "");
+    preferences.end();
+
+    // Если токен найден, возвращаем его
+    if (token.length() == 32)
+    {
+      Serial.println("Загружен токен устройства из Preferences: " + token);
+      return token;
+    }
   }
-  
-  File file = SPIFFS.open("/device_token.txt", FILE_READ);
-  if (!file) {
-      Serial.println("Ошибка при открытии файла для чтения токена");
-      return "00000000000000000000000000000000"; // Токен по умолчанию
+
+  // Если токен не найден или некорректен, генерируем новый
+  char newToken[33];
+  for (int i = 0; i < 32; i++)
+  {
+    newToken[i] = "0123456789abcdef"[random(0, 16)];
   }
-  
-  String token = file.readString();
-  file.close();
-  
-  // Проверяем, что токен имеет правильную длину
-  if (token.length() != 32) {
-      Serial.println("Некорректный токен в файле, генерируем новый");
-      
-      char newToken[33];
-      for (int i = 0; i < 32; i++) {
-          newToken[i] = "0123456789abcdef"[random(0, 16)];
-      }
-      newToken[32] = '\0';
-      
-      // Сохраняем новый токен
-      saveDeviceToken(newToken);
-      
-      return String(newToken);
-  }
-  
-  Serial.println("Загружен токен устройства: " + token);
-  return token;
+  newToken[32] = '\0';
+
+  // Сохраняем новый токен
+  saveDeviceToken(newToken);
+
+  Serial.println("Сгенерирован новый токен устройства: " + String(newToken));
+  return String(newToken);
 }
