@@ -136,7 +136,8 @@ void startScan(uint32_t duration)
     BLEScanResults foundDevices = pBLEScan->start(duration, false);
     Serial.print("Найдено устройств: ");
     Serial.println(foundDevices.getCount());
-    Serial.println("Очистка резельтатов сканирования").pBLEScan->clearResults();
+    Serial.println("Очистка резельтатов сканирования");
+    pBLEScan->clearResults();
     scanningActive = false;
 }
 
