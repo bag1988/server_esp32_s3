@@ -16,7 +16,7 @@ class XiaomiAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
     void onResult(BLEAdvertisedDevice advertisedDevice)
     {
         // Обнаружено устройство: 66:c6:d2:0f:8c:71 Имя: L3250 Series Данные производителя: 40 00 00 6D 02
-        // Обнаружено устройство: 10:2d:41:3b:76:6e Данные производителя: 8F 03 0A 10 42 0C 01 10 2D 41 3B 76 6D EC    
+        // Обнаружено устройство: 10:2d:41:3b:76:6e Данные производителя: 8F 03 0A 10 42 0C 01 10 2D 41 3B 76 6D EC
         // Обнаружено устройство: a4:c1:38:e6:87:a9 Имя: LYWSD03MMC
         Serial.print("Обнаружено устройство: ");
         Serial.print(advertisedDevice.getAddress().toString().c_str());
@@ -40,12 +40,14 @@ class XiaomiAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
         if (advertisedDevice.haveServiceData())
         {
             Serial.print(" Сервисные данные: ");
-            for (int i = 0; i < advertisedDevice.getServiceDataCount(); i++) {
+            for (int i = 0; i < advertisedDevice.getServiceDataCount(); i++)
+            {
                 Serial.print(" UUID: ");
                 Serial.print(advertisedDevice.getServiceDataUUID(i).toString().c_str());
                 Serial.print(" Данные: ");
                 std::string data = advertisedDevice.getServiceData(i);
-                for (int j = 0; j < data.length(); j++) {
+                for (int j = 0; j < data.length(); j++)
+                {
                     Serial.printf("%02X ", (uint8_t)data[j]);
                 }
             }
@@ -129,6 +131,15 @@ void setupXiaomiScanner()
     // Serial.println(F("Сервисы редактирования SSID и пароля запущены"));
 }
 
+void startScan(uint32_t duration)
+{
+    BLEScanResults foundDevices = pBLEScan->start(duration, false);
+    Serial.print("Найдено устройств: ");
+    Serial.println(foundDevices.getCount());
+    Serial.println("Очистка резельтатов сканирования").pBLEScan->clearResults();
+    scanningActive = false;
+}
+
 // Запуск сканирования BLE
 void startXiaomiScan(uint32_t duration)
 {
@@ -138,61 +149,15 @@ void startXiaomiScan(uint32_t duration)
         Serial.println("Сканирования датчиков Xiaomi уже запущено, выход");
         return;
     }
-
     scanningActive = true;
+    uint32_t *durationPtr = new uint32_t(duration);
 
-    // Запоминаем время начала сканирования для контроля таймаута
-    static unsigned long scanStartTime = millis();
-    static uint32_t g_scanDuration = duration;
-    // Используем асинхронное сканирование с колбэком
-    bool scanStarted = pBLEScan->start(duration, [](BLEScanResults results)
-                                       {
-        // Проверяем, не слишком ли долго выполнялось сканирование
-        unsigned long scanDuration = millis() - scanStartTime;
-        
-        if (scanDuration > (g_scanDuration * 1000 + 5000)) {
-            Serial.println("ПРЕДУПРЕЖДЕНИЕ: Сканирование заняло слишком много времени!");
-        }
-        
-        // Проверяем результаты сканирования
-        if (results.getCount() == 0) {
-            Serial.println("Устройства не найдены. Возможные причины:");
-            Serial.println("1. Датчик выключен или разряжен");
-            Serial.println("2. Датчик находится слишком далеко");
-            Serial.println("3. Проблемы с BLE на ESP32");
-        } else {
-            Serial.print("Найдено устройств: ");
-            Serial.println(results.getCount());
-            
-            // Дополнительная информация о найденных устройствах
-            for (int i = 0; i < results.getCount(); i++) {
-                BLEAdvertisedDevice device = results.getDevice(i);
-                Serial.print("  Устройство: ");
-                Serial.print(device.getAddress().toString().c_str());
-                if (device.haveName()) {
-                    Serial.print(" Имя: ");
-                    Serial.print(device.getName().c_str());
-                }
-                Serial.println();
-            }
-        }
-        Serial.println("Очистка результатов сканирования");
-        pBLEScan->clearResults();
-        Serial.println("Сканирование завершено");
-        scanningActive = false; }, false);
-
-    // Проверяем, успешно ли запущено сканирование
-    if (!scanStarted)
-    {
-        Serial.println("ОШИБКА: Не удалось запустить сканирование BLE!");
-        scanningActive = false;
-
-        // Попытка восстановления BLE-стека
-        Serial.println("Попытка перезапуска BLE-стека...");
-        BLEDevice::deinit(true);
-        delay(500);
-        setupXiaomiScanner();
-    }
+    xTaskCreate([](void *parameter)
+                {
+                    uint32_t duration = *(uint32_t*)parameter;
+                    startXiaomiScan(duration);
+                    delete (uint32_t*)parameter; // Освобождаем память
+                    vTaskDelete(NULL); }, "scanBleDevice", 4096, durationPtr, 1, NULL);
 }
 
 // Обработка рекламного пакета
@@ -200,12 +165,12 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
 {
     bool isXiaomiDevice = false;
     std::string deviceAddress = advertisedDevice.getAddress().toString().c_str();
-    
+
     // Проверка по данным производителя (стандартный метод)
     if (advertisedDevice.haveManufacturerData())
     {
         std::string manufacturerData = advertisedDevice.getManufacturerData();
-        
+
         if (manufacturerData.length() >= 2 &&
             (uint8_t)manufacturerData[0] == 0x57 &&
             (uint8_t)manufacturerData[1] == 0x01)
@@ -213,12 +178,12 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
             isXiaomiDevice = true;
         }
     }
-    
+
     // Проверка по имени устройства для LYWSD03MMC
     if (!isXiaomiDevice && advertisedDevice.haveName())
     {
         std::string deviceName = advertisedDevice.getName();
-        if (deviceName == "LYWSD03MMC" || 
+        if (deviceName == "LYWSD03MMC" ||
             deviceName.find("MJ_HT") != std::string::npos ||
             deviceName.find("Xiaomi") != std::string::npos ||
             deviceName.find("Mi") != std::string::npos)
@@ -228,21 +193,23 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
             Serial.println(deviceName.c_str());
         }
     }
-    
+
     // Проверка по сервисным данным
     if (!isXiaomiDevice && advertisedDevice.haveServiceData())
     {
-        for (int i = 0; i < advertisedDevice.getServiceDataCount(); i++) {
+        for (int i = 0; i < advertisedDevice.getServiceDataCount(); i++)
+        {
             std::string serviceData = advertisedDevice.getServiceData(i);
             // Некоторые устройства Xiaomi используют сервисный UUID FE95
-            if (advertisedDevice.getServiceDataUUID(i).equals(BLEUUID("fe95"))) {
+            if (advertisedDevice.getServiceDataUUID(i).equals(BLEUUID("fe95")))
+            {
                 isXiaomiDevice = true;
                 Serial.println("Обнаружено устройство Xiaomi по сервисному UUID FE95");
                 break;
             }
         }
     }
-    
+
     // Если это устройство Xiaomi, обрабатываем его
     if (isXiaomiDevice)
     {
@@ -250,17 +217,19 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
         float temperature = 0.0;
         uint8_t humidity = 0;
         uint8_t battery = 0;
-        
+
         bool dataFound = false;
-        
+
         // Пытаемся получить данные из сервисных данных для LYWSD03MMC
         if (advertisedDevice.haveServiceData())
         {
-            for (int i = 0; i < advertisedDevice.getServiceDataCount(); i++) {
+            for (int i = 0; i < advertisedDevice.getServiceDataCount(); i++)
+            {
                 std::string serviceData = advertisedDevice.getServiceData(i);
-                
+
                 // Проверяем сервисные данные на наличие информации о температуре/влажности
-                if (serviceData.length() >= 5) {
+                if (serviceData.length() >= 5)
+                {
                     // Для LYWSD03MMC с кастомной прошивкой (например, ATC)
                     // Формат: [UUID] [температура 2 байта] [влажность 1 байт] [батарея 1 байт] [счетчик 1 байт]
                     int16_t tempRaw = (int16_t)((serviceData[1] << 8) | serviceData[0]);
@@ -268,22 +237,22 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
                     humidity = serviceData[2];
                     battery = serviceData[3];
                     dataFound = true;
-                    
+
                     Serial.println("Данные получены из сервисных данных");
                     break;
                 }
             }
         }
-        
+
         // Если данные не найдены в сервисных данных, пробуем стандартный метод
         if (!dataFound && advertisedDevice.haveManufacturerData())
         {
             uint8_t *dataPtr = (uint8_t *)advertisedDevice.getManufacturerData().data();
             size_t dataLen = advertisedDevice.getManufacturerData().length();
-            
+
             dataFound = parseXiaomiData(dataPtr, dataLen, temperature, humidity, battery);
         }
-        
+
         // Если данные найдены, обновляем информацию об устройстве
         if (dataFound)
         {
@@ -291,10 +260,10 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
             {
                 // Ищем устройство с таким MAC-адресом
                 auto it = std::find_if(devices.begin(), devices.end(),
-                                      [&deviceAddress](const DeviceData &device)
-                                      {
-                                          return device.macAddress == deviceAddress;
-                                      });
+                                       [&deviceAddress](const DeviceData &device)
+                                       {
+                                           return device.macAddress == deviceAddress;
+                                       });
 
                 if (it != devices.end())
                 {
@@ -338,7 +307,8 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
             }
             refreshLCDData();
         }
-        else {
+        else
+        {
             Serial.print("Устройство Xiaomi обнаружено, но данные не найдены: ");
             Serial.println(deviceAddress.c_str());
         }
