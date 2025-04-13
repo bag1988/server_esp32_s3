@@ -83,6 +83,9 @@ struct GpioPin {
     int pin;
     std::string name;
     
+    GpioPin() :
+        pin(0),
+        name(""){}
     GpioPin(int p, const std::string& n) : pin(p), name(n) {}
 };
 // Глобальные переменные (объявлены как extern)

@@ -1,82 +1,204 @@
 #include <spiffs_setting.h>
-#include <variables_info.h>
-#include <convert_to_json.h>
-#include <SPIFFS.h>
-#include <Preferences.h>
 
 Preferences preferences;
 
-// Загружаем клиентов из JSON ++++++++++++++++++++++++++++++
+// Загружаем клиентов из Preferences как единый Blob
 void loadClientsFromFile()
 {
-  if (SPIFFS.begin(true))
+  Serial.println(F("Loading clients from Preferences..."));
+
+  // Открываем пространство имен "devices" в режиме только для чтения
+  if (preferences.begin("devices", true))
   {
-    Serial.println(F("Loading clients from file..."));
-    File file = SPIFFS.open(DEVICES_FILE.c_str(), "r");
-    if (!file || file.size() == 0)
-    {
-      Serial.println(F("Clients file doesn't exist or is empty"));
-      file.close(); // Ensure file is closed before returning
-      return;
-    }
     if (xSemaphoreTake(devicesMutex, portMAX_DELAY) == pdTRUE)
     {
       devices.clear();
-      while (file.available())
+
+      // Получаем размер сохраненного Blob
+      size_t blobSize = preferences.getBytesLength("devices_blob");
+
+      if (blobSize > 0)
       {
-        std::string json;
-        while (file.available())
+        // Выделяем буфер для данных
+        uint8_t *buffer = new uint8_t[blobSize];
+
+        if (buffer)
         {
-          char c = file.read();
-          json += c;
-          if (c == '}')
-            break;
+          // Читаем данные в буфер
+          size_t readSize = preferences.getBytes("devices_blob", buffer, blobSize);
+
+          if (readSize == blobSize)
+          {
+            // Десериализуем JSON из буфера
+            JsonDocument doc;
+            DeserializationError error = deserializeJson(doc, buffer, blobSize);
+
+            if (!error)
+            {
+              // Преобразуем JSON в объекты DeviceData
+              JsonArray devicesArray = doc.as<JsonArray>();
+
+              for (JsonObject deviceObj : devicesArray)
+              {
+                DeviceData device;
+
+                // Заполняем поля устройства
+                device.name = deviceObj["name"].as<const char *>();
+                device.macAddress = deviceObj["mac"].as<const char *>();
+                device.targetTemperature = deviceObj["target_temp"].as<float>();
+                device.enabled = deviceObj["enabled"].as<bool>();
+
+                // Парсим массив GPIO пинов
+                if (!deviceObj["gpio_pins"].isNull())
+                {
+                  JsonArray pinsArray = deviceObj["gpio_pins"].as<JsonArray>();
+                  for (int pin : pinsArray)
+                  {
+                    device.gpioPins.push_back(pin);
+                  }
+                }
+
+                // Инициализируем дополнительные поля
+                device.heatingStartTime = 0;
+                device.totalHeatingTime = deviceObj["total_heating"].as<long>();
+                device.isOnline = false;
+                device.currentTemperature = device.targetTemperature;
+                device.heatingActive = false;
+                device.humidity = deviceObj["humidity"].as<int>();
+                device.battery = deviceObj["battery"].as<int>();
+
+                // Добавляем устройство в вектор
+                devices.push_back(device);
+              }
+
+              Serial.printf("Loaded %d clients from Preferences blob\n", devices.size());
+            }
+            else
+            {
+              Serial.print(F("deserializeJson() failed: "));
+              Serial.println(error.c_str());
+            }
+          }
+          else
+          {
+            Serial.println(F("Failed to read complete blob data"));
+          }
+
+          // Освобождаем память
+          delete[] buffer;
         }
-        auto d = fromJson(json);
-        d.heatingStartTime = 0;
-        d.totalHeatingTime = 0;
-        d.isOnline = false;
-        d.currentTemperature = d.targetTemperature;
-        d.heatingActive = false;
-        devices.push_back(d);
+        else
+        {
+          Serial.println(F("Failed to allocate memory for blob data"));
+        }
       }
-      file.close();
-      Serial.println(F("Clients loaded from file"));
+      else
+      {
+        Serial.println(F("No devices data found in Preferences"));
+      }
+
       xSemaphoreGive(devicesMutex);
     }
-  }
-}
-// Сохраняме клиентов в JSON +++++++++++++++++++++++++++++
-void saveClientsToFile()
-{
-  if (SPIFFS.begin(true))
-  {
-    Serial.println(F("Saving clients to file..."));
-    File file = SPIFFS.open(DEVICES_FILE.c_str(), "w");
-    if (!file)
+    else
     {
-      Serial.println(F("Failed to open clients file for writing"));
-      return;
+      Serial.println(F("Failed to take devicesMutex"));
     }
 
-    file.print("[\n");
-    if (xSemaphoreTake(devicesMutex, portMAX_DELAY) == pdTRUE)
-    {
-      for (size_t i = 0; i < devices.size(); ++i)
-      {
-        file.print(toJson(devices[i]).c_str());
-        if (i != devices.size() - 1)
-        {
-          file.print(",\n");
-        }
-      }
-      file.print("\n]");
-      file.close();
-      Serial.println(F("Clients saved to file"));
-      xSemaphoreGive(devicesMutex);
-    }
+    preferences.end();
+  }
+  else
+  {
+    Serial.println(F("Failed to open 'devices' namespace"));
   }
 }
+
+// Сохраняем клиентов в Preferences как единый Blob
+void saveClientsToFile()
+{
+  Serial.println("Начинаем сохранение устройств в файл");
+
+  // Открываем пространство имен "devices" в режиме чтения-записи
+  if (preferences.begin("devices", false))
+  {
+    if (xSemaphoreTake(devicesMutex, portMAX_DELAY) == pdTRUE)
+    {
+      // Создаем JSON-документ для сериализации
+      JsonDocument doc;
+      JsonArray devicesArray = doc.to<JsonArray>();
+
+      // Добавляем каждое устройство в массив
+      for (const auto &device : devices)
+      {
+        JsonObject deviceObj = devicesArray.add<JsonObject>();
+
+        // Сохраняем основные поля
+        deviceObj["name"] = device.name;
+        deviceObj["mac"] = device.macAddress;
+        deviceObj["target_temp"] = device.targetTemperature;
+        deviceObj["enabled"] = device.enabled;
+        deviceObj["total_heating"] = device.totalHeatingTime;
+        deviceObj["humidity"] = device.humidity;
+        deviceObj["battery"] = device.battery;
+
+        // Сохраняем массив GPIO пинов
+        for (int pin : device.gpioPins)
+        {
+          deviceObj["gpio_pins"].add(pin);
+        }
+      }
+
+      // Определяем размер буфера для сериализации
+      size_t bufferSize = measureJson(doc);
+
+      if (bufferSize > 0)
+      {
+        // Выделяем буфер
+        uint8_t *buffer = new uint8_t[bufferSize];
+
+        if (buffer)
+        {
+          // Сериализуем JSON в буфер
+          size_t serializedSize = serializeJson(doc, buffer, bufferSize);
+
+          // Сохраняем буфер в Preferences
+          if (preferences.putBytes("devices_blob", buffer, serializedSize))
+          {
+            Serial.printf("Saved %d clients to Preferences blob (%d bytes)\n",
+                          devices.size(), serializedSize);
+          }
+          else
+          {
+            Serial.println(F("Failed to save devices blob to Preferences"));
+          }
+
+          // Освобождаем память
+          delete[] buffer;
+        }
+        else
+        {
+          Serial.println(F("Failed to allocate memory for serialization"));
+        }
+      }
+      else
+      {
+        Serial.println(F("Empty devices collection, nothing to save"));
+      }
+
+      xSemaphoreGive(devicesMutex);
+    }
+    else
+    {
+      Serial.println(F("Failed to take devicesMutex"));
+    }
+
+    preferences.end();
+  }
+  else
+  {
+    Serial.println(F("Failed to open 'devices' namespace"));
+  }
+}
+
 // Загружаем настройки Wifi +++++++++++++++++++++++++++
 void loadWifiCredentialsFromFile()
 {
@@ -114,50 +236,139 @@ void saveWifiCredentialsToFile()
   }
 }
 // Функция для сохранения GPIO в файл
+// Функция для сохранения GPIO в Preferences как Blob
 void saveGpioToFile()
 {
-  File file = SPIFFS.open("/gpio.json", FILE_WRITE);
-  if (!file)
-  {
-    Serial.println("Failed to open gpio.json for writing");
-    return;
-  }
+  Serial.println(F("Saving GPIO to Preferences..."));
 
-  String json = "[";
-  for (size_t i = 0; i < availableGpio.size(); i++)
+  // Открываем пространство имен "gpio" в режиме чтения-записи
+  if (preferences.begin("gpio", false))
   {
-    json += "{\"pin\":" + String(availableGpio[i].pin) +
-            ",\"name\":\"" + availableGpio[i].name.c_str() + "\"}";
-    if (i < availableGpio.size() - 1)
+    // Создаем JSON-документ для сериализации
+    JsonDocument doc;
+    JsonArray gpioArray = doc.to<JsonArray>();
+
+    // Добавляем каждый GPIO в массив
+    for (const auto &gpio : availableGpio)
     {
-      json += ",";
+      JsonObject gpioObj = gpioArray.add<JsonObject>();
+      gpioObj["pin"] = gpio.pin;
+      gpioObj["name"] = gpio.name;
     }
-  }
-  json += "]";
 
-  file.println(json);
-  file.close();
+    // Определяем размер буфера для сериализации
+    size_t bufferSize = measureJson(doc);
+
+    if (bufferSize > 0)
+    {
+      // Выделяем буфер
+      uint8_t *buffer = new uint8_t[bufferSize];
+
+      if (buffer)
+      {
+        // Сериализуем JSON в буфер
+        size_t serializedSize = serializeJson(doc, buffer, bufferSize);
+
+        // Сохраняем буфер в Preferences
+        if (preferences.putBytes("gpio_blob", buffer, serializedSize))
+        {
+          Serial.printf("Saved %d GPIO pins to Preferences blob (%d bytes)\n",
+                        availableGpio.size(), serializedSize);
+        }
+        else
+        {
+          Serial.println(F("Failed to save GPIO blob to Preferences"));
+        }
+
+        // Освобождаем память
+        delete[] buffer;
+      }
+      else
+      {
+        Serial.println(F("Failed to allocate memory for serialization"));
+      }
+    }
+    else
+    {
+      Serial.println(F("Empty GPIO collection, nothing to save"));
+    }
+
+    preferences.end();
+  }
+  else
+  {
+    Serial.println(F("Failed to open 'gpio' namespace"));
+  }
 }
 
-// Функция для загрузки GPIO из файла
+// Функция для загрузки GPIO из Preferences как Blob
 void loadGpioFromFile()
 {
-  if (SPIFFS.exists("/gpio.json"))
+  Serial.println(F("Loading GPIO from Preferences..."));
+
+  // Открываем пространство имен "gpio" в режиме только для чтения
+  if (preferences.begin("gpio", true))
   {
-    File file = SPIFFS.open("/gpio.json", FILE_READ);
-    if (!file)
+    // Получаем размер сохраненного Blob
+    size_t blobSize = preferences.getBytesLength("gpio_blob");
+
+    if (blobSize > 0)
     {
-      Serial.println("Failed to open gpio.json for reading");
-      return;
+      // Выделяем буфер для данных
+      uint8_t *buffer = new uint8_t[blobSize];
+
+      if (buffer)
+      {
+        // Читаем данные в буфер
+        size_t readSize = preferences.getBytes("gpio_blob", buffer, blobSize);
+
+        if (readSize == blobSize)
+        {
+          // Десериализуем JSON из буфера
+          JsonDocument doc;
+          DeserializationError error = deserializeJson(doc, buffer, blobSize);
+
+          if (!error)
+          {
+            // Очищаем текущий вектор GPIO
+            availableGpio.clear();
+
+            // Преобразуем JSON в объекты GpioPin
+            JsonArray gpioArray = doc.as<JsonArray>();
+
+            for (JsonObject gpioObj : gpioArray)
+            {
+              GpioPin gpio;
+              gpio.pin = gpioObj["pin"].as<int>();
+              gpio.name = gpioObj["name"].as<const char *>();
+
+              // Добавляем GPIO в вектор
+              availableGpio.push_back(gpio);
+            }
+
+            Serial.printf("Loaded %d GPIO pins from Preferences blob\n", availableGpio.size());
+          }
+          else
+          {
+            Serial.print(F("deserializeJson() failed: "));
+            Serial.println(error.c_str());
+          }
+        }
+        else
+        {
+          Serial.println(F("Failed to read complete blob data"));
+        }
+
+        // Освобождаем память
+        delete[] buffer;
+      }
+      else
+      {
+        Serial.println(F("Failed to allocate memory for blob data"));
+      }
     }
-
-    String json = file.readString();
-    file.close();
-
-    availableGpio = parseGpioPinsWithNames(json.c_str());
   }
 }
-
 // Добавляем функции для работы с токеном устройства
 
 // Сохранение токена устройства
@@ -173,15 +384,6 @@ void saveDeviceToken(const char *token)
   else
   {
     Serial.println("Ошибка при сохранении токена устройства");
-
-    // Для обратной совместимости также сохраняем в SPIFFS
-    File file = SPIFFS.open("/device_token.txt", FILE_WRITE);
-    if (file)
-    {
-      file.print(token);
-      file.close();
-      Serial.println("Токен устройства сохранен в SPIFFS (для обратной совместимости)");
-    }
   }
 }
 
