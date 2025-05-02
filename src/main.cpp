@@ -7,8 +7,6 @@
 #include "web_server_setting.h"
 #include "spiffs_setting.h"
 #include "xiaomi_scanner.h"
-// #include "mi_io_protocol.h"
-// #include "mdns_service.h"
 #include "ota_setting.h"
 #include <atomic>
 #include "esp_system.h"         // Библиотека ESP-IDF для работы с системными функциями
@@ -644,19 +642,7 @@ void setup()
     // Обновление текста прокрутки
     updateScrollText();
     updateLCD();
-    // Загрузка сохраненного токена устройства
-    // String token = loadDeviceToken();
-    // Инициализация протокола miIO
-    // miIO.begin();
-
-    // miIO.setDeviceToken(token.c_str());
-
-    // Инициализация эмуляции устройств Xiaomi
-    // initXiaomiDeviceEmulation();
-
-    // Настройка mDNS для обнаружения в Mi Home
-    // setupMDNS();
-
+    
     Serial.println("Система готова к работе");
     // Serial.println("Токен устройства: " + token);
     createTasks();
