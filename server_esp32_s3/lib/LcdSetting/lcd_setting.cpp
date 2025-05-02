@@ -36,7 +36,7 @@ int deviceMenuIndex = 0;    // Индекс в меню устройства
 int gpioSelectionIndex = 0; // Индекс для выбора GPIO
 
 // Опции меню устройства
-const char *deviceMenuOptions[] = {"Температура", "GPIO пины", "Вкл/Выкл", "OTA Update", "Назад"};
+const char *deviceMenuOptions[] = {"Temperature", "GPIO", "On/Off", "OTA Update", "Back"};
 const int deviceMenuOptionsCount = 5;
 
 // Флаг для обновления экрана
@@ -46,8 +46,8 @@ bool needLcdUpdate = true;
 int readKeypad()
 {
   int adcValue = analogRead(KEYPAD_PIN);
- //Serial.print("Нажата кнопка, значение: ");
- //Serial.println(adcValue);
+  // Serial.print("Нажата кнопка, значение: ");
+  // Serial.println(adcValue);
   if (adcValue < KEY_RIGHT_VAL + KEY_THRESHOLD)
   {
     return BUTTON_RIGHT;
@@ -64,10 +64,10 @@ int readKeypad()
   {
     return BUTTON_LEFT;
   }
-  else if (adcValue < KEY_SELECT_VAL + KEY_THRESHOLD)
-  {
-    return BUTTON_SELECT;
-  }
+  // else if (adcValue < KEY_SELECT_VAL + KEY_THRESHOLD)
+  // {
+  //   return BUTTON_SELECT;
+  // }
 
   return BUTTON_NONE; // Ни одна кнопка не нажата
 }
@@ -78,6 +78,16 @@ void initLCD()
   lcd.begin(16, 2);
   lcd.clear();
   lcd.print("Initialization...");
+
+  delay(1000);
+
+  // Информация о навигации
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Navigation info:");
+  lcd.setCursor(0, 1);
+  lcd.print("LONG RIGHT=SELECT");
+  delay(2000);
 
   // Настройка пина для считывания кнопок
   pinMode(KEYPAD_PIN, INPUT);
@@ -106,6 +116,11 @@ void showMainScreen()
 
   if (scrollText.length() > 0)
   {
+    // Добавляем к прокручиваемому тексту информацию о замене кнопки
+    if (scrollText.find("LONG RIGHT=SELECT") == std::string::npos)
+    {
+      scrollText += "LONG RIGHT=SELECT | ";
+    }
     // Вычисляем, какую часть текста показать
     int endPos = scrollPosition + 16;
     if (endPos > scrollText.length())
@@ -122,7 +137,7 @@ void showMainScreen()
   }
   else
   {
-    lcd.print("No data");
+    lcd.print("LONG RIGHT=SELECT");
   }
 }
 
@@ -338,18 +353,37 @@ void handleButtons()
     return;
   }
 
-  // Обработка дребезга контактов
+  // Обработка дребезга контактов и длительного нажатия
   static unsigned long lastButtonTime = 0;
   static int lastButton = BUTTON_NONE;
+  static unsigned long buttonPressStartTime = 0;
+  static bool longPressHandled = false;
 
-  // Проверяем, не та же ли кнопка нажата и прошло ли достаточно времени
-  if (pressedButton == lastButton && millis() - lastButtonTime < BUTTON_DEBOUNCE_DELAY)
+  unsigned long currentTime = millis();
+
+  // Если нажата новая кнопка, сбрасываем таймер длительного нажатия
+  if (pressedButton != lastButton)
+  {
+    buttonPressStartTime = currentTime;
+    longPressHandled = false;
+  }
+
+  // Проверяем, не та же ли кнопка нажата и прошло ли достаточно времени (защита от дребезга)
+  if (pressedButton == lastButton && currentTime - lastButtonTime < BUTTON_DEBOUNCE_DELAY)
   {
     return;
   }
 
+  // Проверка длительного нажатия RIGHT (замена SELECT)
+  if (pressedButton == BUTTON_RIGHT && !longPressHandled &&
+      currentTime - buttonPressStartTime > 1000)
+  {                                // 1000 мс для длительного нажатия
+    pressedButton = BUTTON_SELECT; // Заменяем на SELECT
+    longPressHandled = true;
+  }
+
   // Обновляем время последнего нажатия и последнюю нажатую кнопку
-  lastButtonTime = millis();
+  lastButtonTime = currentTime;
   lastButton = pressedButton;
 
   // Флаг для обновления экрана
@@ -372,7 +406,7 @@ void handleButtons()
       {
         scrollPosition = (scrollPosition + 1) % scrollText.length();
       }
-      else
+      else if (pressedButton == BUTTON_RIGHT && !longPressHandled) // Проверяем, что это не длительное нажатие
       {
         scrollPosition = (scrollPosition + scrollText.length() - 1) % scrollText.length();
       }
@@ -441,7 +475,7 @@ void handleButtons()
         break;
       case 3: // OTA
         currentMenu = WAIT_OTA;
-        //enterOtaMode();
+        // enterOtaMode();
         break;
       case 4: // Назад
         currentMenu = DEVICE_LIST;
@@ -471,11 +505,16 @@ void handleButtons()
         devices[deviceListIndex].targetTemperature = 0;
       }
     }
-    else if (pressedButton == BUTTON_SELECT || pressedButton == BUTTON_LEFT)
+    else if (pressedButton == BUTTON_RIGHT)
     {
       Serial.println("Нажата кнопка SELECT, сохраняем результаты");
       // Сохранение и возврат в меню устройства
       saveClientsToFile();
+      currentMenu = DEVICE_MENU;
+    }
+    else if (pressedButton == BUTTON_LEFT)
+    {
+      // Отмена и возврат в меню устройства без сохранения
       currentMenu = DEVICE_MENU;
     }
     break;
