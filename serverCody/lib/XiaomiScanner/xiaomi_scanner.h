@@ -42,7 +42,6 @@ extern bool scanningActive;
 void setupXiaomiScanner();
 void startXiaomiScan(uint32_t duration = XIAOMI_SCAN_DURATION);
 void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice);
-bool parseXiaomiData(uint8_t* data, size_t length, float& temperature, uint8_t& humidity, uint8_t& battery);
 void updateDevicesStatus();
 void printDevicesData();
 

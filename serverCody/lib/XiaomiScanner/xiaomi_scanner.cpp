@@ -19,42 +19,53 @@ class XiaomiAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
         // Обнаружено устройство: 10:2d:41:3b:76:6e Данные производителя: 8F 03 0A 10 42 0C 01 10 2D 41 3B 76 6D EC
         // Обнаружено устройство: a4:c1:38:e6:87:a9 Имя: LYWSD03MMC
         Serial.print("Обнаружено устройство: ");
-        Serial.print(advertisedDevice.getAddress().toString().c_str());
+        Serial.println(advertisedDevice.getAddress().toString().c_str());
 
         if (advertisedDevice.haveName())
         {
-            Serial.print(" Имя: ");
-            Serial.print(advertisedDevice.getName().c_str());
+            Serial.print("Имя: ");
+            Serial.println(advertisedDevice.getName().c_str());
         }
 
         if (advertisedDevice.haveManufacturerData())
         {
-            Serial.print(" Данные производителя: ");
+            Serial.print("Данные производителя: ");
             std::string data = advertisedDevice.getManufacturerData();
             for (int i = 0; i < data.length(); i++)
             {
                 Serial.printf("%02X ", (uint8_t)data[i]);
             }
+            Serial.println("");
         }
-
+        
         if (advertisedDevice.haveServiceData())
         {
-            Serial.print(" Сервисные данные: ");
+            Serial.println("Сервисные данные: ");
             for (int i = 0; i < advertisedDevice.getServiceDataCount(); i++)
             {
-                Serial.print(" UUID: ");
-                Serial.print(advertisedDevice.getServiceDataUUID(i).toString().c_str());
-                Serial.print(" Данные: ");
+                Serial.print("UUID: ");
+                Serial.println(advertisedDevice.getServiceDataUUID(i).toString().c_str());
+                Serial.print("Данные: ");
                 std::string data = advertisedDevice.getServiceData(i);
                 for (int j = 0; j < data.length(); j++)
                 {
                     Serial.printf("%02X ", (uint8_t)data[j]);
                 }
+                Serial.println("");
             }
         }
-
-        Serial.println();
-
+        if (advertisedDevice.getPayloadLength()>0)
+        {
+            Serial.print("Payload данные: ");
+            uint8_t* payload = advertisedDevice.getPayload();
+            size_t payloadLength = advertisedDevice.getPayloadLength();  
+            for (int i = 0; i < payloadLength - 1; i++) {
+                Serial.printf("%02X ", (uint8_t)payload[i]);
+              }
+              Serial.println("");
+        }
+        
+        Serial.println("//////////////////////////////////");
         processXiaomiAdvertisement(advertisedDevice);
     }
 };
@@ -156,7 +167,7 @@ void startXiaomiScan(uint32_t duration)
     xTaskCreate([](void *parameter)
                 {
                     uint32_t duration = *(uint32_t*)parameter;
-                    startXiaomiScan(duration);
+                    startScan(duration);
                     delete (uint32_t*)parameter; // Освобождаем память
                     vTaskDelete(NULL); }, "scanBleDevice", 4096, durationPtr, 1, NULL);
 }
@@ -227,31 +238,34 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
             for (int i = 0; i < advertisedDevice.getServiceDataCount(); i++)
             {
                 std::string serviceData = advertisedDevice.getServiceData(i);
-
-                // Проверяем сервисные данные на наличие информации о температуре/влажности
-                if (serviceData.length() >= 5)
-                {
-                    // Для LYWSD03MMC с кастомной прошивкой (например, ATC)
-                    // Формат: [UUID] [температура 2 байта] [влажность 1 байт] [батарея 1 байт] [счетчик 1 байт]
-                    int16_t tempRaw = (int16_t)((serviceData[1] << 8) | serviceData[0]);
-                    temperature = tempRaw / 10.0;
-                    humidity = serviceData[2];
-                    battery = serviceData[3];
-                    dataFound = true;
-
-                    Serial.println("Данные получены из сервисных данных");
-                    break;
+                
+                int16_t tempRaw = (int16_t)((uint8_t)serviceData[1] << 8 | (uint8_t)serviceData[0]);
+                temperature = tempRaw / 100.0f;
+                humidity = (uint8_t)serviceData[2];
+                
+                if (serviceData.length() >= 3) {
+                    battery = (uint8_t)serviceData[3];
+                } else {
+                    battery = 0; // Неизвестно
                 }
+                
+                Serial.printf("Распарсены данные стоковой прошивки: Темп=%.2f°C, Влажность=%d%%, Батарея=%d%%\n", 
+                             temperature, humidity, battery);
+
+
+                int16_t temperatureRaw = (int8_t(serviceData[12]) << 8) | uint8_t(serviceData[11]);
+                temperature = temperatureRaw / 100.0f;
+
+                uint8_t humidityRaw = uint8_t(serviceData[13]);
+                humidity = humidityRaw;
+
+                uint8_t batteryRaw = uint8_t(serviceData[15]);
+                battery = batteryRaw;
+                // Для LYWSD03MMC с кастомной прошивкой (например, ATC)
+                dataFound = true;
+                Serial.printf("Парсинг данных: Температура: %.1f°C, Влажность: %d%%, Батарея: %d%%\n",
+                              temperature, humidity, battery);
             }
-        }
-
-        // Если данные не найдены в сервисных данных, пробуем стандартный метод
-        if (!dataFound && advertisedDevice.haveManufacturerData())
-        {
-            uint8_t *dataPtr = (uint8_t *)advertisedDevice.getManufacturerData().data();
-            size_t dataLen = advertisedDevice.getManufacturerData().length();
-
-            dataFound = parseXiaomiData(dataPtr, dataLen, temperature, humidity, battery);
         }
 
         // Если данные найдены, обновляем информацию об устройстве
@@ -314,66 +328,6 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
             Serial.println(deviceAddress.c_str());
         }
     }
-}
-
-// Парсинг данных Xiaomi из рекламного пакета
-bool parseXiaomiData(uint8_t *data, size_t length, float &temperature, uint8_t &humidity, uint8_t &battery)
-{
-    // Проверяем минимальную длину данных
-    if (length < 5)
-        return false;
-
-    // Пропускаем заголовок (ID производителя - 2 байта)
-    uint8_t *p = data + 2;
-    size_t remainingLength = length - 2;
-
-    // Флаг, указывающий, были ли найдены какие-либо данные
-    bool dataFound = false;
-
-    // Парсим данные в формате TLV (Type-Length-Value)
-    while (remainingLength >= 3)
-    {
-        uint8_t type = *p++;
-        uint8_t dataLen = *p++;
-
-        // Проверяем, достаточно ли данных
-        if (dataLen + 2 > remainingLength)
-            break;
-
-        // Обрабатываем разные типы данных
-        switch (type)
-        {
-        case 0x0D: // Температура и влажность
-            if (dataLen >= 4)
-            {
-                // Температура (2 байта, little-endian, значение * 10)
-                int16_t tempRaw = (int16_t)((p[1] << 8) | p[0]);
-                temperature = tempRaw / 10.0;
-
-                // Влажность (1 байт, значение)
-                humidity = p[2];
-
-                dataFound = true;
-            }
-            break;
-
-        case 0x0A: // Батарея
-            if (dataLen >= 1)
-            {
-                battery = p[0];
-                dataFound = true;
-            }
-            break;
-
-            // Можно добавить обработку других типов данных
-        }
-
-        // Переходим к следующему блоку данных
-        p += dataLen;
-        remainingLength -= (dataLen + 2);
-    }
-
-    return dataFound;
 }
 
 // Обновление статуса устройств

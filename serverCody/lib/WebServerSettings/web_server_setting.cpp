@@ -2,7 +2,6 @@
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <variables_info.h>
-#include <convert_to_json.h>
 #include <spiffs_setting.h>
 #include "xiaomi_scanner.h"
 #include <SPIFFS.h>
@@ -78,42 +77,84 @@ void initWebServer()
     // GET /clients (get list of all clients)
     server.on("/clients", HTTP_GET, [](AsyncWebServerRequest *request)
               {
-            std::string jsonVal = "[";
+                JsonDocument doc;
+                JsonArray devicesArray = doc.to<JsonArray>();
 
-            if (xSemaphoreTake(devicesMutex, portMAX_DELAY) == pdTRUE) {
-                for (size_t i = 0; i < devices.size(); ++i) {
-                    jsonVal += toJson(devices[i]);
-                    if (i != devices.size() - 1) {
-                        jsonVal += ",";
+                if (xSemaphoreTake(devicesMutex, portMAX_DELAY) == pdTRUE) {
+                    for (const auto& device : devices) {
+                        JsonObject deviceObj = devicesArray.add<JsonObject>();
+                        
+                        // Заполняем основные поля устройства
+                        deviceObj["name"] = device.name;
+                        deviceObj["macAddress"] = device.macAddress;
+                        deviceObj["currentTemperature"] = device.currentTemperature;
+                        deviceObj["targetTemperature"] = device.targetTemperature;
+                        deviceObj["enabled"] = device.enabled;
+                        deviceObj["isOnline"] = device.isOnline;
+                        deviceObj["heatingActive"] = device.heatingActive;
+                        deviceObj["humidity"] = device.humidity;
+                        deviceObj["battery"] = device.battery;
+                        deviceObj["lastUpdate"] = device.lastUpdate;
+                        deviceObj["totalHeatingTime"] = device.totalHeatingTime;
+                        
+                        // Добавляем массив GPIO пинов
+                        JsonArray pinsArray = deviceObj["gpioPins"].to<JsonArray>();
+                        for (int pin : device.gpioPins) {
+                            pinsArray.add(pin);
+                        }
                     }
+                    xSemaphoreGive(devicesMutex);
                 }
-                xSemaphoreGive(devicesMutex);
-            }
-            jsonVal += "]";
-            request->send(200, "application/json", jsonVal.c_str()); });
+                
+                String response;
+                serializeJson(doc, response);
+                request->send(200, "application/json", response.c_str()); });
 
     server.on("/availablegpio", HTTP_GET, [](AsyncWebServerRequest *request)
               {
-          std::string jsonVal = "[";
-          for (size_t i = 0; i < availableGpio.size(); ++i) {
-              jsonVal += "{\"pin\":" + std::to_string(availableGpio[i].pin) + 
-                        ",\"name\":\"" + availableGpio[i].name + "\"}";
-              if (i != availableGpio.size() - 1) {
-                  jsonVal += ",";
-              }
-          }
-          jsonVal += "]";
-          request->send(200, "application/json", jsonVal.c_str()); });
-    server.on("/availablegpio", HTTP_POST, [](AsyncWebServerRequest *request)
-              {
-        if (request->hasParam("availablegpio", true))
-        {
-            std::string json = request->getParam("availablegpio", true)->value().c_str();
-            availableGpio = parseGpioPinsWithNames(json);
-            saveGpioToFile();
-            request->send(200, "text/plain", "availablegpio update");
-        }
-        request->send(400, "text/plain", "availablegpio no found"); });
+                  JsonDocument doc;
+                  JsonArray gpioArray = doc.to<JsonArray>();
+                  
+                  for (const auto& gpio : availableGpio) {
+                      JsonObject gpioObj = gpioArray.add<JsonObject>();
+                      gpioObj["pin"] = gpio.pin;
+                      gpioObj["name"] = gpio.name;
+                  }
+                  
+                  String response;
+                  serializeJson(doc, response);
+                  request->send(200, "application/json", response.c_str()); });
+                  server.on("/availablegpio", HTTP_POST, [](AsyncWebServerRequest *request)
+                  {
+                    if (request->hasParam("availablegpio", true))
+                    {
+                        String jsonStr = request->getParam("availablegpio", true)->value();
+                        
+                        // Используем ArduinoJson 7.x для парсинга
+                        JsonDocument doc;
+                        DeserializationError error = deserializeJson(doc, jsonStr);
+                        
+                        if (!error) {
+                            // Очищаем текущий вектор GPIO
+                            availableGpio.clear();                            
+                            // Парсим массив GPIO пинов
+                            JsonArray gpioArray = doc.as<JsonArray>();
+                            for (JsonObject gpioObj : gpioArray) {
+                                GpioPin gpio;
+                                gpio.pin = gpioObj["pin"].as<int>();
+                                gpio.name = gpioObj["name"].as<const char*>();
+                                availableGpio.push_back(gpio);
+                            }
+                            
+                            saveGpioToFile();
+                            request->send(200, "text/plain", "availablegpio updated");
+                        } else {
+                            request->send(400, "text/plain", "Invalid JSON format");
+                        }
+                    } else {
+                        request->send(400, "text/plain", "availablegpio parameter not found");
+                    }
+                  });
     server.on("/serverinfo", HTTP_GET, [](AsyncWebServerRequest *request)
               {
 
@@ -144,91 +185,85 @@ void initWebServer()
     // POST /client/{address} (update info about a client)
     server.on("/client", HTTP_POST, [](AsyncWebServerRequest *request)
               {
-            if (request->hasParam("address", true))
-            {
-                String address = request->getParam("address", true)->value();
-                bool isSaving = false;
-                if (xSemaphoreTake(devicesMutex, portMAX_DELAY) == pdTRUE) {
-                // Handle POST parameters
-                if (request->hasParam("name", true))
+                if (request->hasParam("address", true))
                 {
-                    String newName = request->getParam("name", true)->value();
-                    // Find the client by address and update the name
-                    for (auto& client : devices)
-                    {
-                        if (client.macAddress == address.c_str())
-                        {
-                            client.name = newName.c_str();
-                            isSaving = true;
-                            break;
+                    String address = request->getParam("address", true)->value();
+                    bool isSaving = false;
+                    
+                    if (xSemaphoreTake(devicesMutex, portMAX_DELAY) == pdTRUE) {
+                        // Находим устройство по адресу
+                        auto deviceIt = std::find_if(devices.begin(), devices.end(),
+                                                [&address](const DeviceData &device) {
+                                                    return device.macAddress == address.c_str();
+                                                });
+                        
+                        if (deviceIt != devices.end()) {
+                            // Обновляем имя устройства
+                            if (request->hasParam("name", true)) {
+                                String newName = request->getParam("name", true)->value();
+                                deviceIt->name = newName.c_str();
+                                isSaving = true;
+                            }
+                            
+                            // Обновляем целевую температуру
+                            if (request->hasParam("targetTemperature", true)) {
+                                String tempStr = request->getParam("targetTemperature", true)->value();
+                                float newTargetTemperature = tempStr.toFloat();
+                                deviceIt->targetTemperature = newTargetTemperature;
+                                isSaving = true;
+                            }
+                            
+                            // Обновляем статус включения
+                            if (request->hasParam("enabled", true)) {
+                                String tempStr = request->getParam("enabled", true)->value();
+                                bool enabled = tempStr == "true";
+                                deviceIt->enabled = enabled;
+                                isSaving = true;
+                            }
+                            
+                            // Обновляем GPIO пины
+                            if (request->hasParam("gpioPins", true)) {
+                                String gpioStr = request->getParam("gpioPins", true)->value();
+                                
+                                // Парсим JSON с использованием ArduinoJson 7.x
+                                JsonDocument doc;
+                                DeserializationError error = deserializeJson(doc, gpioStr);
+                                
+                                if (!error) {
+                                    // Очищаем текущий вектор GPIO пинов
+                                    deviceIt->gpioPins.clear();
+                                    
+                                    // Если входные данные - массив
+                                    if (doc.is<JsonArray>()) {
+                                        JsonArray pinsArray = doc.as<JsonArray>();
+                                        for (int pin : pinsArray) {
+                                            deviceIt->gpioPins.push_back(pin);
+                                        }
+                                    }                                     
+                                    
+                                    isSaving = true;
+                                }
+                            }
+                            
+                        }
+                        
+                        xSemaphoreGive(devicesMutex);
+                        
+                        if (isSaving) {
+                            Serial.println("Получены изменения по HTTP, сохраняем результаты");
+                            saveClientsToFile(); // Save changes to file
+                            request->send(200, "text/plain", "Client updated");
+                            return;
                         }
                     }
-                }
-
-                if (request->hasParam("targetTemperature", true))
-                {
-                    String tempStr = request->getParam("targetTemperature", true)->value();
-                    float newTargetTemperature = tempStr.toFloat();
-                    // Find the client by address and update the target temperature
-                    for (auto& client : devices)
-                    {
-                        if (client.macAddress == address.c_str())
-                        {
-                            client.targetTemperature = newTargetTemperature;
-                            isSaving = true;
-                            break;
-                        }
-                    }
-                }
-
-                if (request->hasParam("enabled", true))
-                {
-                    String tempStr = request->getParam("enabled", true)->value();
-                    bool enabled = tempStr == "true";
-                    // Find the client by address and update the target temperature
-                    for (auto& client : devices)
-                    {
-                        if (client.macAddress == address.c_str())
-                        {
-                            client.enabled = enabled;
-                            isSaving = true;
-                            break;
-                        }
-                    }
-                }
-
-                if (request->hasParam("gpioPins", true))
-                {
-                    String newName = request->getParam("gpioPins", true)->value();
-                    // Find the client by address and update the name
-                    for (auto& client : devices)
-                    {
-                        if (client.macAddress == address.c_str())
-                        {
-                            // Извлекаем только номера пинов для совместимости
-                            client.gpioPins = parseGpioPins(newName.c_str());
-                            isSaving = true;
-                            break;
-                        }
-                    }
-                }
-                xSemaphoreGive(devicesMutex);
-                if (isSaving)
-                {
-                    Serial.println("Получены изменения по HTTP, сохраняем результаты");
-                    saveClientsToFile(); // Save changes to file
-                    // Send response
-                    request->send(200, "text/plain", "Client updated");
-                }
-            }
-            }
-            request->send(200, "text/plain", "Client not find"); });
+                }                
+                request->send(404, "text/plain", "Client not found"); });
 
     // GET /scan (start BLE scan)
     server.on("/scan", HTTP_GET, [](AsyncWebServerRequest *request)
               {
                 Serial.println("Получен запрос на запуск сканирования устройств");
-                startXiaomiScan(XIAOMI_SCAN_DURATION);
+                startXiaomiScan();
             request->send(200, "text/plain", "BLE Scan started"); });
     // Добавьте этот код в функцию initWebServer() в файле web_server_setting.cpp
 

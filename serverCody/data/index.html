@@ -145,6 +145,7 @@
                 <tr>
                     <th>Имя</th>
                     <th>MAC-адрес</th>
+                    <th>Онлайн</th>
                     <th>Температура</th>
                     <th>Целевая температура</th>
                     <th>Влажность</th>
@@ -199,10 +200,12 @@
                         // MAC-адрес
                         const macCell = document.createElement('td');
                         macCell.textContent = client.macAddress;
-
+                        // online
+                        const isOnline = document.createElement('td');
+                        isOnline.textContent = client.isOnline;
                         // Температура
                         const tempCell = document.createElement('td');
-                        tempCell.textContent = client.temperature ? client.temperature.toFixed(1) + '°C' : 'Н/Д';
+                        tempCell.textContent = client.currentTemperature ? client.currentTemperature.toFixed(1) + '°C' : 'Н/Д';
 
                         // Целевая температура
                         const targetTempCell = document.createElement('td');
@@ -269,6 +272,7 @@
                         // Добавляем ячейки в строку
                         row.appendChild(nameCell);
                         row.appendChild(macCell);
+                        row.appendChild(isOnline);
                         row.appendChild(tempCell);
                         row.appendChild(targetTempCell);
                         row.appendChild(humidityCell);
@@ -438,7 +442,7 @@
                     const temperature = document.createElement("div");
                     temperature.innerHTML = `Температура: ${data.board_temperature} C`;
                     serverContainer.appendChild(temperature);
-                   
+
                     const workTime = document.createElement("div");
                     workTime.innerHTML = `Время работы: ${data.millis}`;
                     serverContainer.appendChild(workTime);

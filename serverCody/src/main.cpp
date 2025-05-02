@@ -220,7 +220,7 @@ void networkFunc()
         bleActive = true;
         if (xSemaphoreTake(bleMutex, portMAX_DELAY) == pdTRUE)
         {
-            startXiaomiScan(XIAOMI_SCAN_DURATION);
+            startXiaomiScan();
             vTaskDelay(20 / portTICK_PERIOD_MS); // Добавьте задержку
             updateDevicesStatus();
             xSemaphoreGive(bleMutex);
