@@ -4,7 +4,6 @@
 #include <variables_info.h>
 #include <WiFi.h>
 #include <xiaomi_scanner.h>
-// #include "ota_setting.h"
 
 // LCD Keypad Shield использует следующие пины для подключения LCD
 // RS, E, D4, D5, D6, D7
@@ -23,8 +22,7 @@ enum MenuState
   DEVICE_MENU,      // Меню настроек устройства
   EDIT_TEMPERATURE, // Редактирование целевой температуры
   EDIT_GPIO,        // Редактирование GPIO пинов
-  EDIT_ENABLED,     // Включение/выключение устройства
-  WAIT_OTA          // Ожидание OTA обновления
+  EDIT_ENABLED     // Включение/выключение устройства
 };
 
 // Текущее состояние меню
@@ -36,7 +34,7 @@ int deviceMenuIndex = 0;    // Индекс в меню устройства
 int gpioSelectionIndex = 0; // Индекс для выбора GPIO
 
 // Опции меню устройства
-const char *deviceMenuOptions[] = {"Temperature", "GPIO", "On/Off", "OTA Update", "Back"};
+const char *deviceMenuOptions[] = {"Temperature", "GPIO", "On/Off", "Back"};
 const int deviceMenuOptionsCount = 5;
 
 // Флаг для обновления экрана
@@ -472,12 +470,8 @@ void handleButtons()
         break;
       case 2: // Вкл/Выкл
         currentMenu = EDIT_ENABLED;
-        break;
-      case 3: // OTA
-        currentMenu = WAIT_OTA;
-        // enterOtaMode();
-        break;
-      case 4: // Назад
+        break;      
+      case 3: // Назад
         currentMenu = DEVICE_LIST;
         break;
       }

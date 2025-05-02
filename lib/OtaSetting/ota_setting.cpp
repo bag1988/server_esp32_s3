@@ -13,22 +13,25 @@ bool otaActive = false;
 unsigned long otaStartTime = 0;
 unsigned long otaTimeout = 5 * 60 * 1000; // 5 минут таймаут для режима OTA
 
-bool initOTA() {
-    if (!wifiConnected) {
+bool initOTA()
+{
+    if (!wifiConnected)
+    {
         Serial.println("OTA: WiFi не подключен. OTA не инициализирован.");
         return false;
     }
     Serial.println("OTA инициализация.");
     // Настройка имени устройства для OTA
     ArduinoOTA.setHostname(OTA_HOSTNAME);
-    
+
     // Настройка пароля для OTA
     ArduinoOTA.setPassword(OTA_PASSWORD);
-    
+
     // Настройка порта (по умолчанию 3232)
     ArduinoOTA.setPort(OTA_PORT);
-    
-    ArduinoOTA.onStart([]() {
+
+    ArduinoOTA.onStart([]()
+                       {
         String type;
         if (ArduinoOTA.getCommand() == U_FLASH) {
             type = "sketch";
@@ -44,10 +47,10 @@ bool initOTA() {
         displayText("OTA Update", 0, 0, true, true);
         displayText("Type: " + type, 0, 1, true);
         
-        Serial.println("Start updating " + type);
-    });
-    
-    ArduinoOTA.onEnd([]() {
+        Serial.println("Start updating " + type); });
+
+    ArduinoOTA.onEnd([]()
+                     {
         // Обновление состояния
         otaState = OTA_STATE_COMPLETE;
         otaProgress = 100;
@@ -56,10 +59,10 @@ bool initOTA() {
         displayText("Update Complete", 0, 0, true, true);
         displayText("Rebooting...", 0, 1, true, true);
         
-        Serial.println("\nEnd");
-    });
-    
-    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+        Serial.println("\nEnd"); });
+
+    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total)
+                          {
         unsigned int percentage = (progress / (total / 100));
         
         // Обновление состояния
@@ -79,10 +82,10 @@ bool initOTA() {
         displayText(progressBar, 0, 1, true);
         displayText(String(percentage) + "%", 12, 1);
         
-        Serial.printf("Progress: %u%%\r", percentage);
-    });
-    
-    ArduinoOTA.onError([](ota_error_t error) {
+        Serial.printf("Progress: %u%%\r", percentage); });
+
+    ArduinoOTA.onError([](ota_error_t error)
+                       {
         // Обновление состояния
         otaState = OTA_STATE_ERROR;
         
@@ -115,14 +118,14 @@ bool initOTA() {
         
         // Выход из режима OTA через 10 секунд после ошибки
         delay(10000);
-        otaActive = false;
-    });
-    
+        otaActive = false; });
+
     ArduinoOTA.begin();
     Serial.println("OTA ready");
-    
+
     // Настройка mDNS для легкого обнаружения устройства
-    if (MDNS.begin(OTA_HOSTNAME)) {
+    if (MDNS.begin(OTA_HOSTNAME))
+    {
         MDNS.addService("http", "tcp", 80);
         MDNS.addService("arduino", "tcp", OTA_PORT);
         Serial.println("MDNS responder started");
@@ -130,16 +133,18 @@ bool initOTA() {
         Serial.print(OTA_HOSTNAME);
         Serial.println(".local");
     }
-    
+
     return true;
 }
 
-void handleOTA() {
+void handleOTA()
+{
     // Обработка OTA обновлений
     ArduinoOTA.handle();
-    
+
     // Проверка таймаута режима OTA
-    if (otaActive && millis() - otaStartTime > otaTimeout) {
+    if (otaActive && millis() - otaStartTime > otaTimeout)
+    {
         Serial.println("OTA: Таймаут режима OTA. Возврат к нормальной работе.");
         otaActive = false;
         displayText("OTA Timeout", 0, 0, true, true);
@@ -149,46 +154,8 @@ void handleOTA() {
     }
 }
 
-void enterOtaMode() {
-    // Если WiFi не подключен, пытаемся подключиться
-    if (!wifiConnected) {
-        displayText("Connecting WiFi", 0, 0, true, true);
-        displayText("for OTA...", 0, 1, true, true);
-        
-        if (!wifiConnected) {
-            displayText("WiFi Failed", 0, 0, true, true);
-            displayText("OTA Unavailable", 0, 1, true, true);
-            delay(3000);
-            updateLCD(); // Возврат к обычному отображению
-            return;
-        }
-    }
-    
-    // Инициализация OTA, если еще не инициализирован
-    if (otaState == OTA_STATE_IDLE) {
-        if (!initOTA()) {
-            displayText("OTA Init Failed", 0, 0, true, true);
-            delay(3000);
-            updateLCD(); // Возврат к обычному отображению
-            return;
-        }
-    }
-    
-    // Активация режима OTA
-    otaActive = true;
-    otaStartTime = millis();
-    
-    // Отображение информации на LCD
-    displayText("OTA Mode Active", 0, 0, true, true);
-    displayText("IP: " + WiFi.localIP().toString(), 0, 1, true);
-    
-    Serial.println("OTA: Режим OTA активирован");
-    Serial.println("IP: " + WiFi.localIP().toString());
-    Serial.println("Hostname: " + String(OTA_HOSTNAME) + ".local");
-    Serial.println("Port: " + String(OTA_PORT));
-    Serial.println("Waiting for update...");
-}
 
-bool isOtaActive() {
+bool isOtaActive()
+{
     return otaActive;
 }

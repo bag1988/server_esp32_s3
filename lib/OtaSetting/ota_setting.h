@@ -4,7 +4,7 @@
 #include <Arduino.h>
 
 // Настройки OTA
-#define OTA_HOSTNAME "ESP32-S3-Thermostat"  // Имя устройства для OTA
+#define OTA_HOSTNAME "SERVER-ESP32-S3-UNO"  // Имя устройства для OTA
 #define OTA_PASSWORD "admin123"             // Пароль для OTA (рекомендуется изменить)
 #define OTA_PORT 3232                       // Порт для OTA (стандартный: 3232)
 
@@ -28,9 +28,6 @@ bool initOTA();
 
 // Обработка OTA обновлений (вызывать в loop)
 void handleOTA();
-
-// Принудительный переход в режим ожидания OTA
-void enterOtaMode();
 
 // Проверка, активен ли режим OTA
 bool isOtaActive();

@@ -9,7 +9,7 @@
 #include "xiaomi_scanner.h"
 // #include "mi_io_protocol.h"
 // #include "mdns_service.h"
-// #include "ota_setting.h"
+#include "ota_setting.h"
 #include <atomic>
 #include "esp_system.h"         // Библиотека ESP-IDF для работы с системными функциями
 #include "driver/temp_sensor.h" // Библиотека для работы с датчиком температуры
@@ -166,12 +166,12 @@ void controlGPIO()
 
 void networkFunc()
 {
-    // Если активен режим OTA, пропускаем обычную обработку
-    // if (isOtaActive())
-    // {
-    //     vTaskDelay(20 / portTICK_PERIOD_MS); // Небольшая задержка для стабильности
-    //     return;
-    // }
+    //Если активен режим OTA, пропускаем обычную обработку
+    if (isOtaActive())
+    {
+        vTaskDelay(20 / portTICK_PERIOD_MS); // Небольшая задержка для стабильности
+        return;
+    }
 
     // Обработка пакетов miIO с защитой
     // if (xSemaphoreTake(wifiMutex, portMAX_DELAY) == pdTRUE)
@@ -270,11 +270,11 @@ void monitorMemory()
 void mainlogicFunc()
 {
     // Если активен режим OTA, пропускаем обычную обработку
-    // if (isOtaActive())
-    // {
-    //     vTaskDelay(20 / portTICK_PERIOD_MS); // Небольшая задержка для стабильности
-    //     return;
-    // }
+    if (isOtaActive())
+    {
+        vTaskDelay(20 / portTICK_PERIOD_MS); // Небольшая задержка для стабильности
+        return;
+    }
     // Обработка нажатий кнопок
     handleButtons();
     // Обновление LCD
@@ -630,10 +630,10 @@ void setup()
     connectWiFi();
 
     // Инициализация OTA после подключения к WiFi
-    // if (wifiConnected)
-    // {
-    //     initOTA();
-    // }
+    if (wifiConnected)
+    {
+        initOTA();
+    }
 
     // Инициализация BLE сканера
     setupXiaomiScanner();
