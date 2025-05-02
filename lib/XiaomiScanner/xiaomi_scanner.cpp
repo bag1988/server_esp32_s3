@@ -177,9 +177,41 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
 {
     bool isXiaomiDevice = false;
     std::string deviceAddress = advertisedDevice.getAddress().toString().c_str();
-
+    bool isCustomFirmware = false;
+    
+    // Проверка на кастомную прошивку ATC
+    if (advertisedDevice.haveServiceData())
+    {
+        for (int i = 0; i < advertisedDevice.getServiceDataCount(); i++)
+        {
+            std::string serviceData = advertisedDevice.getServiceData(i);
+            BLEUUID serviceUUID = advertisedDevice.getServiceDataUUID(i);
+            
+            // Проверка на ATC прошивку (UUID: 0x181A или 0xFE95)
+            if (serviceUUID.equals(BLEUUID((uint16_t)0x181A)) || serviceUUID.equals(BLEUUID("fe95")))
+            {
+                if (serviceData.length() >= 15) {
+                    // Проверка MAC-адреса в данных (для ATC)
+                    uint8_t mac[6];
+                    for (int j = 0; j < 6; j++) {
+                        mac[j] = (uint8_t)serviceData[j+5];
+                    }
+                    
+                    // Сравниваем MAC в пакете с MAC устройства
+                    BLEAddress packetAddr(mac);
+                    if (packetAddr.equals(advertisedDevice.getAddress()) || 
+                        serviceData[0] == 0xA4 || serviceData[0] == 0x16) {
+                        isXiaomiDevice = true;
+                        isCustomFirmware = true;
+                        Serial.println("Обнаружено устройство с кастомной прошивкой ATC");
+                    }
+                }
+            }
+        }
+    }
+    
     // Проверка по данным производителя (стандартный метод)
-    if (advertisedDevice.haveManufacturerData())
+    if (!isCustomFirmware && advertisedDevice.haveManufacturerData())
     {
         std::string manufacturerData = advertisedDevice.getManufacturerData();
 
@@ -191,11 +223,11 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
         }
     }
 
-    // Проверка по имени устройства для LYWSD03MMC
-    if (!isXiaomiDevice && advertisedDevice.haveName())
+    // Проверка по имени устройства для LYWSD03MMC и MJWSD05MMC
+    if (!isCustomFirmware && !isXiaomiDevice && advertisedDevice.haveName())
     {
         std::string deviceName = advertisedDevice.getName();
-        if (deviceName == "LYWSD03MMC" ||
+        if (deviceName == "LYWSD03MMC" || deviceName == "MJWSD05MMC" ||
             deviceName.find("MJ_HT") != std::string::npos ||
             deviceName.find("Xiaomi") != std::string::npos ||
             deviceName.find("Mi") != std::string::npos)
@@ -206,22 +238,6 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
         }
     }
 
-    // Проверка по сервисным данным
-    if (!isXiaomiDevice && advertisedDevice.haveServiceData())
-    {
-        for (int i = 0; i < advertisedDevice.getServiceDataCount(); i++)
-        {
-            std::string serviceData = advertisedDevice.getServiceData(i);
-            // Некоторые устройства Xiaomi используют сервисный UUID FE95
-            if (advertisedDevice.getServiceDataUUID(i).equals(BLEUUID("fe95")))
-            {
-                isXiaomiDevice = true;
-                Serial.println("Обнаружено устройство Xiaomi по сервисному UUID FE95");
-                break;
-            }
-        }
-    }
-
     // Если это устройство Xiaomi, обрабатываем его
     if (isXiaomiDevice)
     {
@@ -229,41 +245,63 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
         float temperature = 0.0;
         uint8_t humidity = 0;
         uint8_t battery = 0;
-
         bool dataFound = false;
 
-        // Пытаемся получить данные из сервисных данных для LYWSD03MMC
-        if (advertisedDevice.haveServiceData())
+        // Обработка данных для устройств с кастомной прошивкой ATC
+        if (isCustomFirmware && advertisedDevice.haveServiceData())
         {
             for (int i = 0; i < advertisedDevice.getServiceDataCount(); i++)
             {
                 std::string serviceData = advertisedDevice.getServiceData(i);
+                BLEUUID serviceUUID = advertisedDevice.getServiceDataUUID(i);
                 
-                int16_t tempRaw = (int16_t)((uint8_t)serviceData[1] << 8 | (uint8_t)serviceData[0]);
-                temperature = tempRaw / 100.0f;
-                humidity = (uint8_t)serviceData[2];
-                
-                if (serviceData.length() >= 3) {
-                    battery = (uint8_t)serviceData[3];
-                } else {
-                    battery = 0; // Неизвестно
+                // Проверка на ATC прошивку (UUID: 0x181A или 0xFE95)
+                if ((serviceUUID.equals(BLEUUID((uint16_t)0x181A)) || serviceUUID.equals(BLEUUID("fe95"))) 
+                    && serviceData.length() >= 15)
+                {
+                    // Формат ATC: байты 10-11 - температура, байт 12 - влажность, байт 13 - батарея
+                    int16_t temperatureRaw = 0;
+                    
+                    // Для LYWSD03MMC с ATC прошивкой
+                    if (serviceData[0] == 0xA4 || serviceData[0] == 0x16) {
+                        temperatureRaw = (int16_t)((uint8_t)serviceData[11] << 8 | (uint8_t)serviceData[10]);
+                        temperature = temperatureRaw / 100.0f;
+                        humidity = (uint8_t)serviceData[12];
+                        battery = (uint8_t)serviceData[13];
+                    } 
+                    // Для MJWSD05MMC с ATC прошивкой (может отличаться)
+                    else if (serviceData[0] == 0x76 || serviceData[0] == 0x5B) {
+                        temperatureRaw = (int16_t)((uint8_t)serviceData[11] << 8 | (uint8_t)serviceData[10]);
+                        temperature = temperatureRaw / 100.0f;
+                        humidity = (uint8_t)serviceData[12];
+                        battery = (uint8_t)serviceData[14]; // Может отличаться для MJWSD05MMC
+                    }
+                    
+                    dataFound = true;
+                    Serial.printf("Парсинг данных ATC: Температура: %.1f°C, Влажность: %d%%, Батарея: %d%%\n",
+                                  temperature, humidity, battery);
+                    break;
                 }
-                
-                Serial.printf("Распарсены данные стоковой прошивки: Темп=%.2f°C, Влажность=%d%%, Батарея=%d%%\n", 
-                             temperature, humidity, battery);
-
-
-                int16_t temperatureRaw = (int8_t(serviceData[12]) << 8) | uint8_t(serviceData[11]);
+            }
+        }
+        
+        // Обработка данных для устройств с кастомной прошивкой Telink
+        if (!dataFound && advertisedDevice.haveManufacturerData())
+        {
+            std::string manufacturerData = advertisedDevice.getManufacturerData();
+            
+            // Проверка на Telink прошивку (обычно начинается с 0x1A, 0x18)
+            if (manufacturerData.length() >= 14 && 
+                ((uint8_t)manufacturerData[0] == 0x1A && (uint8_t)manufacturerData[1] == 0x18))
+            {
+                // Формат Telink: байты 6-7 - температура, байт 8 - влажность, байт 9 - батарея
+                int16_t temperatureRaw = (int16_t)((uint8_t)manufacturerData[7] << 8 | (uint8_t)manufacturerData[6]);
                 temperature = temperatureRaw / 100.0f;
-
-                uint8_t humidityRaw = uint8_t(serviceData[13]);
-                humidity = humidityRaw;
-
-                uint8_t batteryRaw = uint8_t(serviceData[15]);
-                battery = batteryRaw;
-                // Для LYWSD03MMC с кастомной прошивкой (например, ATC)
+                humidity = (uint8_t)manufacturerData[8];
+                battery = (uint8_t)manufacturerData[9];
+                
                 dataFound = true;
-                Serial.printf("Парсинг данных: Температура: %.1f°C, Влажность: %d%%, Батарея: %d%%\n",
+                Serial.printf("Парсинг данных Telink: Температура: %.1f°C, Влажность: %d%%, Батарея: %d%%\n",
                               temperature, humidity, battery);
             }
         }
@@ -329,6 +367,7 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
         }
     }
 }
+
 
 // Обновление статуса устройств
 void updateDevicesStatus()
