@@ -124,14 +124,33 @@ bool initOTA()
     Serial.println("OTA ready");
 
     // Настройка mDNS для легкого обнаружения устройства
-    if (MDNS.begin(OTA_HOSTNAME))
-    {
-        MDNS.addService("http", "tcp", 80);
-        MDNS.addService("arduino", "tcp", OTA_PORT);
-        Serial.println("MDNS responder started");
+    if (!MDNS.begin(OTA_HOSTNAME)) {
+        Serial.println("Error setting up MDNS responder!");
+        // Продолжаем работу даже при ошибке mDNS
+    } else {
+        // Добавляем сервисы с проверкой результата
+        // if (MDNS.addService("http", "tcp", 80)) {
+        //     Serial.println("MDNS HTTP service registered");
+        // } else {
+        //     Serial.println("Failed to register MDNS HTTP service");
+        // }
+        
+        // Пробуем добавить сервис OTA с проверкой результата
+        if (MDNS.addService("arduino", "tcp", OTA_PORT)) {
+            Serial.println("MDNS Arduino OTA service registered");
+        } else {
+            Serial.println("Failed to register MDNS Arduino OTA service");
+            // Можно попробовать альтернативное имя сервиса
+            if (MDNS.addService("esp32-ota", "tcp", OTA_PORT)) {
+                Serial.println("MDNS ESP32-OTA service registered instead");
+            }
+        }
+        
         Serial.print("Device URL: http://");
         Serial.print(OTA_HOSTNAME);
         Serial.println(".local");
+        Serial.print("OTA Port: ");
+        Serial.println(OTA_PORT);
     }
 
     return true;
@@ -153,7 +172,6 @@ void handleOTA()
         updateLCD(); // Возврат к обычному отображению
     }
 }
-
 
 bool isOtaActive()
 {
