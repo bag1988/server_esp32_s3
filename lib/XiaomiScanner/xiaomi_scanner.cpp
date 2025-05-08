@@ -241,7 +241,7 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
     if (!isCustomFirmware && !isXiaomiDevice && advertisedDevice.haveName())
     {
         std::string deviceName = advertisedDevice.getName();
-        Serial.printf("Проверка по имени устройства %s", deviceName.c_str());
+        Serial.printf("Проверка по имени устройства %s\n", deviceName.c_str());
 
         if (deviceName == "LYWSD03MMC" || deviceName == "MJWSD05MMC" ||
             deviceName.find("MJ_HT") != std::string::npos ||

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ru">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,52 +12,63 @@
             padding: 20px;
             background-color: #f5f5f5;
         }
+
         .container {
             max-width: 800px;
             margin: 0 auto;
             background-color: white;
             padding: 20px;
             border-radius: 5px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
         }
+
         .device {
             border: 1px solid #ddd;
             padding: 15px;
             margin-bottom: 15px;
             border-radius: 5px;
         }
+
         .device-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 10px;
         }
+
         .device-name {
             font-size: 18px;
             font-weight: bold;
         }
+
         .device-info {
             display: flex;
             flex-wrap: wrap;
             gap: 10px;
         }
+
         .device-info div {
             background-color: #f0f0f0;
             padding: 5px 10px;
             border-radius: 3px;
         }
+
         .device-controls {
             margin-top: 15px;
         }
+
         .device-controls label {
             display: block;
             margin-bottom: 5px;
         }
-        .device-controls input, .device-controls select {
+
+        .device-controls input,
+        .device-controls select {
             margin-bottom: 10px;
             padding: 5px;
             width: 100%;
         }
+
         .device-controls button {
             background-color: #4CAF50;
             color: white;
@@ -65,9 +77,11 @@
             border-radius: 3px;
             cursor: pointer;
         }
+
         .device-controls button:hover {
             background-color: #45a049;
         }
+
         .scan-button {
             background-color: #2196F3;
             color: white;
@@ -77,20 +91,24 @@
             cursor: pointer;
             margin-bottom: 20px;
         }
+
         .scan-button:hover {
             background-color: #0b7dda;
         }
+
         .toggle-switch {
             position: relative;
             display: inline-block;
             width: 60px;
             height: 34px;
         }
+
         .toggle-switch input {
             opacity: 0;
             width: 0;
             height: 0;
         }
+
         .slider {
             position: absolute;
             cursor: pointer;
@@ -102,6 +120,7 @@
             transition: .4s;
             border-radius: 34px;
         }
+
         .slider:before {
             position: absolute;
             content: "";
@@ -113,20 +132,25 @@
             transition: .4s;
             border-radius: 50%;
         }
-        input:checked + .slider {
+
+        input:checked+.slider {
             background-color: #2196F3;
         }
-        input:checked + .slider:before {
+
+        input:checked+.slider:before {
             transform: translateX(26px);
         }
+
         .gpio-select {
             margin-top: 10px;
         }
+
         .gpio-select select {
             width: 100%;
             padding: 8px;
             margin-bottom: 10px;
         }
+
         .gpio-select button {
             background-color: #ff9800;
             color: white;
@@ -136,15 +160,19 @@
             cursor: pointer;
             margin-right: 5px;
         }
+
         .gpio-select button:hover {
             background-color: #e68a00;
         }
+
         .selected-gpio {
             display: flex;
             flex-wrap: wrap;
             gap: 5px;
             margin-top: 10px;
+            margin-bottom: 10px;
         }
+
         .selected-gpio span {
             background-color: #e0e0e0;
             padding: 5px 10px;
@@ -152,6 +180,7 @@
             display: flex;
             align-items: center;
         }
+
         .selected-gpio span button {
             background: none;
             border: none;
@@ -162,6 +191,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <h1>Управление устройствами Xiaomi</h1>
@@ -170,7 +200,7 @@
             <!-- <a href="/mihome">Настройка Mi Home</a> -->
             <a href="/index">На главную</a>
         </div>
-        <br/>
+        <br />
         <button id="scanButton" class="scan-button">Сканировать устройства</button>
         <div id="devicesList"></div>
     </div>
@@ -202,54 +232,54 @@
         async function displayDevices(devices) {
             const devicesList = document.getElementById('devicesList');
             devicesList.innerHTML = '';
-            
+
             const availableGpio = await loadAvailableGpio();
-            
+
             devices.forEach(device => {
                 const deviceElement = document.createElement('div');
                 deviceElement.className = 'device';
-                
+
                 // Заголовок устройства
                 const header = document.createElement('div');
                 header.className = 'device-header';
-                
+
                 const nameElement = document.createElement('div');
                 nameElement.className = 'device-name';
                 nameElement.textContent = device.name || `Устройство ${device.macAddress}`;
-                
+
                 const enabledToggle = document.createElement('label');
                 enabledToggle.className = 'toggle-switch';
                 enabledToggle.innerHTML = `
                     <input type="checkbox" ${device.enabled ? 'checked' : ''} id="enabled-${device.macAddress}">
                     <span class="slider"></span>
                 `;
-                
+
                 header.appendChild(nameElement);
                 header.appendChild(enabledToggle);
                 deviceElement.appendChild(header);
-                
+
                 // Информация об устройстве
                 const info = document.createElement('div');
                 info.className = 'device-info';
-                
+
                 const macAddress = document.createElement('div');
                 macAddress.textContent = `MAC: ${device.macAddress}`;
-                
+
                 const temperature = document.createElement('div');
                 temperature.textContent = `Температура: ${device.currentTemperature}°C`;
-                
+
                 const battery = document.createElement('div');
                 battery.textContent = `Батарея: ${device.battery}%`;
-                
+
                 info.appendChild(macAddress);
                 info.appendChild(temperature);
                 info.appendChild(battery);
                 deviceElement.appendChild(info);
-                
+
                 // Элементы управления
                 const controls = document.createElement('div');
                 controls.className = 'device-controls';
-                
+
                 // Имя устройства
                 const nameLabel = document.createElement('label');
                 nameLabel.textContent = 'Имя устройства:';
@@ -257,7 +287,7 @@
                 nameInput.type = 'text';
                 nameInput.value = device.name || '';
                 nameInput.id = `name-${device.macAddress}`;
-                
+
                 // Целевая температура
                 const tempLabel = document.createElement('label');
                 tempLabel.textContent = 'Целевая температура (°C):';
@@ -266,56 +296,56 @@
                 tempInput.step = '0.5';
                 tempInput.value = device.targetTemperature || 20;
                 tempInput.id = `temp-${device.macAddress}`;
-                
+
                 // Выбор GPIO пинов
                 const gpioLabel = document.createElement('label');
                 gpioLabel.textContent = 'GPIO пины:';
-                
+
                 const gpioSelect = document.createElement('div');
                 gpioSelect.className = 'gpio-select';
-                
+
                 const select = document.createElement('select');
                 select.id = `gpio-select-${device.macAddress}`;
-                
+
                 availableGpio.forEach(gpio => {
                     const option = document.createElement('option');
                     option.value = gpio.pin;
-                    option.textContent = `${gpio.name} (GPIO ${gpio.pin})`;
+                    option.textContent = `${gpio.name}`;
                     select.appendChild(option);
                 });
-                
+
                 const addButton = document.createElement('button');
                 addButton.textContent = 'Добавить';
                 addButton.onclick = () => addGpioPin(device.macAddress);
-                
+
                 gpioSelect.appendChild(select);
                 gpioSelect.appendChild(addButton);
-                
+
                 // Отображение выбранных GPIO пинов
                 const selectedGpio = document.createElement('div');
                 selectedGpio.className = 'selected-gpio';
                 selectedGpio.id = `selected-gpio-${device.macAddress}`;
-                
+
                 if (device.gpioPins && device.gpioPins.length > 0) {
                     device.gpioPins.forEach(pin => {
                         const pinElement = document.createElement('span');
                         const gpioInfo = availableGpio.find(g => g.pin === pin) || { name: `GPIO ${pin}` };
                         pinElement.textContent = gpioInfo.name;
-                        
+                        pinElement.dataset.pin = pin;
                         const removeButton = document.createElement('button');
                         removeButton.textContent = '×';
                         removeButton.onclick = () => removeGpioPin(device.macAddress, pin);
-                        
+
                         pinElement.appendChild(removeButton);
                         selectedGpio.appendChild(pinElement);
                     });
                 }
-                
+
                 // Кнопка сохранения
                 const saveButton = document.createElement('button');
                 saveButton.textContent = 'Сохранить';
                 saveButton.onclick = () => saveDevice(device.macAddress);
-                
+
                 controls.appendChild(nameLabel);
                 controls.appendChild(nameInput);
                 controls.appendChild(tempLabel);
@@ -324,12 +354,12 @@
                 controls.appendChild(gpioSelect);
                 controls.appendChild(selectedGpio);
                 controls.appendChild(saveButton);
-                
+
                 deviceElement.appendChild(controls);
                 devicesList.appendChild(deviceElement);
-                
+
                 // Обработчик переключателя
-                document.getElementById(`enabled-${device.macAddress}`).addEventListener('change', function() {
+                document.getElementById(`enabled-${device.macAddress}`).addEventListener('change', function () {
                     saveDeviceEnabled(device.macAddress, this.checked);
                 });
             });
@@ -340,23 +370,23 @@
             const select = document.getElementById(`gpio-select-${macAddress}`);
             const selectedPin = parseInt(select.value);
             const selectedText = select.options[select.selectedIndex].text;
-            
+
             const selectedGpio = document.getElementById(`selected-gpio-${macAddress}`);
-            
+
             // Проверяем, не добавлен ли уже этот пин
-            const existingPins = Array.from(selectedGpio.children).map(span => 
+            const existingPins = Array.from(selectedGpio.children).map(span =>
                 parseInt(span.getAttribute('data-pin'))
             );
-            
+
             if (!existingPins.includes(selectedPin)) {
                 const pinElement = document.createElement('span');
                 pinElement.textContent = selectedText;
                 pinElement.setAttribute('data-pin', selectedPin);
-                
+
                 const removeButton = document.createElement('button');
                 removeButton.textContent = '×';
                 removeButton.onclick = () => removeGpioPin(macAddress, selectedPin);
-                
+
                 pinElement.appendChild(removeButton);
                 selectedGpio.appendChild(pinElement);
             }
@@ -366,9 +396,9 @@
         function removeGpioPin(macAddress, pin) {
             const selectedGpio = document.getElementById(`selected-gpio-${macAddress}`);
             const pinElements = selectedGpio.querySelectorAll('span');
-            
+
             pinElements.forEach(element => {
-                if (parseInt(element.getAttribute('data-pin')) === pin) {
+                if (parseInt(element.dataset.pin) === pin) {
                     element.remove();
                 }
             });
@@ -379,26 +409,26 @@
             const name = document.getElementById(`name-${macAddress}`).value;
             const targetTemperature = document.getElementById(`temp-${macAddress}`).value;
             const enabled = document.getElementById(`enabled-${macAddress}`).checked;
-            
+
             // Собираем выбранные GPIO пины
             const selectedGpio = document.getElementById(`selected-gpio-${macAddress}`);
-            const gpioPins = Array.from(selectedGpio.children).map(span => 
-                parseInt(span.getAttribute('data-pin'))
+            const gpioPins = Array.from(selectedGpio.children).map(span =>
+                parseInt(span.dataset.pin)
             );
-            
+
             const formData = new FormData();
             formData.append('address', macAddress);
             formData.append('name', name);
             formData.append('targetTemperature', targetTemperature);
             formData.append('enabled', enabled);
             formData.append('gpioPins', JSON.stringify(gpioPins));
-            
+
             try {
                 const response = await fetch('/client', {
                     method: 'POST',
                     body: formData
                 });
-                
+
                 if (response.ok) {
                     alert('Устройство успешно обновлено');
                     loadDevices();
@@ -416,7 +446,7 @@
             const formData = new FormData();
             formData.append('address', macAddress);
             formData.append('enabled', enabled);
-            
+
             try {
                 await fetch('/client', {
                     method: 'POST',
@@ -446,4 +476,5 @@
         window.addEventListener('load', loadDevices);
     </script>
 </body>
+
 </html>

@@ -101,6 +101,7 @@ unsigned long safeTimeDifference(unsigned long currentTime, unsigned long previo
 // Управление GPIO
 void controlGPIO()
 {
+    Serial.println("Проверка необходимости включения GPIO");
     std::vector<int> gpiosToTurnOn;
     unsigned long currentTime = millis();
     // Собираем GPIO для включения
@@ -118,6 +119,8 @@ void controlGPIO()
                 device.heatingStartTime = currentTime;
             }
 
+            Serial.printf("Устройство %s: обогрев включен - %s, необходим обогрев - %s\n",
+                          device.name.c_str(), device.heatingActive ? "да" : "нет", (device.currentTemperature + 2) < device.targetTemperature ? "да" : "нет");
             if (!device.heatingActive && device.enabled && device.isOnline && (device.currentTemperature + 2) < device.targetTemperature)
             {
                 device.heatingActive = true;
@@ -291,10 +294,10 @@ void mainLogicTaskFunction(void *parameter)
         mainlogicFunc();
     }
 }
-void createTasks()
+
+void createTasksStandartNetwork()
 {
     const uint32_t networkStackSize = 8192;
-    const uint32_t logicStackSize = 4096;
 
     xTaskCreatePinnedToCore(
         networkTaskFunction,
@@ -304,7 +307,11 @@ void createTasks()
         1,
         &networkTask,
         1);
+}
 
+void createTasksStandartMainLogic()
+{
+    const uint32_t logicStackSize = 4096;
     xTaskCreatePinnedToCore(
         mainLogicTaskFunction,
         "MainLogicTask",
@@ -315,235 +322,12 @@ void createTasks()
         0);
 }
 
-// void createTasksOlddd()
-// {
-//     // Размер стека в словах (1 слово = 4 байта)
-//     const uint32_t networkStackSize = 8192; // Для сетевых операций
-//     const uint32_t logicStackSize = 4096;   // Для основной логики
+void createTasksStandart()
+{
+    createTasksStandartNetwork();
 
-//     Serial.println("Создание задач FreeRTOS с использованием PSRAM...");
-
-//     // Проверяем наличие PSRAM
-//     if (psramFound())
-//     {
-//         Serial.println("PSRAM найдена, размер: " + String(ESP.getFreePsram() / 1024) + " КБ");
-
-//         // Настраиваем использование PSRAM для malloc
-//         heap_caps_malloc_extmem_enable(4096); // Минимальный размер для внешней памяти
-
-//         // Создаем задачу для сетевых операций на ядре 0
-//         // Используем CONFIG_FREERTOS_SUPPORT_STATIC_ALLOCATION для размещения стека в PSRAM
-//         BaseType_t networkTaskResult = xTaskCreatePinnedToCore(
-//             networkTaskFunction, // Функция задачи
-//             "NetworkTask",       // Имя задачи
-//             networkStackSize,    // Размер стека
-//             NULL,                // Параметры
-//             1,                   // Приоритет (повышенный)
-//             &networkTask,        // Указатель на задачу
-//             0);                  // Ядро 0
-
-//         if (networkTaskResult != pdPASS)
-//         {
-//             Serial.println("Ошибка создания NetworkTask, код: " + String(networkTaskResult));
-
-//             // Пробуем создать с меньшим стеком
-//             networkTaskResult = xTaskCreatePinnedToCore(
-//                 networkTaskFunction, "NetworkTask", networkStackSize / 2, NULL, 1, &networkTask, 0);
-
-//             if (networkTaskResult != pdPASS)
-//             {
-//                 Serial.println("Повторная ошибка создания NetworkTask");
-//             }
-//             else
-//             {
-//                 Serial.println("NetworkTask создана с уменьшенным стеком");
-//             }
-//         }
-//         else
-//         {
-//             Serial.println("NetworkTask создана успешно");
-//         }
-
-//         // Небольшая задержка между созданием задач
-//         delay(100);
-
-//         // Создаем задачу для основной логики на ядре 1
-//         BaseType_t logicTaskResult = xTaskCreatePinnedToCore(
-//             mainLogicTaskFunction, // Функция задачи
-//             "MainLogicTask",       // Имя задачи
-//             logicStackSize,        // Размер стека
-//             NULL,                  // Параметры
-//             1,                     // Приоритет
-//             &mainLogicTask,        // Указатель на задачу
-//             1);                    // Ядро 1
-
-//         if (logicTaskResult != pdPASS)
-//         {
-//             Serial.println("Ошибка создания MainLogicTask, код: " + String(logicTaskResult));
-
-//             // Пробуем создать с меньшим стеком
-//             logicTaskResult = xTaskCreatePinnedToCore(
-//                 mainLogicTaskFunction, "MainLogicTask", logicStackSize / 2, NULL, 1, &mainLogicTask, 1);
-
-//             if (logicTaskResult != pdPASS)
-//             {
-//                 Serial.println("Повторная ошибка создания MainLogicTask");
-//             }
-//             else
-//             {
-//                 Serial.println("MainLogicTask создана с уменьшенным стеком");
-//             }
-//         }
-//         else
-//         {
-//             Serial.println("MainLogicTask создана успешно");
-//         }
-
-//         // Мониторинг памяти после создания задач
-//         Serial.println("Свободно HEAP: " + String(ESP.getFreeHeap() / 1024) + " КБ");
-//         Serial.println("Свободно PSRAM: " + String(ESP.getFreePsram() / 1024) + " КБ");
-//     }
-//     else
-//     {
-//         Serial.println("PSRAM не найдена, используем стандартное создание задач");
-
-//         // Создаем задачи с меньшим стеком
-//         const uint32_t reducedNetworkStackSize = 8192;
-//         const uint32_t reducedLogicStackSize = 4096;
-
-//         // Создаем задачу для сетевых операций на ядре 0
-//         xTaskCreatePinnedToCore(
-//             networkTaskFunction,     // Функция задачи
-//             "NetworkTask",           // Имя задачи
-//             reducedNetworkStackSize, // Уменьшенный размер стека
-//             NULL,                    // Параметры
-//             1,                       // Приоритет
-//             &networkTask,            // Указатель на задачу
-//             0);                      // Ядро 0
-
-//         // Создаем задачу для основной логики на ядре 1
-//         xTaskCreatePinnedToCore(
-//             mainLogicTaskFunction, // Функция задачи
-//             "MainLogicTask",       // Имя задачи
-//             reducedLogicStackSize, // Уменьшенный размер стека
-//             NULL,                  // Параметры
-//             1,                     // Приоритет
-//             &mainLogicTask,        // Указатель на задачу
-//             1);                    // Ядро 1
-//     }
-
-//     // Проверка успешности создания задач
-//     if (networkTask != NULL && mainLogicTask != NULL)
-//     {
-//         Serial.println("Все задачи созданы успешно");
-//     }
-//     else
-//     {
-//         Serial.println("Ошибка при создании задач");
-//     }
-
-//     // Настройка мониторинга использования стека
-//     // Будем периодически проверять в основном цикле
-//     Serial.println("Настройка мониторинга стека завершена");
-// }
-
-// // Создание задач с большим стеком в PSRAM
-// void createTasksOld()
-// {
-//     // Размер стека в словах (1 слово = 4 байта)
-//     const uint32_t stackSize = 16384 * 2;
-
-//     // Создаем задачу с использованием PSRAM для стека
-//     if (psramFound())
-//     {
-//         // Выделяем память для стека в PSRAM
-//         // Выделяем память для стека в PSRAM с выравниванием
-//         StackType_t *taskStack = (StackType_t *)heap_caps_aligned_alloc(16, stackSize * sizeof(StackType_t), MALLOC_CAP_SPIRAM);
-//         // TCB во внутренней памяти
-//         StaticTask_t *taskBuffer = (StaticTask_t *)heap_caps_malloc(sizeof(StaticTask_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-
-//         if (taskStack && taskBuffer)
-//         {
-//             Serial.println("Используем создание задачи PSRAM");
-//             xTaskCreateStatic(
-//                 mainLogicTaskFunction,
-//                 "MainLogicTask",
-//                 stackSize,
-//                 NULL,
-//                 1,
-//                 taskStack,
-//                 taskBuffer);
-//         }
-//         else
-//         {
-//             Serial.println("Используем обычное создание задачи");
-//             // Создание задачи для основной логики на ядре 1
-//             xTaskCreatePinnedToCore(
-//                 mainLogicTaskFunction, // Функция задачи
-//                 "MainLogicTask",       // Имя задачи
-//                 8192,                  // Размер стека
-//                 NULL,                  // Параметры
-//                 1,                     // Приоритет
-//                 &mainLogicTask,        // Указатель на задачу
-//                 1);                    // Ядро 1
-//         }
-
-//         // Выделяем память для стека в PSRAM с выравниванием
-//         StackType_t *taskStackN = (StackType_t *)heap_caps_aligned_alloc(16, stackSize * sizeof(StackType_t), MALLOC_CAP_SPIRAM);
-//         // TCB во внутренней памяти
-//         StaticTask_t *taskBufferN = (StaticTask_t *)heap_caps_malloc(sizeof(StaticTask_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-
-//         if (taskStackN && taskBufferN)
-//         {
-//             Serial.println("Используем создание задачи PSRAM");
-//             xTaskCreateStatic(
-//                 networkTaskFunction,
-//                 "NetworkTask",
-//                 stackSize,
-//                 NULL,
-//                 2,
-//                 taskStackN,
-//                 taskBufferN);
-//         }
-//         else
-//         {
-//             Serial.println("Используем обычное создание задачи");
-//             // Создание задачи для сетевых операций на ядре 0
-//             xTaskCreatePinnedToCore(
-//                 networkTaskFunction, // Функция задачи
-//                 "NetworkTask",       // Имя задачи
-//                 8192,                // Размер стека (больше для сетевых операций)
-//                 NULL,                // Параметры
-//                 2,                   // Приоритет
-//                 &networkTask,        // Указатель на задачу
-//                 0);                  // Ядро 0
-//         }
-//     }
-//     else
-//     {
-//         Serial.println("Используем обычное создание задачи");
-//         // Если PSRAM не доступна, используем обычное создание задачи
-//         // Создание задачи для сетевых операций на ядре 0
-//         xTaskCreatePinnedToCore(
-//             networkTaskFunction, // Функция задачи
-//             "NetworkTask",       // Имя задачи
-//             8192,                // Размер стека (больше для сетевых операций)
-//             NULL,                // Параметры
-//             2,                   // Приоритет
-//             &networkTask,        // Указатель на задачу
-//             0);                  // Ядро 0
-
-//         // Создание задачи для основной логики на ядре 1
-//         xTaskCreatePinnedToCore(
-//             mainLogicTaskFunction, // Функция задачи
-//             "MainLogicTask",       // Имя задачи
-//             8192,                  // Размер стека
-//             NULL,                  // Параметры
-//             1,                     // Приоритет
-//             &mainLogicTask,        // Указатель на задачу
-//             1);                    // Ядро 1
-//     }
-// }
+    createTasksStandartMainLogic();
+}
 
 void ReadDataInSPIFFS()
 {
@@ -608,9 +392,13 @@ void setup()
     // Инициализация веб-сервера
     initWebServer();
 
+    // Обновление текста прокрутки
+    updateScrollText();
+    updateLCD();
+
     Serial.println("Система готова к работе");
 
-    createTasks();
+    createTasksStandart();
     Serial.println("Настройка завершена");
 
     // Инициализация датчика температуры (старый API)
@@ -633,14 +421,14 @@ void loop()
 
         esp_err_t ret = temp_sensor_read_celsius(&board_temperature);
 
-        if (ret == ESP_OK)
-        {
-            Serial.printf("Внутренняя температура: %.2f °C\n", board_temperature);
-        }
-        else
-        {
-            Serial.println("Ошибка при чтении датчика температуры");
-        }
+        // if (ret == ESP_OK)
+        // {
+        //     Serial.printf("Внутренняя температура: %.2f °C\n", board_temperature);
+        // }
+        // else
+        // {
+        //     Serial.println("Ошибка при чтении датчика температуры");
+        // }
         vTaskDelay(5000 / portTICK_PERIOD_MS); // Небольшая задержка для предотвращения перегрузки CPU
     }
     else
