@@ -171,20 +171,6 @@ void networkFunc()
         return;
     }
 
-    // Обработка пакетов miIO с защитой
-    // if (xSemaphoreTake(wifiMutex, portMAX_DELAY) == pdTRUE)
-    // {
-    //     // Обработка пакетов miIO
-    //     if (!bleActive)
-    //     {
-    //         wifiActive = true;
-    //         miIO.handlePackets();
-    //         xSemaphoreGive(wifiMutex);
-    //         vTaskDelay(20 / portTICK_PERIOD_MS);
-    //         wifiActive = false;
-    //     }
-    // }
-
     // Проверка подключения WiFi
     if (!wifiConnected && !bleActive && (millis() - lastWiFiAttemptTime > WIFI_RECONNECT_DELAY))
     {
@@ -227,14 +213,6 @@ void networkFunc()
         }
         bleActive = false;
     }
-
-    // Обновляем данные эмулируемых устройств
-    // if (!wifiActive)
-    // {
-    //     bleActive = true;
-    //     updateEmulatedDevices();
-    //     bleActive = false;
-    // }
 
     // Даем время другим задачам
     vTaskDelay(3000 / portTICK_PERIOD_MS); // Небольшая задержка для предотвращения перегрузки CPU
