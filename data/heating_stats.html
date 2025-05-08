@@ -133,12 +133,12 @@
 
                         // Текущая температура
                         const tempCell = document.createElement('td');
-                        tempCell.textContent = device.temperature.toFixed(1) + '°C';
+                        tempCell.textContent = device.currentTemperature + '°C';
                         row.appendChild(tempCell);
 
                         // Целевая температура
                         const targetCell = document.createElement('td');
-                        targetCell.textContent = device.targetTemperature.toFixed(1) + '°C';
+                        targetCell.textContent = device.targetTemperature + '°C';
                         row.appendChild(targetCell);
                         // Статус обогрева
                         const statusCell = document.createElement('td');

@@ -22,7 +22,7 @@ enum MenuState
   DEVICE_MENU,      // Меню настроек устройства
   EDIT_TEMPERATURE, // Редактирование целевой температуры
   EDIT_GPIO,        // Редактирование GPIO пинов
-  EDIT_ENABLED     // Включение/выключение устройства
+  EDIT_ENABLED      // Включение/выключение устройства
 };
 
 // Текущее состояние меню
@@ -46,7 +46,11 @@ int readKeypad()
   int adcValue = analogRead(KEYPAD_PIN);
   // Serial.print("Нажата кнопка, значение: ");
   // Serial.println(adcValue);
-  if (adcValue < KEY_RIGHT_VAL + KEY_THRESHOLD)
+  if (adcValue == 0)
+  {
+    return BUTTON_NONE;
+  }
+  else if (adcValue < KEY_RIGHT_VAL + KEY_THRESHOLD)
   {
     return BUTTON_RIGHT;
   }
@@ -62,10 +66,6 @@ int readKeypad()
   {
     return BUTTON_LEFT;
   }
-  // else if (adcValue < KEY_SELECT_VAL + KEY_THRESHOLD)
-  // {
-  //   return BUTTON_SELECT;
-  // }
 
   return BUTTON_NONE; // Ни одна кнопка не нажата
 }
@@ -114,11 +114,6 @@ void showMainScreen()
 
   if (scrollText.length() > 0)
   {
-    // Добавляем к прокручиваемому тексту информацию о замене кнопки
-    if (scrollText.find("LONG RIGHT=SELECT") == std::string::npos)
-    {
-      scrollText += "LONG RIGHT=SELECT | ";
-    }
     // Вычисляем, какую часть текста показать
     int endPos = scrollPosition + 16;
     if (endPos > scrollText.length())
@@ -303,24 +298,24 @@ void updateScrollText()
   {
     if (device.isDataValid())
     {
-      scrollText += (device.name + ": " + std::to_string(device.currentTemperature) + " C").c_str();
+      scrollText += (device.name + ": " + String(device.currentTemperature, 1).c_str() + "C").c_str();
 
       if (device.enabled)
       {
-        scrollText += ("/ " + std::to_string(device.targetTemperature) + " C").c_str();
+        scrollText += ("/" + String(device.targetTemperature, 1) + "C").c_str();
 
         // Добавляем статус обогрева
         if (device.heatingActive)
         {
-          scrollText += "(heating) ";
+          scrollText += "-(heating)";
         }
         else
         {
-          scrollText += "(OK) ";
+          scrollText += "-(OK)";
         }
       }
 
-      scrollText += ("Hum: " + std::to_string(device.humidity) + "% Battery: " + std::to_string(device.battery) + "% | ").c_str();
+      scrollText += (" Hum: " + String(device.humidity, 1) + "% Battery: " + String(device.battery) + "% | ").c_str();
     }
     else if (device.enabled)
     {
@@ -425,7 +420,7 @@ void handleButtons()
         // Следующее устройство
         deviceListIndex = (deviceListIndex + 1) % devices.size();
       }
-      else if (pressedButton == BUTTON_SELECT || pressedButton == BUTTON_RIGHT)
+      else if (pressedButton == BUTTON_SELECT)
       {
         // Выбор устройства - переход в меню устройства
         currentMenu = DEVICE_MENU;
@@ -456,7 +451,7 @@ void handleButtons()
       // Следующий пункт меню
       deviceMenuIndex = (deviceMenuIndex + 1) % deviceMenuOptionsCount;
     }
-    else if (pressedButton == BUTTON_SELECT || pressedButton == BUTTON_RIGHT)
+    else if (pressedButton == BUTTON_SELECT)
     {
       // Выбор пункта меню
       switch (deviceMenuIndex)
@@ -470,7 +465,7 @@ void handleButtons()
         break;
       case 2: // Вкл/Выкл
         currentMenu = EDIT_ENABLED;
-        break;      
+        break;
       case 3: // Назад
         currentMenu = DEVICE_LIST;
         break;
@@ -499,7 +494,7 @@ void handleButtons()
         devices[deviceListIndex].targetTemperature = 0;
       }
     }
-    else if (pressedButton == BUTTON_RIGHT)
+    else if (pressedButton == BUTTON_SELECT)
     {
       Serial.println("Нажата кнопка SELECT, сохраняем результаты");
       // Сохранение и возврат в меню устройства
@@ -579,7 +574,7 @@ void handleButtons()
       {
         devices[deviceListIndex].heatingActive = false;
       }
-      Serial.println("Нажата кнопка SELECT при изменении доступности устройства, сохраняем результаты");
+      Serial.println("Нажата кнопка BUTTON_UP при изменении доступности устройства, сохраняем результаты");
       // Сохраняем изменения
       saveClientsToFile();
     }

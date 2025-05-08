@@ -205,7 +205,7 @@
                         isOnline.textContent = client.isOnline;
                         // Температура
                         const tempCell = document.createElement('td');
-                        tempCell.textContent = client.currentTemperature ? client.currentTemperature.toFixed(1) + '°C' : 'Н/Д';
+                        tempCell.textContent = client.currentTemperature ? client.currentTemperature + '°C' : 'Н/Д';
 
                         // Целевая температура
                         const targetTempCell = document.createElement('td');
@@ -219,7 +219,7 @@
 
                         // Влажность
                         const humidityCell = document.createElement('td');
-                        humidityCell.textContent = client.humidity ? client.humidity.toFixed(1) + '%' : 'Н/Д';
+                        humidityCell.textContent = client.humidity ? client.humidity + '%' : 'Н/Д';
 
                         // Заряд батареи
                         const batteryCell = document.createElement('td');
@@ -248,11 +248,11 @@
                             .then(gpioPins => {
                                 gpioPins.forEach(pin => {
                                     const option = document.createElement('option');
-                                    option.value = pin;
-                                    option.textContent = 'GPIO ' + pin;
+                                    option.value = pin.pin;
+                                    option.textContent = 'GPIO ' + pin.name;
 
                                     // Если пин уже назначен этому устройству, выбираем его
-                                    if (client.gpioPins && client.gpioPins.includes(pin)) {
+                                    if (client.gpioPins && client.gpioPins.includes(pin.pin)) {
                                         option.selected = true;
                                     }
 
@@ -343,24 +343,18 @@
                     data.forEach(gpioItem => {
                         const gpioDiv = document.createElement('div');
                         gpioDiv.className = 'gpio-item';
-
-                        const checkbox = document.createElement('input');
-                        checkbox.type = 'checkbox';
-                        checkbox.id = 'gpio-' + gpioItem.pin;
-                        checkbox.value = gpioItem.pin;
-                        checkbox.dataset.name = gpioItem.name;
-
+                      
                         const label = document.createElement('label');
                         label.htmlFor = 'gpio-' + gpioItem.pin;
-                        label.textContent = `GPIO ${gpioItem.pin} (${gpioItem.name})`;
+                        label.textContent = `GPIO ${gpioItem.pin}`;
 
                         const nameInput = document.createElement('input');
                         nameInput.type = 'text';
+                        nameInput.id = 'gpio-' + gpioItem.pin;
                         nameInput.value = gpioItem.name;
                         nameInput.dataset.pin = gpioItem.pin;
                         nameInput.placeholder = 'Название';
 
-                        gpioDiv.appendChild(checkbox);
                         gpioDiv.appendChild(label);
                         gpioDiv.appendChild(nameInput);
                         gpioContainer.appendChild(gpioDiv);
@@ -373,12 +367,11 @@
 
         // Сохранение доступных GPIO пинов
         function saveGpioPins() {
-            const checkboxes = document.querySelectorAll('#gpioContainer input[type="checkbox"]');
-            const gpioItems = Array.from(checkboxes).map(cb => {
-                const nameInput = document.querySelector(`input[data-pin="${cb.value}"]`);
+            const inputsGpio = document.querySelectorAll('#gpioContainer input[type="text"]');
+            const gpioItems = Array.from(inputsGpio).map(cb => {               
                 return {
-                    pin: parseInt(cb.value),
-                    name: nameInput ? nameInput.value : `GPIO ${cb.value}`
+                    pin: parseInt(cb.dataset.pin),
+                    name: cb.value ? cb.value : `GPIO ${cb.dataset.pin}`
                 };
             });
 

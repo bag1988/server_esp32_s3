@@ -25,7 +25,7 @@ struct DeviceData {
     std::string macAddress;            // MAC-адрес датчика
     float targetTemperature = 25.0; // Целевая температура
     float currentTemperature = 0.0; // Текущая температура
-    int humidity = 0;             // Влажность
+    float humidity = 0.0;             // Влажность
     int battery = 0;              // Уровень заряда батареи
     bool enabled = true;          // Включено ли устройство
     bool isOnline = false;        // Находится ли устройство в сети
@@ -40,7 +40,7 @@ struct DeviceData {
         name(""),
         macAddress(""),
         currentTemperature(25.0),
-        humidity(0),
+        humidity(0.0),
         battery(0),
         lastUpdate(0),
         isOnline(false),
@@ -54,7 +54,7 @@ struct DeviceData {
         name(_name),
         macAddress(_mac),
         currentTemperature(25.0),
-        humidity(0),
+        humidity(0.0),
         battery(0),
         lastUpdate(0),
         isOnline(true),
@@ -64,7 +64,7 @@ struct DeviceData {
         totalHeatingTime(0) {}
         
     // Метод для обновления данных датчика
-    void updateSensorData(float temp, uint8_t hum, uint8_t bat) {
+    void updateSensorData(float temp, float hum, uint8_t bat) {
         currentTemperature = temp;
         humidity = hum;
         battery = bat;

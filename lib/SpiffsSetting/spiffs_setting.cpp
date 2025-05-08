@@ -64,7 +64,7 @@ void loadClientsFromFile()
                 device.isOnline = false;
                 device.currentTemperature = device.targetTemperature;
                 device.heatingActive = false;
-                device.humidity = deviceObj["humidity"].as<int>();
+                device.humidity = deviceObj["humidity"].as<float>();
                 device.battery = deviceObj["battery"].as<int>();
 
                 // Добавляем устройство в вектор

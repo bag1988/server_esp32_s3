@@ -164,7 +164,7 @@ void controlGPIO()
 
 void networkFunc()
 {
-    //Если активен режим OTA, пропускаем обычную обработку
+    // Если активен режим OTA, пропускаем обычную обработку
     if (isOtaActive())
     {
         vTaskDelay(20 / portTICK_PERIOD_MS); // Небольшая задержка для стабильности
@@ -203,12 +203,12 @@ void networkFunc()
     }
 
     // Обработка OTA обновлений
-    // if (wifiConnected && !bleActive)
-    // {
-    //     wifiActive = true;
-    //     handleOTA();
-    //     wifiActive = false;
-    // }
+    if (wifiConnected && !bleActive)
+    {
+        wifiActive = true;
+        handleOTA();
+        wifiActive = false;
+    }
 
     // Сканирование BLE устройств
     // Периодическое сканирование BLE
@@ -570,8 +570,9 @@ void createTasks()
 void ReadDataInSPIFFS()
 {
     loadGpioFromFile();
-     // Загрузка данных устройств
-     loadClientsFromFile();
+    // Загрузка данных устройств
+    loadClientsFromFile();
+    // loadWifiCredentialsFromFile();
 }
 
 // Настройка
@@ -579,20 +580,14 @@ void setup()
 {
     Serial.begin(115200);
     Serial.println("Запуск системы...");
-    // esp_task_wdt_init(10, true); // 10 секунд таймаут, с перезагрузкой
     pixels.begin();           // Инициализация NeoPixel
     pixels.setBrightness(50); // Установка яркости (0-255)
     pixels.show();            // Инициализация всех пикселей в 'выключено'
-    //  #if CONFIG_BTDM_CTRL_MODE_BTDM
-    //      // Установите режим совместимости
-    //      esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
-    //  #endif
 
     // Инициализация и проверка PSRAM
     if (psramFound())
     {
         Serial.println("PSRAM найдена и инициализирована");
-        // heap_caps_malloc_extmem_enable(20000); //
         Serial.printf("Доступно PSRAM: %d байт\n", ESP.getFreePsram());
     }
     else
@@ -620,10 +615,6 @@ void setup()
 
     // Инициализация LCD и кнопок
     initLCD();
-    // updateScrollText();
-
-    // Загрузка настроек WiFi и подключение
-    // loadWifiCredentialsFromFile();
 
     connectWiFi();
 
@@ -639,12 +630,8 @@ void setup()
     // Инициализация веб-сервера
     initWebServer();
 
-    // Обновление текста прокрутки
-    updateScrollText();
-    updateLCD();
-    
     Serial.println("Система готова к работе");
-    // Serial.println("Токен устройства: " + token);
+
     createTasks();
     Serial.println("Настройка завершена");
 
@@ -663,16 +650,30 @@ void loop()
         // Зеленый
         pixels.setPixelColor(0, pixels.Color(0, 255, 0));
         pixels.show();
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+        // Чтение температуры (старый API)
+
+        esp_err_t ret = temp_sensor_read_celsius(&board_temperature);
+
+        if (ret == ESP_OK)
+        {
+            Serial.printf("Внутренняя температура: %.2f °C\n", board_temperature);
+        }
+        else
+        {
+            Serial.println("Ошибка при чтении датчика температуры");
+        }
+        vTaskDelay(5000 / portTICK_PERIOD_MS); // Небольшая задержка для предотвращения перегрузки CPU
     }
     else
     {
         // Красный
         pixels.setPixelColor(0, pixels.Color(255, 0, 0));
         pixels.show();
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        vTaskDelay(500 / portTICK_PERIOD_MS);
         pixels.clear();
         pixels.show();
+        vTaskDelay(500 / portTICK_PERIOD_MS);
     }
 
     //     // Синий
@@ -688,19 +689,4 @@ void loop()
     //     // Радуга
     //     Serial.println("Rainbow");
     //     rainbow(10);
-
-    // Чтение температуры (старый API)
-
-    esp_err_t ret = temp_sensor_read_celsius(&board_temperature);
-
-    // if (ret == ESP_OK)
-    // {
-    //     Serial.printf("Внутренняя температура: %.2f °C\n", board_temperature);
-    // }
-    // else
-    // {
-    //     Serial.println("Ошибка при чтении датчика температуры");
-    // }
-
-    vTaskDelay(1000 / portTICK_PERIOD_MS); // Небольшая задержка для предотвращения перегрузки CPU
 }

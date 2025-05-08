@@ -15,9 +15,12 @@ class XiaomiAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
 {
     void onResult(BLEAdvertisedDevice advertisedDevice)
     {
-        // Обнаружено устройство: 66:c6:d2:0f:8c:71 Имя: L3250 Series Данные производителя: 40 00 00 6D 02
-        // Обнаружено устройство: 10:2d:41:3b:76:6e Данные производителя: 8F 03 0A 10 42 0C 01 10 2D 41 3B 76 6D EC
-        // Обнаружено устройство: a4:c1:38:e6:87:a9 Имя: LYWSD03MMC
+        // Обнаружено устройство: a4:c1:38:e1:0b:6c
+        // Имя: BTH_E10B6C
+        // Сервисные данные:
+        // UUID: 0000181a-0000-1000-8000-00805f9b34fb
+        // Данные: 6C 0B E1 38 C1 A4 9C 08 20 13 31 0C 64 E8 25
+        // Payload данные: 12 16 1A 18 6C 0B E1 38 C1 A4 9C 08 20 13 31 0C 64 E8 25 0B 09 42 54 48 5F 45 31 30 42 36
         Serial.print("Обнаружено устройство: ");
         Serial.println(advertisedDevice.getAddress().toString().c_str());
 
@@ -37,7 +40,7 @@ class XiaomiAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
             }
             Serial.println("");
         }
-        
+
         if (advertisedDevice.haveServiceData())
         {
             Serial.println("Сервисные данные: ");
@@ -54,17 +57,18 @@ class XiaomiAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
                 Serial.println("");
             }
         }
-        if (advertisedDevice.getPayloadLength()>0)
+        if (advertisedDevice.getPayloadLength() > 0)
         {
             Serial.print("Payload данные: ");
-            uint8_t* payload = advertisedDevice.getPayload();
-            size_t payloadLength = advertisedDevice.getPayloadLength();  
-            for (int i = 0; i < payloadLength - 1; i++) {
+            uint8_t *payload = advertisedDevice.getPayload();
+            size_t payloadLength = advertisedDevice.getPayloadLength();
+            for (int i = 0; i < payloadLength - 1; i++)
+            {
                 Serial.printf("%02X ", (uint8_t)payload[i]);
-              }
-              Serial.println("");
+            }
+            Serial.println("");
         }
-        
+
         Serial.println("//////////////////////////////////");
         processXiaomiAdvertisement(advertisedDevice);
     }
@@ -178,29 +182,37 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
     bool isXiaomiDevice = false;
     std::string deviceAddress = advertisedDevice.getAddress().toString().c_str();
     bool isCustomFirmware = false;
-    
+
     // Проверка на кастомную прошивку ATC
     if (advertisedDevice.haveServiceData())
     {
+        Serial.printf("Есть сервисные данные: %d\n", advertisedDevice.getServiceDataCount());
         for (int i = 0; i < advertisedDevice.getServiceDataCount(); i++)
         {
             std::string serviceData = advertisedDevice.getServiceData(i);
             BLEUUID serviceUUID = advertisedDevice.getServiceDataUUID(i);
-            
+
             // Проверка на ATC прошивку (UUID: 0x181A или 0xFE95)
-            if (serviceUUID.equals(BLEUUID((uint16_t)0x181A)) || serviceUUID.equals(BLEUUID("fe95")))
+            bool isAtc = serviceUUID.equals(BLEUUID((uint16_t)0x181A)) || serviceUUID.equals(BLEUUID("fe95"));
+            Serial.printf("Проверка на ATC прошивку пройдена: %s\n", isAtc ? "успешно" : "не успешно");
+            if (isAtc)
             {
-                if (serviceData.length() >= 15) {
+                if (serviceData.length() >= 15)
+                {
                     // Проверка MAC-адреса в данных (для ATC)
                     uint8_t mac[6];
-                    for (int j = 0; j < 6; j++) {
-                        mac[j] = (uint8_t)serviceData[j+5];
+                    for (int j = 0; j < 6; j++)
+                    {
+                        mac[j] = (uint8_t)serviceData[5 - j];
                     }
-                    
+
                     // Сравниваем MAC в пакете с MAC устройства
                     BLEAddress packetAddr(mac);
-                    if (packetAddr.equals(advertisedDevice.getAddress()) || 
-                        serviceData[0] == 0xA4 || serviceData[0] == 0x16) {
+                    bool equalsMac = packetAddr.equals(advertisedDevice.getAddress()); // || serviceData[0] == 0xA4 || serviceData[0] == 0x16;
+                    Serial.printf("Сравниваем MAC %s в пакете с MAC устройства: %s, равны: %s\n", advertisedDevice.getAddress().toString().c_str(), packetAddr.toString().c_str(), equalsMac ? "да" : "нет");
+
+                    if (equalsMac)
+                    {
                         isXiaomiDevice = true;
                         isCustomFirmware = true;
                         Serial.println("Обнаружено устройство с кастомной прошивкой ATC");
@@ -209,16 +221,18 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
             }
         }
     }
-    
+
     // Проверка по данным производителя (стандартный метод)
     if (!isCustomFirmware && advertisedDevice.haveManufacturerData())
     {
+        Serial.println("Проверка по данным производителя (стандартный метод)");
         std::string manufacturerData = advertisedDevice.getManufacturerData();
 
         if (manufacturerData.length() >= 2 &&
             (uint8_t)manufacturerData[0] == 0x57 &&
             (uint8_t)manufacturerData[1] == 0x01)
         {
+            Serial.println("Обнаружено устройство Xiaomi по данным производителя");
             isXiaomiDevice = true;
         }
     }
@@ -227,6 +241,8 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
     if (!isCustomFirmware && !isXiaomiDevice && advertisedDevice.haveName())
     {
         std::string deviceName = advertisedDevice.getName();
+        Serial.printf("Проверка по имени устройства %s", deviceName.c_str());
+
         if (deviceName == "LYWSD03MMC" || deviceName == "MJWSD05MMC" ||
             deviceName.find("MJ_HT") != std::string::npos ||
             deviceName.find("Xiaomi") != std::string::npos ||
@@ -243,8 +259,9 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
     {
         // Парсим данные из рекламного пакета
         float temperature = 0.0;
-        uint8_t humidity = 0;
+        float humidity = 0;
         uint8_t battery = 0;
+        uint16_t batteryV = 0.0;
         bool dataFound = false;
 
         // Обработка данных для устройств с кастомной прошивкой ATC
@@ -254,55 +271,32 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
             {
                 std::string serviceData = advertisedDevice.getServiceData(i);
                 BLEUUID serviceUUID = advertisedDevice.getServiceDataUUID(i);
-                
+
                 // Проверка на ATC прошивку (UUID: 0x181A или 0xFE95)
-                if ((serviceUUID.equals(BLEUUID((uint16_t)0x181A)) || serviceUUID.equals(BLEUUID("fe95"))) 
-                    && serviceData.length() >= 15)
+                if ((serviceUUID.equals(BLEUUID((uint16_t)0x181A)) || serviceUUID.equals(BLEUUID("fe95"))) && serviceData.length() >= 15)
                 {
                     // Формат ATC: байты 10-11 - температура, байт 12 - влажность, байт 13 - батарея
+                    Serial.printf("Размер данных %d\n", serviceData.size());
                     int16_t temperatureRaw = 0;
-                    
-                    // Для LYWSD03MMC с ATC прошивкой
-                    if (serviceData[0] == 0xA4 || serviceData[0] == 0x16) {
-                        temperatureRaw = (int16_t)((uint8_t)serviceData[11] << 8 | (uint8_t)serviceData[10]);
+                    int16_t humidityRaw = 0;
+                   if (serviceData.size() == 15)
+                    {                       
+                        temperatureRaw = (int16_t)((uint8_t)serviceData[7] << 8 | (uint8_t)serviceData[6]);
                         temperature = temperatureRaw / 100.0f;
-                        humidity = (uint8_t)serviceData[12];
-                        battery = (uint8_t)serviceData[13];
-                    } 
-                    // Для MJWSD05MMC с ATC прошивкой (может отличаться)
-                    else if (serviceData[0] == 0x76 || serviceData[0] == 0x5B) {
-                        temperatureRaw = (int16_t)((uint8_t)serviceData[11] << 8 | (uint8_t)serviceData[10]);
-                        temperature = temperatureRaw / 100.0f;
-                        humidity = (uint8_t)serviceData[12];
-                        battery = (uint8_t)serviceData[14]; // Может отличаться для MJWSD05MMC
+
+                        humidityRaw = (int16_t)((uint8_t)serviceData[9] << 8 | (uint8_t)serviceData[8]);
+                        humidity = humidityRaw / 100.0f;
+
+                        batteryV = (int16_t)((uint8_t)serviceData[11] << 8 | (uint8_t)serviceData[10]);
+                        
+                        battery = (uint8_t)serviceData[12];
                     }
-                    
+
                     dataFound = true;
-                    Serial.printf("Парсинг данных ATC: Температура: %.1f°C, Влажность: %d%%, Батарея: %d%%\n",
-                                  temperature, humidity, battery);
+                    Serial.printf("Парсинг данных ATC: Температура: %.1f°C, Влажность: %.1f%%, Батарея: %d%%, Напряжение: %d\n",
+                                  temperature, humidity, battery, batteryV);
                     break;
                 }
-            }
-        }
-        
-        // Обработка данных для устройств с кастомной прошивкой Telink
-        if (!dataFound && advertisedDevice.haveManufacturerData())
-        {
-            std::string manufacturerData = advertisedDevice.getManufacturerData();
-            
-            // Проверка на Telink прошивку (обычно начинается с 0x1A, 0x18)
-            if (manufacturerData.length() >= 14 && 
-                ((uint8_t)manufacturerData[0] == 0x1A && (uint8_t)manufacturerData[1] == 0x18))
-            {
-                // Формат Telink: байты 6-7 - температура, байт 8 - влажность, байт 9 - батарея
-                int16_t temperatureRaw = (int16_t)((uint8_t)manufacturerData[7] << 8 | (uint8_t)manufacturerData[6]);
-                temperature = temperatureRaw / 100.0f;
-                humidity = (uint8_t)manufacturerData[8];
-                battery = (uint8_t)manufacturerData[9];
-                
-                dataFound = true;
-                Serial.printf("Парсинг данных Telink: Температура: %.1f°C, Влажность: %d%%, Батарея: %d%%\n",
-                              temperature, humidity, battery);
             }
         }
 
@@ -367,7 +361,6 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
         }
     }
 }
-
 
 // Обновление статуса устройств
 void updateDevicesStatus()
@@ -503,22 +496,4 @@ String generateDeviceDid(const String &macAddress)
 
     // Формат: lumi.sensor_ht.XXXXXX
     return "lumi.sensor_ht." + shortMac;
-}
-
-// Получение свойств устройства в формате JSON
-JsonObject getDeviceProperties(const DeviceData &device, JsonDocument &doc)
-{
-    JsonObject props = doc.add<JsonObject>();
-
-    // Добавляем свойства устройства
-    props["temperature"] = device.currentTemperature;
-    props["humidity"] = 50;                                // Заглушка для влажности
-    props["voltage"] = 3000 - (100 - device.battery) * 10; // Примерное преобразование процента в милливольты
-    props["battery"] = device.battery;
-
-    // Добавляем дополнительные свойства, которые ожидает Mi Home
-    props["version"] = 1;
-    props["state"] = device.enabled ? 1 : 0;
-
-    return props;
 }

@@ -4,9 +4,9 @@
 #include <Arduino.h>
 
 // Настройки OTA
-#define OTA_HOSTNAME "SERVER-ESP32-S3-UNO"  // Имя устройства для OTA
+#define OTA_HOSTNAME "server-esp32-s3-uno"  // Имя устройства для OTA
 #define OTA_PASSWORD "admin123"             // Пароль для OTA (рекомендуется изменить)
-#define OTA_PORT 3232                       // Порт для OTA (стандартный: 3232)
+#define OTA_PORT 8266                       // Порт для OTA (стандартный: 3232)
 
 // Состояния OTA
 enum OtaState {

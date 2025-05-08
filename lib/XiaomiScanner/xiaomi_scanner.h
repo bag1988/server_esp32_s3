@@ -32,8 +32,6 @@ struct EmulatedXiaomiDevice {
 void initXiaomiDeviceEmulation();
 void updateEmulatedDevices();
 String generateDeviceDid(const String& macAddress);
-JsonObject getDeviceProperties(const DeviceData& device);
-
 
 // Глобальные переменные
 extern BLEScan* pBLEScan;
