@@ -15,7 +15,7 @@ void connectWiFi()
     Serial.print(F(wifiCredentials.ssid.c_str()));
     Serial.print(F(", password: "));
     Serial.println(F(wifiCredentials.password.c_str()));
-    WiFi.begin("Bag", "01123581321");
+    WiFi.begin(wifiCredentials.ssid.c_str(), wifiCredentials.password.c_str());
     lastWiFiAttemptTime = millis();
 
     int attempts = 0;

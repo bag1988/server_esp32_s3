@@ -309,6 +309,7 @@ void ReadDataInSPIFFS()
     // Загрузка данных устройств
     loadGpioFromFile();
      // Загрузка данных устройств
+     loadWifiCredentialsFromFile();
      loadClientsFromFile();
      loadServerWorkTime();
 }
