@@ -13,12 +13,6 @@ class XiaomiAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
 {
     void onResult(BLEAdvertisedDevice advertisedDevice)
     {
-        // Обнаружено устройство: a4:c1:38:e1:0b:6c
-        // Имя: BTH_E10B6C
-        // Сервисные данные:
-        // UUID: 0000181a-0000-1000-8000-00805f9b34fb
-        // Данные: 6C 0B E1 38 C1 A4 9C 08 20 13 31 0C 64 E8 25
-        // Payload данные: 12 16 1A 18 6C 0B E1 38 C1 A4 9C 08 20 13 31 0C 64 E8 25 0B 09 42 54 48 5F 45 31 30 42 36
         Serial.print("Обнаружено устройство: ");
         Serial.println(advertisedDevice.getAddress().toString().c_str());
 
@@ -109,39 +103,39 @@ void setupXiaomiScanner()
     // esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_SCAN, ESP_PWR_LVL_N9); // -9 dBm
 
     Serial.println("Сканер датчиков Xiaomi инициализирован");
-    // Serial.println("Запускаем сервисы редактирования SSID и пароля");
-    //  pServer = BLEDevice::createServer();
-    //  BLEService *pService = pServer->createService(WIFI_SERVICE_UUID);
+    Serial.println("Запускаем сервисы редактирования SSID и пароля");
+    pServer = BLEDevice::createServer();
+    BLEService *pService = pServer->createService(WIFI_SERVICE_UUID);
 
-    // // SSID Characteristic
-    // BLECharacteristic *pSSIDCharacteristic = pService->createCharacteristic(
-    //     SSID_CHARACTERISTIC_UUID,
-    //     BLECharacteristic::PROPERTY_READ |
-    //         BLECharacteristic::PROPERTY_WRITE |
-    //         BLECharacteristic::PROPERTY_NOTIFY);
-    // pSSIDCharacteristic->addDescriptor(new BLEDescriptor(BLEUUID((uint16_t)0x2902)));
-    // pSSIDCharacteristic->setValue(wifiCredentials.ssid); // Set initial value
+    // SSID Characteristic
+    BLECharacteristic *pSSIDCharacteristic = pService->createCharacteristic(
+        SSID_CHARACTERISTIC_UUID,
+        BLECharacteristic::PROPERTY_READ |
+            BLECharacteristic::PROPERTY_WRITE |
+            BLECharacteristic::PROPERTY_NOTIFY);
+    pSSIDCharacteristic->addDescriptor(new BLEDescriptor(BLEUUID((uint16_t)0x2902)));
+    pSSIDCharacteristic->setValue(wifiCredentials.ssid); // Set initial value
 
-    // // Password Characteristic
-    // BLECharacteristic *pPasswordCharacteristic = pService->createCharacteristic(
-    //     PASSWORD_CHARACTERISTIC_UUID,
-    //     BLECharacteristic::PROPERTY_READ |
-    //         BLECharacteristic::PROPERTY_WRITE |
-    //         BLECharacteristic::PROPERTY_NOTIFY);
-    // pPasswordCharacteristic->addDescriptor(new BLEDescriptor(BLEUUID((uint16_t)0x2902)));
-    // pPasswordCharacteristic->setValue(wifiCredentials.password); // Set initial value
+    // Password Characteristic
+    BLECharacteristic *pPasswordCharacteristic = pService->createCharacteristic(
+        PASSWORD_CHARACTERISTIC_UUID,
+        BLECharacteristic::PROPERTY_READ |
+            BLECharacteristic::PROPERTY_WRITE |
+            BLECharacteristic::PROPERTY_NOTIFY);
+    pPasswordCharacteristic->addDescriptor(new BLEDescriptor(BLEUUID((uint16_t)0x2902)));
+    pPasswordCharacteristic->setValue(wifiCredentials.password); // Set initial value
 
-    // pSSIDCharacteristic->setCallbacks(new SetServerSettingCallbacks());
-    // pPasswordCharacteristic->setCallbacks(new SetServerSettingCallbacks());
+    pSSIDCharacteristic->setCallbacks(new SetServerSettingCallbacks());
+    pPasswordCharacteristic->setCallbacks(new SetServerSettingCallbacks());
 
-    // pService->start();
-    // BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
-    // pAdvertising->addServiceUUID(WIFI_SERVICE_UUID);
-    // pAdvertising->setScanResponse(true);
-    // pAdvertising->setMinPreferred(0x06); // functions that help with iPhone connections issue
-    // pAdvertising->setMaxPreferred(0x12);
-    // BLEDevice::startAdvertising();
-    // Serial.println(F("Сервисы редактирования SSID и пароля запущены"));
+    pService->start();
+    BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
+    pAdvertising->addServiceUUID(WIFI_SERVICE_UUID);
+    pAdvertising->setScanResponse(true);
+    pAdvertising->setMinPreferred(0x06); // functions that help with iPhone connections issue
+    pAdvertising->setMaxPreferred(0x12);
+    BLEDevice::startAdvertising();
+    Serial.println(F("Сервисы редактирования SSID и пароля запущены"));
 }
 
 void startScan(uint32_t duration)
@@ -220,38 +214,6 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
         }
     }
 
-    // Проверка по данным производителя (стандартный метод)
-    if (!isCustomFirmware && advertisedDevice.haveManufacturerData())
-    {
-        Serial.println("Проверка по данным производителя (стандартный метод)");
-        std::string manufacturerData = advertisedDevice.getManufacturerData();
-
-        if (manufacturerData.length() >= 2 &&
-            (uint8_t)manufacturerData[0] == 0x57 &&
-            (uint8_t)manufacturerData[1] == 0x01)
-        {
-            Serial.println("Обнаружено устройство Xiaomi по данным производителя");
-            isXiaomiDevice = true;
-        }
-    }
-
-    // Проверка по имени устройства для LYWSD03MMC и MJWSD05MMC
-    if (!isCustomFirmware && !isXiaomiDevice && advertisedDevice.haveName())
-    {
-        std::string deviceName = advertisedDevice.getName();
-        Serial.printf("Проверка по имени устройства %s\n", deviceName.c_str());
-
-        if (deviceName == "LYWSD03MMC" || deviceName == "MJWSD05MMC" ||
-            deviceName.find("MJ_HT") != std::string::npos ||
-            deviceName.find("Xiaomi") != std::string::npos ||
-            deviceName.find("Mi") != std::string::npos)
-        {
-            isXiaomiDevice = true;
-            Serial.print("Обнаружено устройство Xiaomi по имени: ");
-            Serial.println(deviceName.c_str());
-        }
-    }
-
     // Если это устройство Xiaomi, обрабатываем его
     if (isXiaomiDevice)
     {
@@ -277,8 +239,8 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
                     Serial.printf("Размер данных %d\n", serviceData.size());
                     int16_t temperatureRaw = 0;
                     int16_t humidityRaw = 0;
-                   if (serviceData.size() == 15)
-                    {                       
+                    if (serviceData.size() == 15)
+                    {
                         temperatureRaw = (int16_t)((uint8_t)serviceData[7] << 8 | (uint8_t)serviceData[6]);
                         temperature = temperatureRaw / 100.0f;
 
@@ -286,7 +248,7 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
                         humidity = humidityRaw / 100.0f;
 
                         batteryV = (int16_t)((uint8_t)serviceData[11] << 8 | (uint8_t)serviceData[10]);
-                        
+
                         battery = (uint8_t)serviceData[12];
                     }
 

@@ -27,9 +27,4 @@ void startXiaomiScan(uint32_t duration = XIAOMI_SCAN_DURATION);
 void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice);
 void updateDevicesStatus();
 void printDevicesData();
-
-// Класс для обработки обнаруженных BLE устройств
-class XiaomiScanCallback : public BLEAdvertisedDeviceCallbacks {
-    void onResult(BLEAdvertisedDevice advertisedDevice);
-};
 #endif // XIAOMI_SCANNER_H
