@@ -2,6 +2,21 @@
 
 Preferences preferences;
 
+void saveServerWorkTime()
+{
+  if (preferences.begin("server_setting", false))
+  {
+    preferences.putLong64("server_time", serverWorkTime);
+  }
+}
+
+void loadServerWorkTime()
+{
+  if (preferences.begin("server_setting", false))
+  {
+    serverWorkTime = preferences.getLong64("server_time", 0);
+  }
+}
 // Загружаем клиентов из Preferences как единый Blob
 void loadClientsFromFile()
 {

@@ -11,6 +11,8 @@ void loadWifiCredentialsFromFile();
 void saveWifiCredentialsToFile();
 void saveGpioToFile();
 void loadGpioFromFile();
+void loadServerWorkTime();
+void saveServerWorkTime();
 String loadDeviceToken();
 void saveDeviceToken(const char* token);
 #endif

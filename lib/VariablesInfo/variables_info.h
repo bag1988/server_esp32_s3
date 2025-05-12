@@ -100,4 +100,5 @@ extern unsigned long lastWiFiAttemptTime;
 // Мьютекс для защиты доступа к общим данным
 extern SemaphoreHandle_t devicesMutex;
 extern float board_temperature;
+extern unsigned long serverWorkTime;
 #endif // VARIABLES_INFO_H

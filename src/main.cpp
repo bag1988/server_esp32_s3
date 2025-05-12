@@ -56,6 +56,7 @@ std::vector<GpioPin> availableGpio = {
 
 // WiFi
 WifiCredentials wifiCredentials;
+unsigned long serverWorkTime = 0;
 bool wifiConnected = false;
 unsigned long lastWiFiAttemptTime = 0;
 float board_temperature = 0.0;
@@ -279,6 +280,8 @@ void mainlogicFunc()
     {
         Serial.println("Сохранение статистики согласно таймаута, сохраняем результаты");
         saveClientsToFile();
+        serverWorkTime +=currentTime;
+        saveServerWorkTime();
         lastStatsSaveTime = currentTime;
     }
     // monitorMemory();
@@ -331,10 +334,11 @@ void createTasksStandart()
 
 void ReadDataInSPIFFS()
 {
-    loadGpioFromFile();
     // Загрузка данных устройств
-    loadClientsFromFile();
-    // loadWifiCredentialsFromFile();
+    loadGpioFromFile();
+     // Загрузка данных устройств
+     loadClientsFromFile();
+     loadServerWorkTime();
 }
 
 // Настройка
