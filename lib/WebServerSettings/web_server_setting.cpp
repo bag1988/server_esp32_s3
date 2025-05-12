@@ -234,19 +234,6 @@ void initWebServer()
                 Serial.println("Получен запрос на запуск сканирования устройств");
                 startXiaomiScan();
             request->send(200, "text/plain", "BLE Scan started"); });
-
-    // Обработчик для корневого пути и /index
-    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
-              { request->send(SPIFFS, "/index.html", "text/html"); });
-
-    server.on("/index", HTTP_GET, [](AsyncWebServerRequest *request)
-              { request->send(SPIFFS, "/index.html", "text/html"); });
-    server.on("/index2", HTTP_GET, [](AsyncWebServerRequest *request)
-              { request->send(SPIFFS, "/index2.html", "text/html"); });
-    server.on("/app_css", HTTP_GET, [](AsyncWebServerRequest *request)
-              { request->send(SPIFFS, "/app.css", "text/css"); });
-    server.on("/gpio_settings", HTTP_GET, [](AsyncWebServerRequest *request)
-              { request->send(SPIFFS, "/gpio_settings.html", "text/html"); });
     // Добавляем обработчик для получения статистики обогрева
     server.on("/heating_stats", HTTP_GET, [](AsyncWebServerRequest *request)
               {
@@ -287,9 +274,7 @@ void initWebServer()
     String response;
     serializeJson(doc, response);
     request->send(200, "application/json", response); });
-    // Добавляем обработчик для страницы статистики обогрева
-    server.on("/stats", HTTP_GET, [](AsyncWebServerRequest *request)
-              { request->send(SPIFFS, "/heating_stats.html", "text/html"); });
+
     // Добавляем обработчик для сброса статистики обогрева
     server.on("/reset_stats", HTTP_POST, [](AsyncWebServerRequest *request)
               {
@@ -318,6 +303,23 @@ void initWebServer()
         // Сохраняем изменения
         saveClientsToFile();    
         request->send(200, "text/plain", "Статистика сброшена"); });
+
+    // Обработчик для корневого пути и /index
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
+              { request->send(SPIFFS, "/index.html", "text/html"); });
+
+    server.on("/index.html", HTTP_GET, [](AsyncWebServerRequest *request)
+              { request->send(SPIFFS, "/index.html", "text/html"); });
+    server.on("/index2", HTTP_GET, [](AsyncWebServerRequest *request)
+              { request->send(SPIFFS, "/index2.html", "text/html"); });
+    server.on("/app.css", HTTP_GET, [](AsyncWebServerRequest *request)
+              { request->send(SPIFFS, "/app.css", "text/css"); });
+    server.on("/gpio_settings.html", HTTP_GET, [](AsyncWebServerRequest *request)
+              { request->send(SPIFFS, "/gpio_settings.html", "text/html"); });
+    // Добавляем обработчик для страницы статистики обогрева
+    server.on("/heating_stats.html", HTTP_GET, [](AsyncWebServerRequest *request)
+              { request->send(SPIFFS, "/heating_stats.html", "text/html"); });
+
     server.begin();
     Serial.println(F("Web server started"));
 }

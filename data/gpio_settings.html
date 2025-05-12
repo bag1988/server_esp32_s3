@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Настройки GPIO</title>
+    <link href="app.css" rel="stylesheet" />
+</head>
+
+<body>
+    <div class="container">
+        <h1>Настройки GPIO</h1>
+        <div>
+            <a href="heating_stats.html">Статистика обогрева</a>
+            <a href="managment_device.html">Управление устройствами</a>
+            <a href="index.html">На главную</a>
+        </div>
+        <br />
+    </div>
+
+    <div class="container">
+        <h2>Доступные GPIO пины</h2>
+        <div id="gpioContainer" class="gpio-container">
+            <!-- GPIO пины будут загружены через JavaScript -->
+        </div>
+        <button class="save" onclick="saveGpioPins()">Сохранить GPIO пины</button>
+        <div id="gpioStatus"></div>
+    </div>
+
+    <script>
+        // Загрузка доступных GPIO пинов
+        function loadGpioPins() {
+            fetch('/availablegpio')
+                .then(response => response.json())
+                .then(data => {
+                    writeGpioToContainer(data);
+                })
+                .catch(error => {
+                    //writeGpioToContainer([{pin:15, name:"GPIO 15"}, {pin:16, name:"GPIO 16"}, {pin:17, name:"GPIO 17"}, {pin:18, name:"GPIO 18"}, {pin:19, name:"GPIO 19"}]);
+                    console.error('Ошибка при загрузке GPIO пинов:', error);
+                });
+        }
+        function writeGpioToContainer(data) {
+            const gpioContainer = document.getElementById('gpioContainer');
+                    gpioContainer.innerHTML = '';
+                    data.forEach(gpioItem => {
+                        const gpioDiv = document.createElement('div');
+                        gpioDiv.className = 'gpio-item';
+
+                        const label = document.createElement('label');
+                        label.htmlFor = 'gpio-' + gpioItem.pin;
+                        label.textContent = `GPIO ${gpioItem.pin}`;
+
+                        const nameInput = document.createElement('input');
+                        nameInput.type = 'text';
+                        nameInput.id = 'gpio-' + gpioItem.pin;
+                        nameInput.value = gpioItem.name;
+                        nameInput.dataset.pin = gpioItem.pin;
+                        nameInput.placeholder = 'Название';
+
+                        gpioDiv.appendChild(label);
+                        gpioDiv.appendChild(nameInput);
+                        gpioContainer.appendChild(gpioDiv);
+                    });
+        }
+        // Сохранение доступных GPIO пинов
+        function saveGpioPins() {
+            const inputsGpio = document.querySelectorAll('#gpioContainer input[type="text"]');
+            const gpioItems = Array.from(inputsGpio).map(cb => {
+                return {
+                    pin: parseInt(cb.dataset.pin),
+                    name: cb.value ? cb.value : `GPIO ${cb.dataset.pin}`
+                };
+            });
+
+            const formData = new FormData();
+            formData.append('availablegpio', JSON.stringify(gpioItems));
+
+            fetch('/availablegpio', {
+                method: 'POST',
+                body: formData
+            })
+                .then(response => response.text())
+                .then(data => {
+                    const statusDiv = document.getElementById('gpioStatus');
+                    statusDiv.textContent = 'GPIO пины успешно обновлены';
+                    statusDiv.className = 'status success';
+                    setTimeout(() => {
+                        statusDiv.textContent = '';
+                        statusDiv.className = '';
+                    }, 3000);
+                })
+                .catch(error => {
+                    console.error('Ошибка при сохранении GPIO пинов:', error);
+                    const statusDiv = document.getElementById('gpioStatus');
+                    statusDiv.textContent = 'Ошибка при сохранении GPIO пинов';
+                    statusDiv.className = 'status error';
+                });
+        }
+
+        // Инициализация страницы
+        window.onload = function () {
+            loadGpioPins();
+        };
+    </script>
+</body>
+
+</html>

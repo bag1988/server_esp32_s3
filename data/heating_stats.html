@@ -5,84 +5,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Статистика обогрева</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }
-
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background-color: white;
-            padding: 20px;
-            border-radius: 5px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-        }
-
-        h1 {
-            color: #333;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 20px;
-        }
-
-        table,
-        th,
-        td {
-            border: 1px solid #ddd;
-        }
-
-        th,
-        td {
-            padding: 10px;
-            text-align: left;
-        }
-
-        th {
-            background-color: #f2f2f2;
-        }
-
-        .active {
-            color: green;
-            font-weight: bold;
-        }
-
-        .inactive {
-            color: gray;
-        }
-
-        .button {
-            background-color: #4CAF50;
-            border: none;
-            color: white;
-            padding: 10px 20px;
-            text-align: center;
-            text-decoration: none;
-            display: inline-block;
-            font-size: 16px;
-            margin: 4px 2px;
-            cursor: pointer;
-            border-radius: 4px;
-        }
-
-        .button:hover {
-            background-color: #45a049;
-        }
-    </style>
+    <link href="app.css" rel="stylesheet" />
 </head>
 
 <body>
     <div class="container">
         <h1>Статистика обогрева</h1>
-        <div>
-            <!-- <a href="/mihome">Настройка Mi Home</a> -->
-            <a href="/index">На главную</a>
+        <div>            
+            <a href="managment_device.html">Управление устройствами</a>
+            <a href="gpio_settings.html">Настройки GPIO</a>
+            <a href="index.html">На главную</a>
         </div>
         <br />
         <table id="stats-table">
@@ -101,7 +33,7 @@
                 </tr>
             </tbody>
         </table>
-
+        <br />
         <button class="button" onclick="refreshStats()">Обновить статистику</button>
         <!-- Добавляем кнопку сброса статистики -->
         <button class="button" onclick="resetStats()">Сбросить статистику</button>
@@ -120,51 +52,58 @@
             fetch('/heating_stats')
                 .then(response => response.json())
                 .then(data => {
-                    const tbody = document.getElementById('stats-body');
-                    tbody.innerHTML = '';
-
-                    data.devices.forEach(device => {
-                        const row = document.createElement('tr');
-
-                        // Название устройства
-                        const nameCell = document.createElement('td');
-                        nameCell.textContent = device.name;
-                        row.appendChild(nameCell);
-
-                        // Текущая температура
-                        const tempCell = document.createElement('td');
-                        tempCell.textContent = device.currentTemperature + '°C';
-                        row.appendChild(tempCell);
-
-                        // Целевая температура
-                        const targetCell = document.createElement('td');
-                        targetCell.textContent = device.targetTemperature + '°C';
-                        row.appendChild(targetCell);
-                        // Статус обогрева
-                        const statusCell = document.createElement('td');
-                        if (device.heatingActive) {
-                            statusCell.textContent = 'Активен';
-                            statusCell.className = 'active';
-                        } else {
-                            statusCell.textContent = 'Неактивен';
-                            statusCell.className = 'inactive';
-                        }
-                        row.appendChild(statusCell);
-
-                        // Общее время работы
-                        const timeCell = document.createElement('td');
-                        timeCell.textContent = device.totalHeatingTimeFormatted;
-                        row.appendChild(timeCell);
-
-                        tbody.appendChild(row);
-                    });
+                    displayStat(data);
                 })
                 .catch(error => {
+                    // displayStat([{ name: "dev1", currentTemperature: 20, targetTemperature: 22, heatingActive: true, totalHeatingTimeMs: 10000, totalHeatingTimeFormatted: "00:16:40" },
+                    // { name: "dev2", currentTemperature: 21, targetTemperature: 22, heatingActive: false, totalHeatingTimeMs: 10000, totalHeatingTimeFormatted: "00:16:40" }
+                    // ]);
                     console.error('Ошибка при получении статистики:', error);
-                    document.getElementById('stats-body').innerHTML =
-                        '<tr><td colspan="5">Ошибка при загрузке данных</td></tr>';
+                    document.getElementById('stats-body').innerHTML ='<tr><td colspan="5">Ошибка при загрузке данных</td></tr>';
                 });
         }
+
+        function displayStat(data) {
+            const tbody = document.getElementById('stats-body');
+            tbody.innerHTML = '';
+
+            data.forEach(device => {
+                const row = document.createElement('tr');
+
+                // Название устройства
+                const nameCell = document.createElement('td');
+                nameCell.textContent = device.name;
+                row.appendChild(nameCell);
+
+                // Текущая температура
+                const tempCell = document.createElement('td');
+                tempCell.textContent = device.currentTemperature + '°C';
+                row.appendChild(tempCell);
+
+                // Целевая температура
+                const targetCell = document.createElement('td');
+                targetCell.textContent = device.targetTemperature + '°C';
+                row.appendChild(targetCell);
+                // Статус обогрева
+                const statusCell = document.createElement('td');
+                if (device.heatingActive) {
+                    statusCell.textContent = 'Активен';
+                    statusCell.className = 'active';
+                } else {
+                    statusCell.textContent = 'Неактивен';
+                    statusCell.className = 'inactive';
+                }
+                row.appendChild(statusCell);
+
+                // Общее время работы
+                const timeCell = document.createElement('td');
+                timeCell.textContent = device.totalHeatingTimeFormatted;
+                row.appendChild(timeCell);
+
+                tbody.appendChild(row);
+            });
+        }
+
         // Функция сброса статистики
         function resetStats() {
             if (confirm('Вы уверены, что хотите сбросить статистику обогрева для всех устройств?')) {

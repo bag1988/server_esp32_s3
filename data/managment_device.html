@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Управление устройствами</title>
+    <link href="app.css" rel="stylesheet" />
+</head>
+
+<body>
+    <div class="container">
+        <h1>Управление устройствами</h1>
+        <div>
+            <a href="heating_stats.html">Статистика обогрева</a>
+            <a href="gpio_settings.html">Настройки GPIO</a>
+            <a href="index.html">На главную</a>
+        </div>
+        <br />
+        <button id="scanButton" class="scan-button">Сканировать устройства</button>
+        <div id="devicesList"></div>
+    </div>
+
+    <script>
+        // Загрузка списка устройств
+        async function loadDevices() {
+            try {
+                const response = await fetch('/clients');
+                const devices = await response.json();
+                displayDevices(devices);
+            } catch (error) {
+                // displayDevices([{ name: "dev1", macAddress: "1234567890", currentTemperature: 20, targetTemperature: 22, enabled: true, isOnline: true, heatingActive: true, humidity: 50, battery: 80, lastUpdate: 9000, totalHeatingTime: 10000 },
+                // { name: "dev2", macAddress: "12345678220", currentTemperature: 22, targetTemperature: 22, enabled: true, isOnline: true, heatingActive: true, humidity: 50, battery: 80, lastUpdate: 9000, totalHeatingTime: 10000 }
+                // ]);
+                console.error('Ошибка при загрузке устройств:', error);
+            }
+        }
+
+        // Загрузка доступных GPIO пинов
+        async function loadAvailableGpio() {
+            try {
+                const response = await fetch('/availablegpio');
+                return await response.json();
+            } catch (error) {
+                console.error('Ошибка при загрузке GPIO пинов:', error);
+                //return [{pin:15, name:"GPIO 15"}, {pin:16, name:"GPIO 16"}, {pin:17, name:"GPIO 17"}, {pin:18, name:"GPIO 18"}, {pin:19, name:"GPIO 19"}];
+                return [];
+            }
+        }
+
+        // Отображение устройств на странице
+        async function displayDevices(devices) {
+            const devicesList = document.getElementById('devicesList');
+            devicesList.innerHTML = '';
+
+            const availableGpio = await loadAvailableGpio();
+
+            devices.forEach(device => {
+                const deviceElement = document.createElement('div');
+                deviceElement.className = 'device';
+
+                // Заголовок устройства
+                const header = document.createElement('div');
+                header.className = 'device-header';
+
+                const nameElement = document.createElement('div');
+                nameElement.className = 'device-name';
+                nameElement.textContent = device.name || `Устройство ${device.macAddress}`;
+
+                const enabledToggle = document.createElement('label');
+                enabledToggle.className = 'toggle-switch';
+                enabledToggle.innerHTML = `
+                    <input type="checkbox" ${device.enabled ? 'checked' : ''} id="enabled-${device.macAddress}">
+                    <span class="slider"></span>
+                `;
+
+                header.appendChild(nameElement);
+                header.appendChild(enabledToggle);
+                deviceElement.appendChild(header);
+
+                // Информация об устройстве
+                const info = document.createElement('div');
+                info.className = 'device-info';
+
+                const macAddress = document.createElement('div');
+                macAddress.textContent = `MAC: ${device.macAddress}`;
+
+                const temperature = document.createElement('div');
+                temperature.textContent = `Температура: ${device.currentTemperature}°C`;
+
+                const battery = document.createElement('div');
+                battery.textContent = `Батарея: ${device.battery}%`;
+
+                info.appendChild(macAddress);
+                info.appendChild(temperature);
+                info.appendChild(battery);
+                deviceElement.appendChild(info);
+
+                // Элементы управления
+                const controls = document.createElement('div');
+                controls.className = 'device-controls';
+
+                // Имя устройства
+                const nameLabel = document.createElement('label');
+                nameLabel.textContent = 'Имя устройства:';
+                const nameInput = document.createElement('input');
+                nameInput.type = 'text';
+                nameInput.value = device.name || '';
+                nameInput.id = `name-${device.macAddress}`;
+
+                // Целевая температура
+                const tempLabel = document.createElement('label');
+                tempLabel.textContent = 'Целевая температура (°C):';
+                const tempInput = document.createElement('input');
+                tempInput.type = 'number';
+                tempInput.step = '0.5';
+                tempInput.value = device.targetTemperature || 20;
+                tempInput.id = `temp-${device.macAddress}`;
+
+                // Выбор GPIO пинов
+                const gpioLabel = document.createElement('label');
+                gpioLabel.textContent = 'GPIO пины:';
+
+                const gpioSelect = document.createElement('div');
+                gpioSelect.className = 'gpio-select';
+
+                const select = document.createElement('select');
+                select.id = `gpio-select-${device.macAddress}`;
+
+                availableGpio.forEach(gpio => {
+                    const option = document.createElement('option');
+                    option.value = gpio.pin;
+                    option.textContent = `${gpio.name}`;
+                    select.appendChild(option);
+                });
+
+                const addButton = document.createElement('button');
+                addButton.textContent = 'Добавить';
+                addButton.onclick = () => addGpioPin(device.macAddress);
+
+                gpioSelect.appendChild(select);
+                gpioSelect.appendChild(addButton);
+
+                // Отображение выбранных GPIO пинов
+                const selectedGpio = document.createElement('div');
+                selectedGpio.className = 'selected-gpio';
+                selectedGpio.id = `selected-gpio-${device.macAddress}`;
+
+                if (device.gpioPins && device.gpioPins.length > 0) {
+                    device.gpioPins.forEach(pin => {
+                        const pinElement = document.createElement('span');
+                        const gpioInfo = availableGpio.find(g => g.pin === pin) || { name: `GPIO ${pin}` };
+                        pinElement.textContent = gpioInfo.name;
+                        pinElement.dataset.pin = pin;
+                        const removeButton = document.createElement('button');
+                        removeButton.textContent = '×';
+                        removeButton.onclick = () => removeGpioPin(device.macAddress, pin);
+
+                        pinElement.appendChild(removeButton);
+                        selectedGpio.appendChild(pinElement);
+                    });
+                }
+
+                // Кнопка сохранения
+                const saveButton = document.createElement('button');
+                saveButton.textContent = 'Сохранить';
+                saveButton.onclick = () => saveDevice(device.macAddress);
+
+                controls.appendChild(nameLabel);
+                controls.appendChild(nameInput);
+                controls.appendChild(tempLabel);
+                controls.appendChild(tempInput);
+                controls.appendChild(gpioLabel);
+                controls.appendChild(gpioSelect);
+                controls.appendChild(selectedGpio);
+                controls.appendChild(saveButton);
+
+                deviceElement.appendChild(controls);
+                devicesList.appendChild(deviceElement);
+
+                // Обработчик переключателя
+                document.getElementById(`enabled-${device.macAddress}`).addEventListener('change', function () {
+                    saveDeviceEnabled(device.macAddress, this.checked);
+                });
+            });
+        }
+
+        // Добавление GPIO пина
+        function addGpioPin(macAddress) {
+            const select = document.getElementById(`gpio-select-${macAddress}`);
+            const selectedPin = parseInt(select.value);
+            const selectedText = select.options[select.selectedIndex].text;
+
+            const selectedGpio = document.getElementById(`selected-gpio-${macAddress}`);
+
+            // Проверяем, не добавлен ли уже этот пин
+            const existingPins = Array.from(selectedGpio.children).map(span =>
+                parseInt(span.getAttribute('data-pin'))
+            );
+
+            if (!existingPins.includes(selectedPin)) {
+                const pinElement = document.createElement('span');
+                pinElement.textContent = selectedText;
+                pinElement.setAttribute('data-pin', selectedPin);
+
+                const removeButton = document.createElement('button');
+                removeButton.textContent = '×';
+                removeButton.onclick = () => removeGpioPin(macAddress, selectedPin);
+
+                pinElement.appendChild(removeButton);
+                selectedGpio.appendChild(pinElement);
+            }
+        }
+
+        // Удаление GPIO пина
+        function removeGpioPin(macAddress, pin) {
+            const selectedGpio = document.getElementById(`selected-gpio-${macAddress}`);
+            const pinElements = selectedGpio.querySelectorAll('span');
+
+            pinElements.forEach(element => {
+                if (parseInt(element.dataset.pin) === pin) {
+                    element.remove();
+                }
+            });
+        }
+
+        // Сохранение устройства
+        async function saveDevice(macAddress) {
+            const name = document.getElementById(`name-${macAddress}`).value;
+            const targetTemperature = document.getElementById(`temp-${macAddress}`).value;
+            const enabled = document.getElementById(`enabled-${macAddress}`).checked;
+
+            // Собираем выбранные GPIO пины
+            const selectedGpio = document.getElementById(`selected-gpio-${macAddress}`);
+            const gpioPins = Array.from(selectedGpio.children).map(span =>
+                parseInt(span.dataset.pin)
+            );
+
+            const formData = new FormData();
+            formData.append('address', macAddress);
+            formData.append('name', name);
+            formData.append('targetTemperature', targetTemperature);
+            formData.append('enabled', enabled);
+            formData.append('gpioPins', JSON.stringify(gpioPins));
+
+            try {
+                const response = await fetch('/client', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    alert('Устройство успешно обновлено');
+                    loadDevices();
+                } else {
+                    alert('Ошибка при обновлении устройства');
+                }
+            } catch (error) {
+                console.error('Ошибка при сохранении устройства:', error);
+                alert('Ошибка при сохранении устройства');
+            }
+        }
+
+        // Сохранение состояния включения устройства
+        async function saveDeviceEnabled(macAddress, enabled) {
+            const formData = new FormData();
+            formData.append('address', macAddress);
+            formData.append('enabled', enabled);
+
+            try {
+                await fetch('/client', {
+                    method: 'POST',
+                    body: formData
+                });
+            } catch (error) {
+                console.error('Ошибка при обновлении состояния устройства:', error);
+            }
+        }
+
+        // Запуск сканирования устройств
+        async function scanDevices() {
+            try {
+                await fetch('/scan');
+                alert('Сканирование запущено. Обновление списка через 5 секунд...');
+                setTimeout(loadDevices, 5000);
+            } catch (error) {
+                console.error('Ошибка при запуске сканирования:', error);
+                alert('Ошибка при запуске сканирования');
+            }
+        }
+
+        // Обработчик кнопки сканирования
+        document.getElementById('scanButton').addEventListener('click', scanDevices);
+
+        // Загрузка устройств при загрузке страницы
+        window.addEventListener('load', loadDevices);
+    </script>
+</body>
+
+</html>
