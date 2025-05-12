@@ -94,8 +94,6 @@ extern std::vector<GpioPin> availableGpio;
 extern int gpioSelectionIndex;
 extern WifiCredentials wifiCredentials;
 extern bool wifiConnected;
-extern std::string DEVICES_FILE;
-extern std::string WIFI_CREDENTIALS_FILE;
 extern unsigned long lastWiFiAttemptTime;
 // Мьютекс для защиты доступа к общим данным
 extern SemaphoreHandle_t devicesMutex;

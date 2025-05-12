@@ -17,9 +17,6 @@
 // Глобальные переменные
 std::vector<DeviceData> devices;
 
-// Глобальные флаги для отслеживания активности WiFi и BLE
-std::atomic<bool> wifiActive(false);
-std::atomic<bool> bleActive(false);
 Adafruit_NeoPixel pixels(NUM_LEDS, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
 // При подключении LCD Keypad Shield к ESP32-S3 UNO WROOM-1-N16R8 используются следующие пины:
 
@@ -60,9 +57,6 @@ unsigned long serverWorkTime = 0;
 bool wifiConnected = false;
 unsigned long lastWiFiAttemptTime = 0;
 float board_temperature = 0.0;
-// Имена файлов
-std::string DEVICES_FILE = "/devices.json";
-std::string WIFI_CREDENTIALS_FILE = "/wifi_credentials.json";
 
 // Определение задач для FreeRTOS
 TaskHandle_t networkTask;
@@ -176,9 +170,8 @@ void networkFunc()
     }
 
     // Проверка подключения WiFi
-    if (!wifiConnected && !bleActive && (millis() - lastWiFiAttemptTime > WIFI_RECONNECT_DELAY))
+    if (!wifiConnected && (millis() - lastWiFiAttemptTime > WIFI_RECONNECT_DELAY))
     {
-        wifiActive = true;
         if (xSemaphoreTake(wifiMutex, portMAX_DELAY) == pdTRUE)
         {
             if (!heap_caps_check_integrity_all(true))
@@ -189,23 +182,19 @@ void networkFunc()
             xSemaphoreGive(wifiMutex);
             vTaskDelay(20 / portTICK_PERIOD_MS); // Добавьте задержку
         }
-        wifiActive = false;
     }
 
     // Обработка OTA обновлений
-    if (wifiConnected && !bleActive)
+    if (wifiConnected )
     {
-        wifiActive = true;
         handleOTA();
-        wifiActive = false;
     }
 
     // Сканирование BLE устройств
     // Периодическое сканирование BLE
     static unsigned long lastScanTime = 0;
-    if (millis() - lastScanTime > XIAOMI_SCAN_INTERVAL && !wifiActive)
+    if (millis() - lastScanTime > XIAOMI_SCAN_INTERVAL)
     {
-        bleActive = true;
         if (xSemaphoreTake(bleMutex, portMAX_DELAY) == pdTRUE)
         {
             startXiaomiScan();
@@ -215,7 +204,6 @@ void networkFunc()
             // Обновляем время последнего сканирования
             lastScanTime = millis();
         }
-        bleActive = false;
     }
 
     // Даем время другим задачам
@@ -228,22 +216,6 @@ void networkTaskFunction(void *parameter)
     for (;;)
     {
         networkFunc();
-    }
-}
-
-// Функция для мониторинга памяти
-void monitorMemory()
-{
-    static unsigned long lastWriteStatistic = 0;
-    if (millis() - lastWriteStatistic > 5000)
-    {
-        Serial.printf("Свободно HEAP: %d байт\n", ESP.getFreeHeap());
-        if (psramFound())
-        {
-            Serial.printf("Свободно PSRAM: %d байт\n", ESP.getFreePsram());
-            Serial.printf("Наибольший свободный блок: %d байт\n", heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
-        }
-        lastWriteStatistic = millis();
     }
 }
 
