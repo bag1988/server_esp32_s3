@@ -18,21 +18,6 @@
 #define SSID_CHARACTERISTIC_UUID "93d971b2-4bb8-45d0-9ab3-74d7f881d828"     // New SSID and password Characteristic UUID
 #define PASSWORD_CHARACTERISTIC_UUID "c5481513-22cb-4aae-9fe3-e9db5d06bf6f" // New Password Characteristic UUID
 
-// Структура для эмуляции устройства Xiaomi
-struct EmulatedXiaomiDevice {
-    String did;           // Идентификатор устройства
-    String model;         // Модель устройства
-    String name;          // Имя устройства
-    String type;          // Тип устройства (zigbee, ble, etc)
-    bool online;          // Статус онлайн
-    JsonObject properties; // Свойства устройства
-};
-
-// Функции для эмуляции устройств Xiaomi
-void initXiaomiDeviceEmulation();
-void updateEmulatedDevices();
-String generateDeviceDid(const String& macAddress);
-
 // Глобальные переменные
 extern BLEScan* pBLEScan;
 extern bool scanningActive;

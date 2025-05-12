@@ -44,36 +44,6 @@ void connectWiFi()
 // web server +++++++++++++++++++++++++++++++++
 void initWebServer()
 {
-
-    // Добавляем новый обработчик для получения токена устройства
-    server.on("/device_token", HTTP_GET, [](AsyncWebServerRequest *request)
-              {
-                String token = loadDeviceToken();
-                request->send(200, "text/plain", token); });
-
-    // Добавляем обработчик для сканирования устройств Mi Home
-    server.on("/scan_mihome", HTTP_GET, [](AsyncWebServerRequest *request)
-              {
-    // Обновляем список эмулируемых устройств
-                updateEmulatedDevices();
-                request->send(200, "text/plain", "Сканирование устройств Mi Home запущено"); });
-
-    // Добавляем обработчик для получения статуса интеграции с Mi Home
-    server.on("/mihome_status", HTTP_GET, [](AsyncWebServerRequest *request)
-              {
-                JsonDocument doc;
-                doc["enabled"] = true;
-                doc["device_token"] = loadDeviceToken();
-                doc["device_id"] = String((uint32_t)ESP.getEfuseMac(), HEX);
-                doc["ip_address"] = WiFi.localIP().toString();
-                doc["device_count"] = devices.size();
-                
-                String response;
-                serializeJson(doc, response);
-                request->send(200, "application/json", response); });
-    // Добавляем обработчик для страницы настройки Mi Home
-    server.on("/mihome", HTTP_GET, [](AsyncWebServerRequest *request)
-              { request->send(SPIFFS, "/mihome.html", "text/html"); });
     // GET /clients (get list of all clients)
     server.on("/clients", HTTP_GET, [](AsyncWebServerRequest *request)
               {
