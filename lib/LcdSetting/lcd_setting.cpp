@@ -4,12 +4,13 @@
 #include <variables_info.h>
 #include <WiFi.h>
 #include <xiaomi_scanner.h>
-
+#include <lcd_utils.h>
 // LCD Keypad Shield использует следующие пины для подключения LCD
 // RS, E, D4, D5, D6, D7
 // LiquidCrystal lcd(8, 9, 4, 5, 6, 7); // Стандартные пины для LCD Keypad Shield
 // Для ESP32-S3 UNO с LCD Keypad Shield
 LiquidCrystal lcd(21, 46, 19, 20, 3, 14); // Пины для ESP32-S3 UNO
+
 // Прокрутка текста
 std::string scrollText = "";
 int scrollPosition = 0;
@@ -74,17 +75,13 @@ void initLCD()
 {
   // Инициализация LCD
   lcd.begin(16, 2);
-  lcd.clear();
-  lcd.print("Initialization...");
+  displayText("Initialization...");
 
   delay(1000);
 
   // Информация о навигации
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Navigation info:");
-  lcd.setCursor(0, 1);
-  lcd.print("LONG RIGHT=SELECT");
+  displayText("Navigation info:");
+  displayText("LONG RIGHT=SELECT", 0, 1);
   delay(2000);
 
   // Настройка пина для считывания кнопок
@@ -94,24 +91,18 @@ void initLCD()
 // Функция для отображения главного экрана
 void showMainScreen()
 {
-  lcd.clear();
-
   // Верхняя строка - статус системы
-  lcd.setCursor(0, 0);
-
   // Отображаем статус WiFi
   if (wifiConnected)
   {
-    lcd.print(WiFi.localIP().toString());
+    displayText(WiFi.localIP().toString());
   }
   else
   {
-    lcd.print("WiFi: Disabled");
+    displayText("WiFi: Disabled");
   }
 
   // Нижняя строка - информация о датчиках или прокручиваемый текст
-  lcd.setCursor(0, 1);
-
   if (scrollText.length() > 0)
   {
     // Вычисляем, какую часть текста показать
@@ -121,31 +112,28 @@ void showMainScreen()
       // Если достигли конца текста, показываем начало
       std::string textPart = scrollText.substr(scrollPosition);
       textPart += scrollText.substr(0, endPos - scrollText.length());
-      lcd.print(textPart.c_str());
+      displayText(textPart.c_str(), 0, 1);
     }
     else
     {
-      lcd.print(scrollText.substr(scrollPosition, 16).c_str());
+      displayText(scrollText.substr(scrollPosition, 16).c_str(), 0, 1);
     }
   }
   else
   {
-    lcd.print("LONG RIGHT=SELECT");
+    displayText("LONG RIGHT=SELECT", 0, 1);
   }
 }
 
 // Функция для отображения списка устройств
 void showDeviceList()
 {
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Devices:");
+  displayText("Devices:");
 
-  lcd.setCursor(0, 1);
   if (devices.size() > 0)
   {
     // Показываем текущее устройство с индикатором выбора
-    lcd.print("> ");
+    displayText("> ", 0, 1);
 
     // Проверяем, не выходит ли индекс за пределы
     if (deviceListIndex >= devices.size())
@@ -160,58 +148,43 @@ void showDeviceList()
     {
       deviceName = deviceName.substr(0, 14);
     }
-    lcd.print(deviceName.c_str());
+    displayText(deviceName.c_str(), 0, 1);
   }
   else
   {
-    lcd.print("There are no devices");
+    displayText("There are no devices", 0, 1);
   }
 }
 
 // Функция для отображения меню устройства
 void showDeviceMenu()
 {
-  lcd.clear();
-
   // Показываем имя устройства
-  lcd.setCursor(0, 0);
   std::string deviceName = devices[deviceListIndex].name;
   if (deviceName.length() > 16)
   {
     deviceName = deviceName.substr(0, 16);
   }
-  lcd.print(deviceName.c_str());
-
+  displayText(deviceName.c_str());
   // Показываем текущий пункт меню
-  lcd.setCursor(0, 1);
-  lcd.print("> ");
-  lcd.print(deviceMenuOptions[deviceMenuIndex]);
+  displayText("> " + String(deviceMenuOptions[deviceMenuIndex]), 0, 1);
 }
 
 // Функция для редактирования температуры
 void showTemperatureEdit()
 {
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Temp:");
-
-  lcd.setCursor(0, 1);
-  lcd.print(devices[deviceListIndex].targetTemperature);
-  lcd.print(" C  [+/-]");
+  displayText("Temp:");
+  displayText(String(devices[deviceListIndex].targetTemperature) + " C  [+/-]", 0, 1);
 }
 
 // Функция для редактирования GPIO
 void showGpioEdit()
 {
-  lcd.clear();
-
   // Проверяем, есть ли доступные GPIO
   if (availableGpio.size() == 0)
   {
-    lcd.setCursor(0, 0);
-    lcd.print("There are no available");
-    lcd.setCursor(0, 1);
-    lcd.print("GPIO pins");
+    displayText("There are no available");
+    displayText("GPIO pins", 0, 1);
     return;
   }
 
@@ -221,12 +194,9 @@ void showGpioEdit()
     gpioSelectionIndex = 0;
   }
 
-  lcd.setCursor(0, 0);
-  lcd.print("GPIO pins:");
+  displayText("GPIO pins:");
 
-  lcd.setCursor(0, 1);
-  lcd.print("PIN ");
-  lcd.print(availableGpio[gpioSelectionIndex].pin);
+  displayText("PIN " + String(availableGpio[gpioSelectionIndex].pin), 0, 1);
 
   // Проверяем, выбран ли этот GPIO для устройства
   bool isSelected = false;
@@ -238,21 +208,14 @@ void showGpioEdit()
       break;
     }
   }
-
-  lcd.setCursor(10, 1);
-  lcd.print(isSelected ? "[X]" : "[ ]");
+  displayText(isSelected ? "[X]" : "[ ]", 10, 1, false);
 }
 
 // Функция для включения/выключения устройства
 void showEnabledEdit()
 {
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Device:");
-
-  lcd.setCursor(0, 1);
-  lcd.print(devices[deviceListIndex].enabled ? "Enabled" : "Disabled");
-  lcd.print(" [+/-]");
+  displayText("Device:");
+  displayText((devices[deviceListIndex].enabled ? "Enabled" : "Disabled") + String(" [+/-]"), 0, 1);
 }
 
 // Обновление LCD дисплея в зависимости от текущего состояния меню
@@ -647,66 +610,52 @@ String formatHeatingTime(unsigned long timeInMillis)
 // Функция для отображения статистики обогрева
 void showHeatingStats()
 {
-  lcd.clear();
-
   if (devices.size() == 0 || deviceListIndex >= devices.size())
   {
-    lcd.setCursor(0, 0);
-    lcd.print("There are no devices");
+    displayText("There are no devices");
     return;
   }
 
   const DeviceData &device = devices[deviceListIndex];
 
   // Показываем имя устройства
-  lcd.setCursor(0, 0);
   std::string deviceName = device.name;
   if (deviceName.length() > 10)
   {
     deviceName = deviceName.substr(0, 10);
   }
-  lcd.print(deviceName.c_str());
+  displayText(deviceName.c_str());
 
   // Показываем статус обогрева
-  lcd.setCursor(11, 0);
-  lcd.print(device.heatingActive ? "ON" : "OFF");
+  displayText(device.heatingActive ? "ON" : "OFF", 11, 0, false);
 
   // Показываем общее время работы
-  lcd.setCursor(0, 1);
-  lcd.print("Time: ");
-  lcd.print(formatHeatingTime(device.totalHeatingTime));
+  displayText("Time: " + formatHeatingTime(device.totalHeatingTime), 0, 1);
 }
 
 // Функция для отображения информации о GPIO
 void showGpioInfo()
 {
-  lcd.clear();
-
   if (devices.size() == 0 || deviceListIndex >= devices.size())
   {
-    lcd.setCursor(0, 0);
-    lcd.print("There are no devices");
+    displayText("There are no devices");
     return;
   }
 
   const DeviceData &device = devices[deviceListIndex];
 
   // Показываем имя устройства
-  lcd.setCursor(0, 0);
   std::string deviceName = device.name;
   if (deviceName.length() > 16)
   {
     deviceName = deviceName.substr(0, 16);
   }
-  lcd.print(deviceName.c_str());
+  displayText(deviceName.c_str());
 
   // Показываем GPIO пины
-  lcd.setCursor(0, 1);
-  lcd.print("GPIO: ");
-
   if (device.gpioPins.size() == 0)
   {
-    lcd.print("Not selected");
+    displayText("GPIO: Not selected", 0, 1);
   }
   else
   {
@@ -724,8 +673,7 @@ void showGpioInfo()
     {
       gpioList += "...";
     }
-
-    lcd.print(gpioList);
+    displayText("GPIO: " + gpioList, 0, 1);
   }
 }
 
@@ -736,42 +684,34 @@ void showTemperatureInfo()
 
   if (devices.size() == 0 || deviceListIndex >= devices.size())
   {
-    lcd.setCursor(0, 0);
-    lcd.print("There are no devices");
+    displayText("There are no devices");
     return;
   }
 
   const DeviceData &device = devices[deviceListIndex];
 
   // Показываем имя устройства
-  lcd.setCursor(0, 0);
   std::string deviceName = device.name;
   if (deviceName.length() > 10)
   {
     deviceName = deviceName.substr(0, 10);
   }
-  lcd.print(deviceName.c_str());
+  displayText(deviceName.c_str());
 
   // Показываем текущую температуру
-  lcd.setCursor(11, 0);
-  lcd.print(String(device.currentTemperature, 1).c_str());
-  lcd.print("C");
+  displayText(String(device.currentTemperature, 1).c_str() + String("C"), 11, 0, false);
 
   // Показываем целевую температуру и статус
-  lcd.setCursor(0, 1);
-  lcd.print("Target: ");
-  lcd.print(String(device.targetTemperature, 1));
-  lcd.print("C ");
+  displayText("Target: " + String(device.targetTemperature, 1) + "C ", 0, 1);
 
-  // Статус обогрева
-  lcd.setCursor(12, 1);
+  // Статус обогрева  
   if (device.enabled)
   {
-    lcd.print(device.heatingActive ? "Heat" : "ОК");
+    displayText(device.heatingActive ? "Heat" : "ОК", 12, 1, false);
   }
   else
   {
-    lcd.print("OFF");
+    displayText("OFF", 12, 1, false);
   }
 }
 
@@ -819,6 +759,9 @@ void displayText(const String &text, int column, int row, bool clearLine, bool c
     lcd.print("                "); // 16 пробелов для очистки строки
   }
 
+  // Преобразуем текст в кодировку A02 для корректного отображения кириллицы
+  String a02Text = utf8ToA02(text);
+
   // Если нужно центрировать текст
   if (center)
   {
@@ -838,5 +781,5 @@ void displayText(const String &text, int column, int row, bool clearLine, bool c
 
   // Устанавливаем курсор и выводим текст
   lcd.setCursor(column, row);
-  lcd.print(text);
+  lcd.print(a02Text);
 }

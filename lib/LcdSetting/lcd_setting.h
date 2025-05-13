@@ -16,16 +16,16 @@
 
 // Определение кнопок LCD Keypad Shield
 // Аналоговый пин для кнопок на ESP32-S3 UNO
-#define KEYPAD_PIN 2  // GPIO2 соответствует A0 на arduino UNO
+#define KEYPAD_PIN 2 // GPIO2 соответствует A0 на arduino UNO
 
 // Значения для ESP32-S3 (12-битный ADC, 0-4095)
 // Эти значения требуют калибровки для конкретного устройства
-#define KEY_RIGHT_VAL  0     // Значение около 0//0
-#define KEY_UP_VAL     700   // Примерные значения//790
-#define KEY_DOWN_VAL   1700  // Требуют калибровки//1860
-#define KEY_LEFT_VAL   2800 //2937
+#define KEY_RIGHT_VAL 0   // Значение около 0//0
+#define KEY_UP_VAL 700    // Примерные значения//790
+#define KEY_DOWN_VAL 1700 // Требуют калибровки//1860
+#define KEY_LEFT_VAL 2800 // 2937
 #define KEY_SELECT_VAL 3000
-#define KEY_NONE_VAL   4095  // Ни одна кнопка не нажата
+#define KEY_NONE_VAL 4095 // Ни одна кнопка не нажата
 
 // Допустимое отклонение для значений кнопок
 #define KEY_THRESHOLD 200
@@ -89,6 +89,6 @@ void cycleInfoScreens();
 String formatHeatingTime(unsigned long timeInMillis);
 
 // Метод для отображения текста с указанием столбца и строки
-void displayText(const String& text, int column, int row, bool clearLine = false, bool center = false);
+void displayText(const String &text, int column = 0, int row = 0, bool clearLine = true, bool center = false);
 
 #endif // LCD_SETTING_H

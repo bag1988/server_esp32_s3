@@ -46,7 +46,7 @@ bool initOTA()
         
         // Отображение информации на LCD        
         displayText("OTA Update", 0, 0, true, true);
-        displayText("Type: " + type, 0, 1, true);
+        displayText("Type: " + type, 0, 1);
         
         Serial.println("Start updating " + type); });
 
@@ -80,8 +80,8 @@ bool initOTA()
         }
         progressBar += "]";
         
-        displayText(progressBar, 0, 1, true);
-        displayText(String(percentage) + "%", 12, 1);
+        displayText(progressBar, 0, 1);
+        displayText(String(percentage) + "%", 12, 1, false);
         
         Serial.printf("Progress: %u%%\r", percentage); });
 
