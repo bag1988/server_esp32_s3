@@ -248,21 +248,14 @@ void initWebServer()
             deviceObj["currentTemperature"] = device.currentTemperature;
             deviceObj["targetTemperature"] = device.targetTemperature;
             deviceObj["heatingActive"] = device.heatingActive;
-            
-            // Вычисляем текущее общее время работы
-            unsigned long totalHeatingTime = device.totalHeatingTime;
-            if (device.heatingActive) {
-                // Если обогрев активен, добавляем текущий период
-                totalHeatingTime += (millis() - device.heatingStartTime);
-            }
-            
+                       
             // Форматируем время для вывода
-            unsigned long totalSeconds = totalHeatingTime / 1000;
+            unsigned long totalSeconds =  device.totalHeatingTime / 1000;
             unsigned long hours = totalSeconds / 3600;
             unsigned long minutes = (totalSeconds % 3600) / 60;
             unsigned long seconds = totalSeconds % 60;
             
-            deviceObj["totalHeatingTimeMs"] = totalHeatingTime;
+            deviceObj["totalHeatingTimeMs"] =  device.totalHeatingTime;
             deviceObj["totalHeatingTimeFormatted"] = 
                 String(hours) + ":" + 
                 (minutes < 10 ? "0" : "") + String(minutes) + ":" + 
