@@ -252,7 +252,7 @@ void updateLCD()
 }
 
 // Обновление текста для прокрутки
-void updateScrollText()
+void initScrollText()
 {
   scrollText = "";
 
@@ -589,10 +589,37 @@ void updateLCDTask()
 void refreshLCDData()
 {
   // Обновляем текст для прокрутки
-  updateScrollText();
+  initScrollText();
 
   // Устанавливаем флаг для обновления экрана
   needLcdUpdate = true;
+}
+
+// Обновление статуса устройств
+void updateDevicesStatus()
+{
+    unsigned long currentTime = millis();
+    bool statusChanged = false;
+
+    for (auto &device : devices)
+    {
+        // Проверяем, не устарели ли данные
+        if (device.isDataValid())
+        {
+            device.isOnline = false;
+            statusChanged = true;
+
+            Serial.print("Устройство ");
+            Serial.print(device.name.c_str());
+            Serial.println(" перешло в оффлайн (нет данных более 5 минут)");
+        }
+    }
+
+    // Если статус изменился, обновляем текст прокрутки
+    if (statusChanged)
+    {
+        refreshLCDData();
+    }
 }
 
 // Функция для форматирования времени работы обогрева

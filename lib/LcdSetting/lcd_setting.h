@@ -40,8 +40,8 @@ void initLCD();
 // Чтение состояния кнопок LCD Keypad Shield
 int readKeypad();
 
-// Обновление текста для прокрутки
-void updateScrollText();
+// Инициализация текста для прокрутки
+void initScrollText();
 
 // Обновление LCD дисплея
 void updateLCD();
@@ -54,6 +54,8 @@ void updateLCDTask();
 
 // Функция для обновления данных на экране при изменении устройств
 void refreshLCDData();
+
+void updateDevicesStatus();
 
 // Функция для отображения главного экрана
 void showMainScreen();

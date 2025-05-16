@@ -1,7 +1,6 @@
 #include "xiaomi_scanner.h"
 #include "variables_info.h"
 #include <algorithm>
-#include <lcd_setting.h>
 #include <spiffs_setting.h>
 // Глобальные переменные
 BLEScan *pBLEScan = nullptr;
@@ -312,7 +311,6 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
                 }
                 xSemaphoreGive(devicesMutex);
             }
-            refreshLCDData();
         }
         else
         {
@@ -322,29 +320,3 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
     }
 }
 
-// Обновление статуса устройств
-void updateDevicesStatus()
-{
-    unsigned long currentTime = millis();
-    bool statusChanged = false;
-
-    for (auto &device : devices)
-    {
-        // Проверяем, не устарели ли данные
-        if (device.isOnline && (currentTime - device.lastUpdate > XIAOMI_OFFLINE_TIMEOUT))
-        {
-            device.isOnline = false;
-            statusChanged = true;
-
-            Serial.print("Устройство ");
-            Serial.print(device.name.c_str());
-            Serial.println(" перешло в оффлайн (нет данных более 5 минут)");
-        }
-    }
-
-    // Если статус изменился, обновляем текст прокрутки
-    if (statusChanged)
-    {
-        refreshLCDData();
-    }
-}

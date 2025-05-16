@@ -185,7 +185,7 @@ void networkFunc()
     }
 
     // Обработка OTA обновлений
-    if (wifiConnected )
+    if (wifiConnected)
     {
         handleOTA();
     }
@@ -197,12 +197,10 @@ void networkFunc()
     {
         if (xSemaphoreTake(bleMutex, portMAX_DELAY) == pdTRUE)
         {
-            startXiaomiScan();
-            vTaskDelay(20 / portTICK_PERIOD_MS); // Добавьте задержку
-            updateDevicesStatus();
-            xSemaphoreGive(bleMutex);
             // Обновляем время последнего сканирования
             lastScanTime = millis();
+            startXiaomiScan();
+            xSemaphoreGive(bleMutex);            
         }
     }
 
@@ -239,10 +237,12 @@ void mainlogicFunc()
         // Обработка логики управления устройствами
         if (xSemaphoreTake(devicesMutex, portMAX_DELAY) == pdTRUE)
         {
-            controlGPIO();
-            xSemaphoreGive(devicesMutex);
             lastGpioControlTime = millis();
+            controlGPIO();
+            xSemaphoreGive(devicesMutex);            
         }
+        vTaskDelay(20 / portTICK_PERIOD_MS); // Добавьте задержку
+        updateDevicesStatus();
     }
     // Добавляем переменную для отслеживания времени последнего сохранения
     static unsigned long lastStatsSaveTime = 0;
@@ -251,10 +251,10 @@ void mainlogicFunc()
     if ((currentTime - lastStatsSaveTime > 300000) || (currentTime < lastStatsSaveTime))
     {
         Serial.println("Сохранение статистики согласно таймаута, сохраняем результаты");
-        saveClientsToFile();
-        serverWorkTime +=currentTime;
-        saveServerWorkTime();
         lastStatsSaveTime = currentTime;
+        saveClientsToFile();
+        serverWorkTime += currentTime;
+        saveServerWorkTime();        
     }
     // monitorMemory();
     //  Даем время другим задачам
@@ -308,10 +308,10 @@ void ReadDataInSPIFFS()
 {
     // Загрузка данных устройств
     loadGpioFromFile();
-     // Загрузка данных устройств
-     loadWifiCredentialsFromFile();
-     loadClientsFromFile();
-     loadServerWorkTime();
+    // Загрузка данных устройств
+    loadWifiCredentialsFromFile();
+    loadClientsFromFile();
+    loadServerWorkTime();
 }
 
 // Настройка
@@ -370,7 +370,7 @@ void setup()
     initWebServer();
 
     // Обновление текста прокрутки
-    updateScrollText();
+    initScrollText();
     updateLCD();
 
     Serial.println("Система готова к работе");
