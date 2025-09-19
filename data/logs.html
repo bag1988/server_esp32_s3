@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Логи системы в реальном времени</title>
+    <meta charset="UTF-8">
+    <link href="app.css" rel="stylesheet" />   
+</head>
+
+<body>
+    <div class="container">
+        <h1>Логи системы в реальном времени</h1>
+        <div class="menu">
+            <a href="index.html">Главная</a>
+            <a href="heating_stats.html">Статистика обогрева</a>
+            <a href="managment_device.html">Управление устройствами</a>
+            <a href="gpio_settings.html">Настройки GPIO</a>
+            <a href="logs.html">Логи</a>
+        </div>
+    </div>
+    <div class="container">
+        <div>
+            <button id="connectBtn">Подключиться</button>
+            <button id="clearBtn">Очистить</button>
+            <label>
+                <input type="checkbox" id="autoscroll" checked> Автопрокрутка
+            </label>
+        </div>
+
+        <div id="logContainer"></div>
+    </div>
+    <script>
+        let eventSource = null;
+        const logContainer = document.getElementById('logContainer');
+        const connectBtn = document.getElementById('connectBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const autoscroll = document.getElementById('autoscroll');
+
+        function connect() {
+            if (eventSource) {
+                eventSource.close();
+            }
+
+            eventSource = new EventSource('/events');
+
+            eventSource.addEventListener('log', function (event) {
+                const logEntry = event.data;
+                logContainer.textContent += logEntry;
+
+                if (autoscroll.checked) {
+                    logContainer.scrollTop = logContainer.scrollHeight;
+                }
+            });
+
+            eventSource.onerror = function (err) {
+                console.error("EventSource failed:", err);
+                connectBtn.textContent = 'Подключиться';
+                connectBtn.disabled = false;
+            };
+
+            connectBtn.textContent = 'Отключиться';
+            connectBtn.disabled = false;
+        }
+
+        function disconnect() {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+            connectBtn.textContent = 'Подключиться';
+        }
+
+        connectBtn.addEventListener('click', function () {
+            if (eventSource) {
+                disconnect();
+            } else {
+                connect();
+            }
+        });
+
+        clearBtn.addEventListener('click', function () {
+            logContainer.textContent = '';
+        });
+    </script>
+</body>
+
+</html>

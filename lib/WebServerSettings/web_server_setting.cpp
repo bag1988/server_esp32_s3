@@ -5,12 +5,14 @@
 #include <spiffs_setting.h>
 #include "xiaomi_scanner.h"
 #include <SPIFFS.h>
-#include <ESPmDNS.h>
 #include "logger.h"
+
 // Web Server
 AsyncWebServer server(80);
-// server.setStackSize(8192);
-// Connect to WiFi +++++++++++++++++++++++++++++++++++
+
+// Создаем экземпляр AsyncEventSource
+AsyncEventSource events("/events");
+
 void connectWiFi()
 {
     LOG_I("Connecting to WiFi: %s", wifiCredentials.ssid.c_str());
@@ -33,18 +35,6 @@ void connectWiFi()
         LOG_I("IP address: %s", WiFi.localIP());
         wifiConnected = true;
 
-        // Останавливаем mDNS если он запущен и перезапускаем
-        MDNS.end();
-        // Добавляем настройку mDNS здесь
-        if (MDNS.begin(WEB_SERVER_HOSTNAME))
-        {
-            LOG_I("mDNS started: http://%s.local", WEB_SERVER_HOSTNAME);
-        }
-        else
-        {
-            LOG_I("Error setting up mDNS");
-        }
-        MDNS.addService("http", "tcp", 80);
     }
     else
     {
@@ -56,6 +46,8 @@ void connectWiFi()
 // web server +++++++++++++++++++++++++++++++++
 void initWebServer()
 {
+    // Добавляем обработчик событий
+    server.addHandler(&events);
     // GET /clients (get list of all clients)
     server.on("/clients", HTTP_GET, [](AsyncWebServerRequest *request)
               {
@@ -324,6 +316,10 @@ void initWebServer()
     // Добавляем обработчик для страницы статистики обогрева
     server.on("/heating_stats.html", HTTP_GET, [](AsyncWebServerRequest *request)
               { request->send(SPIFFS, "/heating_stats.html", "text/html"); });
+
+    // Добавляем обработчик для получения логов в реальном времени через SSE
+    server.on("/logs", HTTP_GET, [](AsyncWebServerRequest *request)
+              { request->send(SPIFFS, "/logs.html", "text/html"); });
 
     server.begin();
     LOG_I("Web server started");

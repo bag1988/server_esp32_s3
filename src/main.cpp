@@ -13,6 +13,7 @@
 #include "driver/temp_sensor.h" // Библиотека для работы с датчиком температуры
 #include <Adafruit_NeoPixel.h>
 #include "logger.h"
+#include <ESPmDNS.h>
 #define KEYPAD_PIN 2 // GPIO1 соответствует A0 на ESP32-S3 UNO
 #define NUM_LEDS 1   // Один светодиод
 // Глобальные переменные
@@ -361,6 +362,17 @@ void setup()
     if (wifiConnected)
     {
         initOTA();
+
+        // Добавляем настройку mDNS здесь
+        if (MDNS.begin(WEB_SERVER_HOSTNAME))
+        {
+            LOG_I("mDNS started: http://%s.local", WEB_SERVER_HOSTNAME);
+        }
+        else
+        {
+            LOG_I("Error setting up mDNS");
+        }
+        MDNS.addService("http", "tcp", 80);
     }
 
     // Инициализация BLE сканера
