@@ -250,10 +250,10 @@ void mainlogicFunc()
     unsigned long currentTime = millis();
     if ((currentTime - lastStatsSaveTime > 300000) || (currentTime < lastStatsSaveTime))
     {
-        Serial.println("Сохранение статистики согласно таймаута, сохраняем результаты");
-        lastStatsSaveTime = currentTime;
+        Serial.println("Сохранение статистики согласно таймаута, сохраняем результаты");        
         saveClientsToFile();
-        serverWorkTime += currentTime;
+        serverWorkTime += currentTime - lastStatsSaveTime;
+        lastStatsSaveTime = currentTime;
         saveServerWorkTime();        
     }
     //  Даем время другим задачам

@@ -271,10 +271,7 @@ void initWebServer()
             unsigned long seconds = totalSeconds % 60;
             
             deviceObj["totalHeatingTimeMs"] =  device.totalHeatingTime;
-            deviceObj["totalHeatingTimeFormatted"] = 
-                String(hours) + ":" + 
-                (minutes < 10 ? "0" : "") + String(minutes) + ":" + 
-                (seconds < 10 ? "0" : "") + String(seconds);
+            deviceObj["totalHeatingTimeFormatted"] =  String(hours) + ":" + String(minutes % 60) + ":" + String(seconds % 60);
         }
         xSemaphoreGive(devicesMutex);
     }

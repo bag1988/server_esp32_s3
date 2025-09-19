@@ -598,36 +598,28 @@ void refreshLCDData()
 // Обновление статуса устройств
 void updateDevicesStatus()
 {
-    unsigned long currentTime = millis();
-    bool statusChanged = false;
-
-    for (auto &device : devices)
+  for (auto &device : devices)
+  {
+    // Проверяем, не устарели ли данные
+    if (device.isDataValid())
     {
-        // Проверяем, не устарели ли данные
-        if (device.isDataValid())
-        {
-            device.isOnline = false;
-            statusChanged = true;
+      device.isOnline = false;
 
-            Serial.print("Устройство ");
-            Serial.print(device.name.c_str());
-            Serial.println(" перешло в оффлайн (нет данных более 5 минут)");
-        }
+      Serial.print("Устройство ");
+      Serial.print(device.name.c_str());
+      Serial.println(" перешло в оффлайн (нет данных более 5 минут)");
     }
-
-    // Если статус изменился, обновляем текст прокрутки
-    if (statusChanged)
-    {
-        refreshLCDData();
-    }
+  }
+  refreshLCDData();
 }
 
 // Функция для форматирования времени работы обогрева
 String formatHeatingTime(unsigned long timeInMillis)
 {
-  unsigned long seconds = timeInMillis / 1000;
-  unsigned long minutes = seconds / 60;
-  unsigned long hours = minutes / 60;
+  unsigned long totalSeconds = timeInMillis / 1000;
+  unsigned long hours = totalSeconds / 3600;
+  unsigned long minutes = (totalSeconds % 3600) / 60;
+  unsigned long seconds = totalSeconds % 60;
 
   char buffer[20];
   sprintf(buffer, "%02lu:%02lu:%02lu", hours, minutes % 60, seconds % 60);
@@ -731,7 +723,7 @@ void showTemperatureInfo()
   // Показываем целевую температуру и статус
   displayText("Target: " + String(device.targetTemperature, 1) + "C ", 0, 1);
 
-  // Статус обогрева  
+  // Статус обогрева
   if (device.enabled)
   {
     displayText(device.heatingActive ? "Heat" : "ОК", 12, 1, false);
