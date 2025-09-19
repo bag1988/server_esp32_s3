@@ -12,6 +12,7 @@
 #include "esp_system.h"         // Библиотека ESP-IDF для работы с системными функциями
 #include "driver/temp_sensor.h" // Библиотека для работы с датчиком температуры
 #include <Adafruit_NeoPixel.h>
+#include "logger.h"
 #define KEYPAD_PIN 2 // GPIO1 соответствует A0 на ESP32-S3 UNO
 #define NUM_LEDS 1   // Один светодиод
 // Глобальные переменные
@@ -96,7 +97,7 @@ unsigned long safeTimeDifference(unsigned long currentTime, unsigned long previo
 // Управление GPIO
 void controlGPIO()
 {
-    Serial.println("Проверка необходимости включения GPIO");
+    LOG_I("Проверка необходимости включения GPIO");
     std::vector<int> gpiosToTurnOn;
     unsigned long currentTime = millis();
     // Собираем GPIO для включения
@@ -114,7 +115,7 @@ void controlGPIO()
                 device.heatingStartTime = currentTime;
             }
 
-            Serial.printf("Устройство %s: обогрев включен - %s, необходим обогрев - %s\n",
+            LOG_I("Устройство %s: обогрев включен - %s, необходим обогрев - %s",
                           device.name.c_str(), device.heatingActive ? "да" : "нет", (device.currentTemperature + 2) < device.targetTemperature ? "да" : "нет");
             if (!device.heatingActive && device.enabled && device.isOnline && (device.currentTemperature + 2) < device.targetTemperature)
             {
@@ -122,14 +123,14 @@ void controlGPIO()
                 device.heatingStartTime = currentTime; // Запоминаем время включения
                 gpiosToTurnOn.insert(gpiosToTurnOn.end(), device.gpioPins.begin(), device.gpioPins.end());
 
-                Serial.printf("Устройство %s: включаем обогрев (температура %.1f°C, целевая %.1f°C)\n",
+                LOG_I("Устройство %s: включаем обогрев (температура %.1f°C, целевая %.1f°C)",
                               device.name.c_str(), device.currentTemperature, device.targetTemperature);
             }
             else if (device.heatingActive && device.currentTemperature >= device.targetTemperature)
             {
                 // Температура достигла целевой - выключаем обогрев
                 device.heatingActive = false;
-                Serial.printf("Устройство %s: выключаем обогрев (температура %.1f°C, целевая %.1f°C)\n",
+                LOG_I("Устройство %s: выключаем обогрев (температура %.1f°C, целевая %.1f°C)",
                               device.name.c_str(), device.currentTemperature, device.targetTemperature);
             }
             else if (!device.enabled && device.heatingActive)
@@ -144,7 +145,7 @@ void controlGPIO()
         {
             device.isOnline = false;
             device.heatingActive = false;
-            Serial.printf("Устройство %s: нет данных\n", device.name.c_str());
+            LOG_I("Устройство %s: нет данных", device.name.c_str());
         }
     }
 
@@ -176,7 +177,7 @@ void networkFunc()
         {
             if (!heap_caps_check_integrity_all(true))
             {
-                Serial.println("Проблема с целостностью памяти!");
+                LOG_I("Проблема с целостностью памяти!");
             }
             connectWiFi();
             xSemaphoreGive(wifiMutex);
@@ -250,7 +251,7 @@ void mainlogicFunc()
     unsigned long currentTime = millis();
     if ((currentTime - lastStatsSaveTime > 300000) || (currentTime < lastStatsSaveTime))
     {
-        Serial.println("Сохранение статистики согласно таймаута, сохраняем результаты");        
+        LOG_I("Сохранение статистики согласно таймаута, сохраняем результаты");        
         saveClientsToFile();
         serverWorkTime += currentTime - lastStatsSaveTime;
         lastStatsSaveTime = currentTime;
@@ -317,7 +318,7 @@ void ReadDataInSPIFFS()
 void setup()
 {
     Serial.begin(115200);
-    Serial.println("Запуск системы...");
+    LOG_I("Запуск системы...");
     pixels.begin();           // Инициализация NeoPixel
     pixels.setBrightness(50); // Установка яркости (0-255)
     pixels.show();            // Инициализация всех пикселей в 'выключено'
@@ -325,18 +326,18 @@ void setup()
     // Инициализация и проверка PSRAM
     if (psramFound())
     {
-        Serial.println("PSRAM найдена и инициализирована");
-        Serial.printf("Доступно PSRAM: %d байт\n", ESP.getFreePsram());
+        LOG_I("PSRAM найдена и инициализирована");
+        LOG_I("Доступно PSRAM: %d байт", ESP.getFreePsram());
     }
     else
     {
-        Serial.println("PSRAM не найдена! Некоторые функции могут работать некорректно");
+        LOG_I("PSRAM не найдена! Некоторые функции могут работать некорректно");
     }
 
     // Инициализация SPIFFS
     if (!SPIFFS.begin(true))
     {
-        Serial.println("Ошибка инициализации SPIFFS");
+        LOG_I("Ошибка инициализации SPIFFS");
         return;
     }
 
@@ -372,17 +373,17 @@ void setup()
     initScrollText();
     updateLCD();
 
-    Serial.println("Система готова к работе");
+    LOG_I("Система готова к работе");
 
     createTasksStandart();
-    Serial.println("Настройка завершена");
+    LOG_I("Настройка завершена");
 
     // Инициализация датчика температуры (старый API)
     temp_sensor_config_t temp_sensor = TSENS_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(temp_sensor_set_config(temp_sensor));
     ESP_ERROR_CHECK(temp_sensor_start());
 
-    Serial.println("Датчик температуры инициализирован");
+    LOG_I("Датчик температуры инициализирован");
 }
 
 void loop()
@@ -399,11 +400,11 @@ void loop()
 
         // if (ret == ESP_OK)
         // {
-        //     Serial.printf("Внутренняя температура: %.2f °C\n", board_temperature);
+        //     LOG_I("Внутренняя температура: %.2f °C", board_temperature);
         // }
         // else
         // {
-        //     Serial.println("Ошибка при чтении датчика температуры");
+        //     LOG_I("Ошибка при чтении датчика температуры");
         // }
         vTaskDelay(5000 / portTICK_PERIOD_MS); // Небольшая задержка для предотвращения перегрузки CPU
     }
@@ -419,16 +420,16 @@ void loop()
     }
 
     //     // Синий
-    //     Serial.println("Blue");
+    //     LOG_I("Blue");
     //     pixels.setPixelColor(0, pixels.Color(0, 0, 255));
     //     pixels.show();
     //     delay(1000);
     //     // Белый
-    //     Serial.println("White");
+    //     LOG_I("White");
     //     pixels.setPixelColor(0, pixels.Color(255, 255, 255));
     //     pixels.show();
     //     delay(1000);
     //     // Радуга
-    //     Serial.println("Rainbow");
+    //     LOG_I("Rainbow");
     //     rainbow(10);
 }

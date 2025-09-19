@@ -5,6 +5,7 @@
 #include <WiFi.h>
 #include <xiaomi_scanner.h>
 #include <lcd_utils.h>
+#include "logger.h"
 // LCD Keypad Shield использует следующие пины для подключения LCD
 // RS, E, D4, D5, D6, D7
 // LiquidCrystal lcd(8, 9, 4, 5, 6, 7); // Стандартные пины для LCD Keypad Shield
@@ -49,8 +50,7 @@ bool needLcdUpdate = true;
 int readKeypad()
 {
   int adcValue = analogRead(KEYPAD_PIN);
-  // Serial.print("Нажата кнопка, значение: ");
-  // Serial.println(adcValue);
+  // LOG_I("Нажата кнопка, значение: %s", adcValue);
   if (adcValue == 0)
   {
     return BUTTON_NONE;
@@ -496,7 +496,7 @@ void handleButtons()
     }
     else if (pressedButton == BUTTON_SELECT)
     {
-      Serial.println("Нажата кнопка SELECT, сохраняем результаты");
+      LOG_I("Нажата кнопка SELECT, сохраняем результаты");
       // Сохранение и возврат в меню устройства
       saveClientsToFile();
       currentMenu = DEVICE_MENU;
@@ -545,7 +545,7 @@ void handleButtons()
         {
           devices[deviceListIndex].gpioPins.push_back(selectedGpio);
         }
-        Serial.println("Нажата кнопка SELECT при редактироании GPIO, сохраняем результаты");
+        LOG_I("Нажата кнопка SELECT при редактироании GPIO, сохраняем результаты");
         // Сохраняем изменения
         saveClientsToFile();
       }
@@ -574,7 +574,7 @@ void handleButtons()
       {
         devices[deviceListIndex].heatingActive = false;
       }
-      Serial.println("Нажата кнопка BUTTON_UP при изменении доступности устройства, сохраняем результаты");
+      LOG_I("Нажата кнопка BUTTON_UP при изменении доступности устройства, сохраняем результаты");
       // Сохраняем изменения
       saveClientsToFile();
     }
@@ -645,9 +645,8 @@ void updateDevicesInformation()
     {
       device.isOnline = false;
 
-      Serial.print("Устройство ");
-      Serial.print(device.name.c_str());
-      Serial.println(" перешло в оффлайн (нет данных более 5 минут)");
+      LOG_I("Устройство %s", device.name.c_str());
+      LOG_I(" перешло в оффлайн (нет данных более 5 минут)");
     }
   }
   refreshLCDData();
@@ -807,7 +806,7 @@ void displayText(const String &text, int column, int row, bool clearLine, bool c
   // Проверка корректности параметров
   if (row < 0 || row > 1)
   {
-    Serial.println("Ошибка: Некорректный номер строки. Допустимые значения: 0 или 1");
+    LOG_I("Ошибка: Некорректный номер строки. Допустимые значения: 0 или 1");
     return;
   }
 

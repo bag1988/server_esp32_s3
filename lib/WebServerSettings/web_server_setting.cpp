@@ -6,16 +6,15 @@
 #include "xiaomi_scanner.h"
 #include <SPIFFS.h>
 #include <ESPmDNS.h>
+#include "logger.h"
 // Web Server
 AsyncWebServer server(80);
 // server.setStackSize(8192);
 // Connect to WiFi +++++++++++++++++++++++++++++++++++
 void connectWiFi()
 {
-    Serial.print(F("Connecting to WiFi: "));
-    Serial.print(F(wifiCredentials.ssid.c_str()));
-    Serial.print(F(", password: "));
-    Serial.println(F(wifiCredentials.password.c_str()));
+    LOG_I("Connecting to WiFi: %s", wifiCredentials.ssid.c_str());
+    LOG_I(", password: %s", wifiCredentials.password.c_str());
     WiFi.begin(wifiCredentials.ssid.c_str(), wifiCredentials.password.c_str());
     lastWiFiAttemptTime = millis();
 
@@ -23,16 +22,15 @@ void connectWiFi()
     while (WiFi.status() != WL_CONNECTED && attempts < 10)
     {
         delay(1000);
-        Serial.print(F("..."));
+        Serial.print("...");
         attempts++;
     }
 
     if (WiFi.status() == WL_CONNECTED)
     {
-        Serial.println(F(""));
-        Serial.println(F("WiFi connected"));
-        Serial.print(F("IP address: "));
-        Serial.println(WiFi.localIP());
+        LOG_I("");
+        LOG_I("WiFi connected");
+        LOG_I("IP address: %s", WiFi.localIP());
         wifiConnected = true;
 
         // Останавливаем mDNS если он запущен и перезапускаем
@@ -40,18 +38,18 @@ void connectWiFi()
         // Добавляем настройку mDNS здесь
         if (MDNS.begin(WEB_SERVER_HOSTNAME))
         {
-            Serial.printf("mDNS started: http://%s.local", WEB_SERVER_HOSTNAME);
+            LOG_I("mDNS started: http://%s.local", WEB_SERVER_HOSTNAME);
         }
         else
         {
-            Serial.println(F("Error setting up mDNS"));
+            LOG_I("Error setting up mDNS");
         }
         MDNS.addService("http", "tcp", 80);
     }
     else
     {
-        Serial.println(F(""));
-        Serial.println(F("Failed to connect to WiFi"));
+        LOG_I("");
+        LOG_I("Failed to connect to WiFi");
         wifiConnected = false;
     }
 }
@@ -234,7 +232,7 @@ void initWebServer()
                         xSemaphoreGive(devicesMutex);
                         
                         if (isSaving) {
-                            Serial.println("Получены изменения по HTTP, сохраняем результаты");
+                            LOG_I("Получены изменения по HTTP, сохраняем результаты");
                             saveClientsToFile(); // Save changes to file
                             request->send(200, "text/plain", "Client updated");
                             return;
@@ -246,7 +244,7 @@ void initWebServer()
     // GET /scan (start BLE scan)
     server.on("/scan", HTTP_GET, [](AsyncWebServerRequest *request)
               {
-                Serial.println("Получен запрос на запуск сканирования устройств");
+                LOG_I("Получен запрос на запуск сканирования устройств");
                 startXiaomiScan();
             request->send(200, "text/plain", "BLE Scan started"); });
     // Добавляем обработчик для получения статистики обогрева
@@ -304,7 +302,7 @@ void initWebServer()
             }
             xSemaphoreGive(devicesMutex);
         }        
-        Serial.println("Сброшена статистика, сохраняем результаты");
+        LOG_I("Сброшена статистика, сохраняем результаты");
         // Сохраняем изменения
         saveClientsToFile();    
         serverWorkTime = 0;
@@ -328,5 +326,5 @@ void initWebServer()
               { request->send(SPIFFS, "/heating_stats.html", "text/html"); });
 
     server.begin();
-    Serial.println(F("Web server started"));
+    LOG_I("Web server started");
 }

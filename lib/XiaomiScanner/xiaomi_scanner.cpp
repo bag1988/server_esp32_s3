@@ -2,6 +2,7 @@
 #include "variables_info.h"
 #include <algorithm>
 #include <spiffs_setting.h>
+#include "logger.h"
 // Глобальные переменные
 BLEScan *pBLEScan = nullptr;
 bool scanningActive = false;
@@ -12,55 +13,54 @@ class XiaomiAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
 {
     void onResult(BLEAdvertisedDevice advertisedDevice)
     {
-        Serial.print("Обнаружено устройство: ");
-        Serial.println(advertisedDevice.getAddress().toString().c_str());
+        LOG_I("Обнаружено устройство: %s", advertisedDevice.getAddress().toString().c_str());
 
         if (advertisedDevice.haveName())
         {
-            Serial.print("Имя: ");
-            Serial.println(advertisedDevice.getName().c_str());
+            LOG_I("Имя: %s", advertisedDevice.getName().c_str());
         }
 
         if (advertisedDevice.haveManufacturerData())
         {
-            Serial.print("Данные производителя: ");
             std::string data = advertisedDevice.getManufacturerData();
+            String payloadStr = "";
             for (int i = 0; i < data.length(); i++)
             {
-                Serial.printf("%02X ", (uint8_t)data[i]);
+                payloadStr += ("%02X ", (uint8_t)data[i]);
             }
-            Serial.println("");
+            LOG_I("Данные производителя: %s", payloadStr);
         }
 
         if (advertisedDevice.haveServiceData())
         {
-            Serial.println("Сервисные данные: ");
+            LOG_I("Сервисные данные: ");
             for (int i = 0; i < advertisedDevice.getServiceDataCount(); i++)
             {
-                Serial.print("UUID: ");
-                Serial.println(advertisedDevice.getServiceDataUUID(i).toString().c_str());
-                Serial.print("Данные: ");
+                LOG_I("UUID: %s", advertisedDevice.getServiceDataUUID(i).toString().c_str());
+
+                String payloadStr = "";
                 std::string data = advertisedDevice.getServiceData(i);
                 for (int j = 0; j < data.length(); j++)
                 {
-                    Serial.printf("%02X ", (uint8_t)data[j]);
+                    payloadStr += ("%02X ", (uint8_t)data[j]);
                 }
-                Serial.println("");
+                LOG_I("Данные: %s", payloadStr);
             }
         }
         if (advertisedDevice.getPayloadLength() > 0)
         {
-            Serial.print("Payload данные: ");
+
             uint8_t *payload = advertisedDevice.getPayload();
             size_t payloadLength = advertisedDevice.getPayloadLength();
+            String payloadStr = "";
             for (int i = 0; i < payloadLength - 1; i++)
             {
-                Serial.printf("%02X ", (uint8_t)payload[i]);
+                payloadStr += ("%02X ", (uint8_t)payload[i]);
             }
-            Serial.println("");
+            LOG_I("Payload данные: %s", payloadStr);
         }
 
-        Serial.println("//////////////////////////////////");
+        LOG_I("//////////////////////////////////");
         processXiaomiAdvertisement(advertisedDevice);
     }
 };
@@ -75,14 +75,12 @@ class SetServerSettingCallbacks : public BLECharacteristicCallbacks
         if (pCharacteristic->getUUID().toString() == SSID_CHARACTERISTIC_UUID)
         {
             wifiCredentials.ssid = value;
-            Serial.print(F("SSID received: "));
-            Serial.println(F(wifiCredentials.ssid.c_str()));
+            LOG_I("SSID received: %s", wifiCredentials.ssid.c_str());
         }
         else if (pCharacteristic->getUUID().toString() == PASSWORD_CHARACTERISTIC_UUID)
         {
             wifiCredentials.password = value;
-            Serial.print(F("Password received: "));
-            Serial.println(F(wifiCredentials.password.c_str()));
+            LOG_I("Password received: ", wifiCredentials.password.c_str());
         }
         saveWifiCredentialsToFile(); // Save credentials to file
     }
@@ -101,8 +99,8 @@ void setupXiaomiScanner()
     // Устанавливаем низкую мощность передатчика для экономии энергии
     // esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_SCAN, ESP_PWR_LVL_N9); // -9 dBm
 
-    Serial.println("Сканер датчиков Xiaomi инициализирован");
-    Serial.println("Запускаем сервисы редактирования SSID и пароля");
+    LOG_I("Сканер датчиков Xiaomi инициализирован");
+    LOG_I("Запускаем сервисы редактирования SSID и пароля");
     pServer = BLEDevice::createServer();
     BLEService *pService = pServer->createService(WIFI_SERVICE_UUID);
 
@@ -134,15 +132,14 @@ void setupXiaomiScanner()
     pAdvertising->setMinPreferred(0x06); // functions that help with iPhone connections issue
     pAdvertising->setMaxPreferred(0x12);
     BLEDevice::startAdvertising();
-    Serial.println(F("Сервисы редактирования SSID и пароля запущены"));
+    LOG_I("Сервисы редактирования SSID и пароля запущены");
 }
 
 void startScan(uint32_t duration)
 {
     BLEScanResults foundDevices = pBLEScan->start(duration, false);
-    Serial.print("Найдено устройств: ");
-    Serial.println(foundDevices.getCount());
-    Serial.println("Очистка резельтатов сканирования");
+    LOG_I("Найдено устройств: %s", foundDevices.getCount());
+    LOG_I("Очистка резельтатов сканирования");
     pBLEScan->clearResults();
     scanningActive = false;
 }
@@ -150,10 +147,10 @@ void startScan(uint32_t duration)
 // Запуск сканирования BLE
 void startXiaomiScan(uint32_t duration)
 {
-    Serial.println("Начало сканирования датчиков Xiaomi...");
+    LOG_I("Начало сканирования датчиков Xiaomi...");
     if (scanningActive)
     {
-        Serial.println("Сканирования датчиков Xiaomi уже запущено, выход");
+        LOG_I("Сканирования датчиков Xiaomi уже запущено, выход");
         return;
     }
     scanningActive = true;
@@ -177,7 +174,7 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
     // Проверка на кастомную прошивку ATC
     if (advertisedDevice.haveServiceData())
     {
-        Serial.printf("Есть сервисные данные: %d\n", advertisedDevice.getServiceDataCount());
+        LOG_I("Есть сервисные данные: %d", advertisedDevice.getServiceDataCount());
         for (int i = 0; i < advertisedDevice.getServiceDataCount(); i++)
         {
             std::string serviceData = advertisedDevice.getServiceData(i);
@@ -185,7 +182,7 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
 
             // Проверка на ATC прошивку (UUID: 0x181A или 0xFE95)
             bool isAtc = serviceUUID.equals(BLEUUID((uint16_t)0x181A)) || serviceUUID.equals(BLEUUID("fe95"));
-            Serial.printf("Проверка на ATC прошивку пройдена: %s\n", isAtc ? "успешно" : "не успешно");
+            LOG_I("Проверка на ATC прошивку пройдена: %s", isAtc ? "успешно" : "не успешно");
             if (isAtc)
             {
                 if (serviceData.length() >= 15)
@@ -200,13 +197,13 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
                     // Сравниваем MAC в пакете с MAC устройства
                     BLEAddress packetAddr(mac);
                     bool equalsMac = packetAddr.equals(advertisedDevice.getAddress()); // || serviceData[0] == 0xA4 || serviceData[0] == 0x16;
-                    Serial.printf("Сравниваем MAC %s в пакете с MAC устройства: %s, равны: %s\n", advertisedDevice.getAddress().toString().c_str(), packetAddr.toString().c_str(), equalsMac ? "да" : "нет");
+                    LOG_I("Сравниваем MAC %s в пакете с MAC устройства: %s, равны: %s", advertisedDevice.getAddress().toString().c_str(), packetAddr.toString().c_str(), equalsMac ? "да" : "нет");
 
                     if (equalsMac)
                     {
                         isXiaomiDevice = true;
                         isCustomFirmware = true;
-                        Serial.println("Обнаружено устройство с кастомной прошивкой ATC");
+                        LOG_I("Обнаружено устройство с кастомной прошивкой ATC");
                     }
                 }
             }
@@ -235,7 +232,7 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
                 if ((serviceUUID.equals(BLEUUID((uint16_t)0x181A)) || serviceUUID.equals(BLEUUID("fe95"))) && serviceData.length() >= 15)
                 {
                     // Формат ATC: байты 10-11 - температура, байт 12 - влажность, байт 13 - батарея
-                    Serial.printf("Размер данных %d\n", serviceData.size());
+                    LOG_I("Размер данных %d", serviceData.size());
                     int16_t temperatureRaw = 0;
                     int16_t humidityRaw = 0;
                     if (serviceData.size() == 15)
@@ -252,8 +249,8 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
                     }
 
                     dataFound = true;
-                    Serial.printf("Парсинг данных ATC: Температура: %.1f°C, Влажность: %.1f%%, Батарея: %d%%, Напряжение: %d\n",
-                                  temperature, humidity, battery, batteryV);
+                    LOG_I("Парсинг данных ATC: Температура: %.1f°C, Влажность: %.1f%%, Батарея: %d%%, Напряжение: %d",
+                          temperature, humidity, battery, batteryV);
                     break;
                 }
             }
@@ -276,17 +273,8 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
                     // Устройство найдено, обновляем данные
                     it->updateSensorData(temperature, humidity, battery);
 
-                    Serial.print("Обновлены данные устройства: ");
-                    Serial.print(it->name.c_str());
-                    Serial.print(" (");
-                    Serial.print(deviceAddress.c_str());
-                    Serial.print(") - Температура: ");
-                    Serial.print(temperature);
-                    Serial.print("°C, Влажность: ");
-                    Serial.print(humidity);
-                    Serial.print("%, Батарея: ");
-                    Serial.print(battery);
-                    Serial.println("%");
+                    LOG_I("Обновлены данные устройства: %s (%s) - Температура: %s°C, Влажность: %s%%, Батарея: %s%%"
+                        , it->name.c_str(), deviceAddress.c_str(), temperature, humidity, battery);
                 }
                 else
                 {
@@ -303,20 +291,14 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
                     newDevice.updateSensorData(temperature, humidity, battery);
                     devices.push_back(newDevice);
 
-                    Serial.print("Найдено новое устройство: ");
-                    Serial.print(deviceName.c_str());
-                    Serial.print(" (");
-                    Serial.print(deviceAddress.c_str());
-                    Serial.println(")");
+                    LOG_I("Найдено новое устройство: %s (%s)", deviceName.c_str(), deviceAddress.c_str());
                 }
                 xSemaphoreGive(devicesMutex);
             }
         }
         else
         {
-            Serial.print("Устройство Xiaomi обнаружено, но данные не найдены: ");
-            Serial.println(deviceAddress.c_str());
+            LOG_I("Устройство Xiaomi обнаружено, но данные не найдены: %s", deviceAddress.c_str());
         }
     }
 }
-
