@@ -310,6 +310,8 @@ void initWebServer()
         Serial.println("Сброшена статистика, сохраняем результаты");
         // Сохраняем изменения
         saveClientsToFile();    
+        serverWorkTime = 0;
+        saveServerWorkTime();
         request->send(200, "text/plain", "Статистика сброшена"); });
 
     // Обработчик для корневого пути и /index

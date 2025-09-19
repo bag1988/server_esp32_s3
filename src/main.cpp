@@ -256,7 +256,6 @@ void mainlogicFunc()
         serverWorkTime += currentTime;
         saveServerWorkTime();        
     }
-    // monitorMemory();
     //  Даем время другим задачам
     vTaskDelay(200 / portTICK_PERIOD_MS); // Небольшая задержка для предотвращения перегрузки CPU
 }
