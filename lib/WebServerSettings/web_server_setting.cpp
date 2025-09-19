@@ -5,6 +5,7 @@
 #include <spiffs_setting.h>
 #include "xiaomi_scanner.h"
 #include <SPIFFS.h>
+#include <ESPmDNS.h>
 // Web Server
 AsyncWebServer server(80);
 // server.setStackSize(8192);
@@ -33,6 +34,19 @@ void connectWiFi()
         Serial.print(F("IP address: "));
         Serial.println(WiFi.localIP());
         wifiConnected = true;
+
+        // Останавливаем mDNS если он запущен и перезапускаем
+        MDNS.end();
+        // Добавляем настройку mDNS здесь
+        if (MDNS.begin(WEB_SERVER_HOSTNAME))
+        {
+            Serial.printf("mDNS started: http://%s.local", WEB_SERVER_HOSTNAME);
+        }
+        else
+        {
+            Serial.println(F("Error setting up mDNS"));
+        }
+        MDNS.addService("http", "tcp", 80);
     }
     else
     {
@@ -127,9 +141,10 @@ void initWebServer()
     server.on("/serverinfo", HTTP_GET, [](AsyncWebServerRequest *request)
               {
 
-                unsigned long seconds = serverWorkTime / 1000;
-                unsigned long minutes = seconds / 60;
-                unsigned long hours = minutes / 60;
+                unsigned long totalSeconds = serverWorkTime / 1000;
+                unsigned long hours = totalSeconds / 3600;           // Получаем количество полных часов
+                unsigned long minutes = (totalSeconds % 3600) / 60;  // Получаем остаток минут после часов
+                unsigned long seconds = totalSeconds % 60;           // Получаем остаток секунд
                 char buffer[20];
                 sprintf(buffer, "%02lu:%02lu:%02lu", hours, minutes % 60, seconds % 60);
                 JsonDocument doc;
