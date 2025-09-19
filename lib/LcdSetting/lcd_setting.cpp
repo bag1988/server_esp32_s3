@@ -11,6 +11,10 @@
 // Для ESP32-S3 UNO с LCD Keypad Shield
 LiquidCrystal lcd(21, 46, 19, 20, 3, 14); // Пины для ESP32-S3 UNO
 
+// Переменные для управления подсветкой
+bool backlightState = false;
+unsigned long lastActivityTime = 0;
+
 // Прокрутка текста
 std::string scrollText = "";
 int scrollPosition = 0;
@@ -75,6 +79,11 @@ void initLCD()
 {
   // Инициализация LCD
   lcd.begin(16, 2);
+
+// Инициализация пина подсветки
+  pinMode(BACKLIGHT_PIN, OUTPUT);
+  digitalWrite(BACKLIGHT_PIN, LOW); // По умолчанию подсветка выключена
+
   displayText("Initialization...");
 
   delay(1000);
@@ -86,6 +95,31 @@ void initLCD()
 
   // Настройка пина для считывания кнопок
   pinMode(KEYPAD_PIN, INPUT);
+}
+
+// Функция для включения подсветки
+void turnOnBacklight() {
+  if (!backlightState) {
+    digitalWrite(BACKLIGHT_PIN, HIGH);
+    backlightState = true;
+  }
+  lastActivityTime = millis();
+}
+
+// Функция для выключения подсветки
+void turnOffBacklight() {
+  if (backlightState) {
+    digitalWrite(BACKLIGHT_PIN, LOW);
+    backlightState = false;
+  }
+}
+
+// Функция для автоматического управления подсветкой
+void handleBacklight() {
+  // Если подсветка включена и прошло больше времени, чем BACKLIGHT_TIMEOUT, выключаем её
+  if (backlightState && (millis() - lastActivityTime > BACKLIGHT_TIMEOUT)) {
+    turnOffBacklight();
+  }
 }
 
 // Функция для отображения главного экрана
@@ -309,6 +343,9 @@ void handleButtons()
     return;
   }
 
+  // При любом нажатии включаем подсветку
+  turnOnBacklight();
+
   // Обработка дребезга контактов и длительного нажатия
   static unsigned long lastButtonTime = 0;
   static int lastButton = BUTTON_NONE;
@@ -332,8 +369,8 @@ void handleButtons()
 
   // Проверка длительного нажатия RIGHT (замена SELECT)
   if (pressedButton == BUTTON_RIGHT && !longPressHandled &&
-      currentTime - buttonPressStartTime > 1000)
-  {                                // 1000 мс для длительного нажатия
+      currentTime - buttonPressStartTime > 2000)
+  {                                // 2000 мс для длительного нажатия
     pressedButton = BUTTON_SELECT; // Заменяем на SELECT
     longPressHandled = true;
   }
@@ -578,6 +615,9 @@ void updateLCDTask()
   // Прокрутка текста на главном экране
   scrollMainScreenText();
 
+// Управление подсветкой
+  handleBacklight();
+
   // Обновление экрана при необходимости
   if (needLcdUpdate)
   {
@@ -596,7 +636,7 @@ void refreshLCDData()
 }
 
 // Обновление статуса устройств
-void updateDevicesStatus()
+void updateDevicesInformation()
 {
   for (auto &device : devices)
   {

@@ -242,7 +242,7 @@ void mainlogicFunc()
             xSemaphoreGive(devicesMutex);            
         }
         vTaskDelay(20 / portTICK_PERIOD_MS); // Добавьте задержку
-        updateDevicesStatus();
+        updateDevicesInformation();
     }
     // Добавляем переменную для отслеживания времени последнего сохранения
     static unsigned long lastStatsSaveTime = 0;

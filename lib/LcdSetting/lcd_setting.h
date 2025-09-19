@@ -30,6 +30,12 @@
 // Допустимое отклонение для значений кнопок
 #define KEY_THRESHOLD 200
 
+// Добавляем пин для управления подсветкой
+#define BACKLIGHT_PIN 15 // Пин для управления подсветкой (нужно выбрать подходящий пин)
+
+// Таймер для автоматического отключения подсветки
+#define BACKLIGHT_TIMEOUT 20000 // 20 секунд бездействия
+
 // Переменные для прокрутки текста
 extern std::string scrollText;
 extern int scrollPosition;
@@ -55,7 +61,7 @@ void updateLCDTask();
 // Функция для обновления данных на экране при изменении устройств
 void refreshLCDData();
 
-void updateDevicesStatus();
+void updateDevicesInformation();
 
 // Функция для отображения главного экрана
 void showMainScreen();
