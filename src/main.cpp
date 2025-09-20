@@ -60,10 +60,6 @@ bool wifiConnected = false;
 unsigned long lastWiFiAttemptTime = 0;
 float board_temperature = 0.0;
 
-// Определение задач для FreeRTOS
-TaskHandle_t networkTask;
-TaskHandle_t mainLogicTask;
-
 // Мьютекс для защиты доступа к общим данным
 // Создаем мьютекс для защиты доступа к данным
 SemaphoreHandle_t devicesMutex = xSemaphoreCreateMutex();
@@ -77,7 +73,7 @@ void rainbow(int wait)
     {
         pixels.setPixelColor(0, pixels.gamma32(pixels.ColorHSV(firstPixelHue)));
         pixels.show();
-        delay(wait);
+        vTaskDelay(wait / portTICK_PERIOD_MS);
     }
 }
 
@@ -176,13 +172,9 @@ void networkFunc()
     {
         if (xSemaphoreTake(wifiMutex, portMAX_DELAY) == pdTRUE)
         {
-            if (!heap_caps_check_integrity_all(true))
-            {
-                LOG_I("Проблема с целостностью памяти!");
-            }
             connectWiFi();
-            xSemaphoreGive(wifiMutex);
             vTaskDelay(20 / portTICK_PERIOD_MS); // Добавьте задержку
+            xSemaphoreGive(wifiMutex);
         }
     }
 
@@ -208,15 +200,6 @@ void networkFunc()
 
     // Даем время другим задачам
     vTaskDelay(3000 / portTICK_PERIOD_MS); // Небольшая задержка для предотвращения перегрузки CPU
-}
-
-// Функция задачи для сетевых операций (ядро 0)
-void networkTaskFunction(void *parameter)
-{
-    for (;;)
-    {
-        networkFunc();
-    }
 }
 
 void mainlogicFunc()
@@ -270,39 +253,33 @@ void mainLogicTaskFunction(void *parameter)
         mainlogicFunc();
     }
 }
-
-void createTasksStandartNetwork()
+// Функция задачи для сетевых операций (ядро 0)
+void networkTaskFunction(void *parameter)
 {
-    const uint32_t networkStackSize = 8192*2;
-
-    xTaskCreatePinnedToCore(
-        networkTaskFunction,
-        "NetworkTask",
-        networkStackSize,
-        NULL,
-        1,
-        &networkTask,
-        1);
+    for (;;)
+    {
+        networkFunc();
+    }
 }
-
-void createTasksStandartMainLogic()
-{
-    const uint32_t logicStackSize = 8192;
-    xTaskCreatePinnedToCore(
-        mainLogicTaskFunction,
-        "MainLogicTask",
-        logicStackSize,
-        NULL,
-        1,
-        &mainLogicTask,
-        0);
-}
-
 void createTasksStandart()
 {
-    createTasksStandartNetwork();
+    xTaskCreate(
+        mainLogicTaskFunction,   // Функция
+        "mainLogicTaskFunction", // Имя
+        8192,                    // Стек: 2048 слов = 8192 байт
+        NULL,                    // Параметры
+        1,                       // Приоритет
+        NULL                     // Хэндл (не нужен)
+    );
 
-    createTasksStandartMainLogic();
+    xTaskCreate(
+        networkTaskFunction,   // Функция
+        "networkTaskFunction", // Имя
+        8192,                  // Стек: 2048 слов = 8192 байт
+        NULL,                  // Параметры
+        1,                     // Приоритет
+        NULL                   // Хэндл (не нужен)
+    );
 }
 
 void ReadDataInSPIFFS()
@@ -367,23 +344,13 @@ void setup()
     // Обновление текста прокрутки
     initScrollText();
     updateLCD();
-
     createTasksStandart();
-    // Инициализация OTA после подключения к WiFi
+    
     if (wifiConnected)
     {
-        // Добавляем настройку mDNS здесь
-        if (MDNS.begin(WEB_SERVER_HOSTNAME))
-        {
-            LOG_I("mDNS started: http://%s.local", WEB_SERVER_HOSTNAME);
-            MDNS.addService("http", "tcp", 80);
-            LOG_I("MDNS http service registered");
-            initOTA();
-        }
-        else
-        {
-            LOG_I("Error setting up mDNS");
-        }
+        initOTA();
+        MDNS.addService("http", "tcp", 80);
+        LOG_I("MDNS http service registered");
     }
 
     // Инициализация датчика температуры (старый API)
@@ -398,7 +365,7 @@ void setup()
 
 void loop()
 {
-    if (WiFi.status() == WL_CONNECTED)
+    if (wifiConnected)
     {
         // Зеленый
         pixels.setPixelColor(0, pixels.Color(0, 255, 0));

@@ -23,7 +23,7 @@ void connectWiFi()
     int attempts = 0;
     while (WiFi.status() != WL_CONNECTED && attempts < 10)
     {
-        delay(1000);
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
         Serial.print("...");
         attempts++;
     }
@@ -34,7 +34,6 @@ void connectWiFi()
         LOG_I("WiFi connected");
         LOG_I("IP address: %s", WiFi.localIP().toString().c_str());
         wifiConnected = true;
-
     }
     else
     {

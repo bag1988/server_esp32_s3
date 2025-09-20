@@ -9,17 +9,6 @@
 #include "variables_info.h"
 #include <ArduinoJson.h>
 
-// Структура для передачи данных через очередь
-struct BLEDeviceData {
-    std::string address;
-    std::string name;
-    std::string serviceData[5];  // Максимум 5 сервисных данных
-    BLEUUID serviceUUID[5];
-    int serviceDataCount = 0;
-    bool hasName = false;
-    bool hasServiceData = false;
-};
-
 // #define CONFIG_BT_BLE_DYNAMIC_ENV_MEMORY 1
 // #define CONFIG_BT_BTU_TASK_STACK_SIZE 4096
 #define SERVER_NAME "ESP32_BLE_CENTRAL_SERVER"
@@ -37,6 +26,5 @@ extern bool scanningActive;
 void setupXiaomiScanner();
 void startXiaomiScan(uint32_t duration = XIAOMI_SCAN_DURATION);
 void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice);
-void processQueuedXiaomiAdvertisement(BLEDeviceData& deviceData);  // Новая функция
 void printDevicesData();
 #endif // XIAOMI_SCANNER_H

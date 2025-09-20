@@ -119,23 +119,13 @@ bool initOTA()
         LOG_I(otaErrorMessage.c_str());
         
         // Выход из режима OTA через 10 секунд после ошибки
-        delay(10000);
+        vTaskDelay(10000 / portTICK_PERIOD_MS);
         otaActive = false; });
+    // выключаем инициализацию mDNS
 
     ArduinoOTA.begin();
     LOG_I("OTA ready");
-
-    // Добавляем сервис OTA через существующий mDNS
-    // Так как mDNS уже инициализирован в main.cpp, просто добавляем сервис
-    if (MDNS.addService("arduino", "tcp", OTA_PORT))
-    {
-        LOG_I("MDNS Arduino OTA service registered");
-        LOG_I("OTA Port: %s", OTA_PORT);
-    }
-    else
-    {
-        LOG_I("Failed to register MDNS Arduino OTA service");
-    }
+    LOG_I("mDNS started: http://%s.local", WEB_SERVER_HOSTNAME); 
     return true;
 }
 
@@ -151,7 +141,7 @@ void handleOTA()
         otaActive = false;
         displayText("OTA Timeout", 0, 0, true, true);
         displayText("Normal mode", 0, 1, true, true);
-        delay(2000);
+        vTaskDelay(2000 / portTICK_PERIOD_MS);
         updateLCD(); // Возврат к обычному отображению
     }
 }

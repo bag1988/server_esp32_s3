@@ -85,12 +85,12 @@ void initLCD()
 
   displayText("Initialization...");
 
-  delay(1000);
+  vTaskDelay(1000 / portTICK_PERIOD_MS);
 
   // Информация о навигации
   displayText("Navigation info:");
   displayText("LONG RIGHT=SELECT", 0, 1);
-  delay(2000);
+  vTaskDelay(2000 / portTICK_PERIOD_MS);
 
   // Настройка пина для считывания кнопок
   pinMode(KEYPAD_PIN, INPUT);
