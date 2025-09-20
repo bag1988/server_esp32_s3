@@ -244,7 +244,7 @@ void mainlogicFunc()
             xSemaphoreGive(devicesMutex);
         }
         vTaskDelay(20 / portTICK_PERIOD_MS); // Добавьте задержку
-        //updateDevicesInformation();
+        updateDevicesInformation();
     }
     // Добавляем переменную для отслеживания времени последнего сохранения
     static unsigned long lastStatsSaveTime = 0;
@@ -273,7 +273,7 @@ void mainLogicTaskFunction(void *parameter)
 
 void createTasksStandartNetwork()
 {
-    const uint32_t networkStackSize = 8192;
+    const uint32_t networkStackSize = 8192*2;
 
     xTaskCreatePinnedToCore(
         networkTaskFunction,
@@ -287,7 +287,7 @@ void createTasksStandartNetwork()
 
 void createTasksStandartMainLogic()
 {
-    const uint32_t logicStackSize = 4096;
+    const uint32_t logicStackSize = 8192;
     xTaskCreatePinnedToCore(
         mainLogicTaskFunction,
         "MainLogicTask",

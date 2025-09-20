@@ -60,6 +60,13 @@ class SetServerSettingCallbacks : public BLECharacteristicCallbacks
     {
         std::string value = pCharacteristic->getValue();
 
+        // Проверяем длину значения перед обработкой
+        if (value.length() > 100)
+        { // Ограничиваем длину разумным значением
+            LOG_I("Получено значение слишком большой длины: %d", value.length());
+            return;
+        }
+
         if (pCharacteristic->getUUID().toString() == SSID_CHARACTERISTIC_UUID)
         {
             wifiCredentials.ssid = value;
@@ -68,7 +75,7 @@ class SetServerSettingCallbacks : public BLECharacteristicCallbacks
         else if (pCharacteristic->getUUID().toString() == PASSWORD_CHARACTERISTIC_UUID)
         {
             wifiCredentials.password = value;
-            LOG_I("Password received: ", wifiCredentials.password.c_str());
+            LOG_I("Password received: %s", wifiCredentials.password.c_str());
         }
         saveWifiCredentialsToFile(); // Save credentials to file
     }
@@ -215,9 +222,10 @@ void processQueuedXiaomiAdvertisement(BLEDeviceData &deviceData)
 // Инициализация сканера BLE
 void setupXiaomiScanner()
 {
-
-    // Создаем очередь для передачи данных BLE
-    bleDataQueue = xQueueCreate(10, sizeof(BLEDeviceData *));
+// Создаем очередь для передачи данных BLE если она еще не создана
+    if (bleDataQueue == nullptr) {
+        bleDataQueue = xQueueCreate(10, sizeof(BLEDeviceData*));
+    }
 
     BLEDevice::init(SERVER_NAME);
     pBLEScan = BLEDevice::getScan();
@@ -226,9 +234,6 @@ void setupXiaomiScanner()
     pBLEScan->setInterval(100);
     pBLEScan->setWindow(99);
 
-    // Устанавливаем низкую мощность передатчика для экономии энергии
-    // esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_SCAN, ESP_PWR_LVL_N9); // -9 dBm
-
     LOG_I("Сканер датчиков Xiaomi инициализирован");
     LOG_I("Запускаем сервисы редактирования SSID и пароля");
     pServer = BLEDevice::createServer();
@@ -236,22 +241,15 @@ void setupXiaomiScanner()
 
     // SSID Characteristic
     BLECharacteristic *pSSIDCharacteristic = pService->createCharacteristic(
-        SSID_CHARACTERISTIC_UUID,
-        BLECharacteristic::PROPERTY_READ |
-            BLECharacteristic::PROPERTY_WRITE |
-            BLECharacteristic::PROPERTY_NOTIFY);
-    pSSIDCharacteristic->addDescriptor(new BLEDescriptor(BLEUUID((uint16_t)0x2902)));
-    pSSIDCharacteristic->setValue(wifiCredentials.ssid); // Set initial value
-
+        SSID_CHARACTERISTIC_UUID,        
+            BLECharacteristic::PROPERTY_WRITE);
+    pSSIDCharacteristic->setValue("SSID");
     // Password Characteristic
     BLECharacteristic *pPasswordCharacteristic = pService->createCharacteristic(
         PASSWORD_CHARACTERISTIC_UUID,
-        BLECharacteristic::PROPERTY_READ |
-            BLECharacteristic::PROPERTY_WRITE |
-            BLECharacteristic::PROPERTY_NOTIFY);
-    pPasswordCharacteristic->addDescriptor(new BLEDescriptor(BLEUUID((uint16_t)0x2902)));
-    pPasswordCharacteristic->setValue(wifiCredentials.password); // Set initial value
-
+            BLECharacteristic::PROPERTY_WRITE);
+    pPasswordCharacteristic->setValue("PASSWORD");
+   
     pSSIDCharacteristic->setCallbacks(new SetServerSettingCallbacks());
     pPasswordCharacteristic->setCallbacks(new SetServerSettingCallbacks());
 

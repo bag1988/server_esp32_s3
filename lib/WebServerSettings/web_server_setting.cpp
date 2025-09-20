@@ -32,7 +32,7 @@ void connectWiFi()
     {
         LOG_I("");
         LOG_I("WiFi connected");
-        LOG_I("IP address: %s", WiFi.localIP().toString());
+        LOG_I("IP address: %s", WiFi.localIP().toString().c_str());
         wifiConnected = true;
 
     }

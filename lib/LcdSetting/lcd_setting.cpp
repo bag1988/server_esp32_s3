@@ -650,8 +650,7 @@ void updateDevicesInformation()
     {
       device.isOnline = false;
 
-      LOG_I("Устройство %s", device.name.c_str());
-      LOG_I(" перешло в оффлайн (нет данных более 5 минут)");
+      LOG_I("Устройство %s перешло в оффлайн (нет данных более 5 минут)", device.name.c_str());     
     }
   }
   refreshLCDData();

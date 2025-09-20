@@ -4,7 +4,7 @@
 <head>
     <title>Логи системы в реальном времени</title>
     <meta charset="UTF-8">
-    <link href="app.css" rel="stylesheet" />   
+    <link href="app.css" rel="stylesheet" />
 </head>
 
 <body>
@@ -46,7 +46,7 @@
             eventSource.addEventListener('log', function (event) {
                 const logEntry = event.data;
                 logContainer.insertAdjacentText("beforeend", logEntry);
-
+                logContainer.insertAdjacentHTML("beforeend", "<br>");
                 if (autoscroll.checked) {
                     logContainer.scrollTop = logContainer.scrollHeight;
                 }
