@@ -117,7 +117,7 @@ void controlGPIO()
             }
 
             LOG_I("Устройство %s: обогрев включен - %s, необходим обогрев - %s",
-                          device.name.c_str(), device.heatingActive ? "да" : "нет", (device.currentTemperature + 2) < device.targetTemperature ? "да" : "нет");
+                  device.name.c_str(), device.heatingActive ? "да" : "нет", (device.currentTemperature + 2) < device.targetTemperature ? "да" : "нет");
             if (!device.heatingActive && device.enabled && device.isOnline && (device.currentTemperature + 2) < device.targetTemperature)
             {
                 device.heatingActive = true;
@@ -125,14 +125,14 @@ void controlGPIO()
                 gpiosToTurnOn.insert(gpiosToTurnOn.end(), device.gpioPins.begin(), device.gpioPins.end());
 
                 LOG_I("Устройство %s: включаем обогрев (температура %.1f°C, целевая %.1f°C)",
-                              device.name.c_str(), device.currentTemperature, device.targetTemperature);
+                      device.name.c_str(), device.currentTemperature, device.targetTemperature);
             }
             else if (device.heatingActive && device.currentTemperature >= device.targetTemperature)
             {
                 // Температура достигла целевой - выключаем обогрев
                 device.heatingActive = false;
                 LOG_I("Устройство %s: выключаем обогрев (температура %.1f°C, целевая %.1f°C)",
-                              device.name.c_str(), device.currentTemperature, device.targetTemperature);
+                      device.name.c_str(), device.currentTemperature, device.targetTemperature);
             }
             else if (!device.enabled && device.heatingActive)
             {
@@ -244,7 +244,7 @@ void mainlogicFunc()
             xSemaphoreGive(devicesMutex);
         }
         vTaskDelay(20 / portTICK_PERIOD_MS); // Добавьте задержку
-        updateDevicesInformation();
+        //updateDevicesInformation();
     }
     // Добавляем переменную для отслеживания времени последнего сохранения
     static unsigned long lastStatsSaveTime = 0;
@@ -252,11 +252,11 @@ void mainlogicFunc()
     unsigned long currentTime = millis();
     if ((currentTime - lastStatsSaveTime > 300000) || (currentTime < lastStatsSaveTime))
     {
-        LOG_I("Сохранение статистики согласно таймаута, сохраняем результаты");        
+        LOG_I("Сохранение статистики согласно таймаута, сохраняем результаты");
         saveClientsToFile();
         serverWorkTime += currentTime - lastStatsSaveTime;
         lastStatsSaveTime = currentTime;
-        saveServerWorkTime();        
+        saveServerWorkTime();
     }
     //  Даем время другим задачам
     vTaskDelay(200 / portTICK_PERIOD_MS); // Небольшая задержка для предотвращения перегрузки CPU
@@ -358,8 +358,6 @@ void setup()
 
     connectWiFi();
 
-   
-
     // Инициализация BLE сканера
     setupXiaomiScanner();
 
@@ -370,25 +368,23 @@ void setup()
     initScrollText();
     updateLCD();
 
-    
     createTasksStandart();
-     // Инициализация OTA после подключения к WiFi
+    // Инициализация OTA после подключения к WiFi
     if (wifiConnected)
     {
-        initOTA();
-
         // Добавляем настройку mDNS здесь
         if (MDNS.begin(WEB_SERVER_HOSTNAME))
         {
             LOG_I("mDNS started: http://%s.local", WEB_SERVER_HOSTNAME);
+            MDNS.addService("http", "tcp", 80);
+            LOG_I("MDNS http service registered");
+            initOTA();
         }
         else
         {
             LOG_I("Error setting up mDNS");
         }
-        MDNS.addService("http", "tcp", 80);
     }
-    
 
     // Инициализация датчика температуры (старый API)
     temp_sensor_config_t temp_sensor = TSENS_CONFIG_DEFAULT();

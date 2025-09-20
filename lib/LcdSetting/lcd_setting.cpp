@@ -144,7 +144,9 @@ void showMainScreen()
     {
       // Если достигли конца текста, показываем начало
       std::string textPart = scrollText.substr(scrollPosition);
-      textPart += scrollText.substr(0, endPos - scrollText.length());
+      if (scrollText.length() > scrollPosition) {
+        textPart += scrollText.substr(0, endPos - scrollText.length());
+      }
       displayText(textPart.c_str(), 0, 1);
     }
     else
@@ -597,7 +599,11 @@ void scrollMainScreenText()
   // Прокручиваем текст каждые 500 мс
   if (currentMenu == MAIN_SCREEN && millis() - lastScrollTime > SCROLL_DELAY)
   {
-    scrollPosition = (scrollPosition + 1) % scrollText.length();
+    if (scrollText.length() > 0) {
+      scrollPosition = (scrollPosition + 1) % scrollText.length();
+    } else {
+      scrollPosition = 0;
+    }
     lastScrollTime = millis();
 
     // Обновляем экран только если мы на главном экране
@@ -640,7 +646,7 @@ void updateDevicesInformation()
   for (auto &device : devices)
   {
     // Проверяем, не устарели ли данные
-    if (device.isDataValid())
+    if (!device.isDataValid())
     {
       device.isOnline = false;
 

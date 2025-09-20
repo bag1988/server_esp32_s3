@@ -32,7 +32,7 @@ void connectWiFi()
     {
         LOG_I("");
         LOG_I("WiFi connected");
-        LOG_I("IP address: %s", WiFi.localIP());
+        LOG_I("IP address: %s", WiFi.localIP().toString());
         wifiConnected = true;
 
     }
@@ -318,7 +318,7 @@ void initWebServer()
               { request->send(SPIFFS, "/heating_stats.html", "text/html"); });
 
     // Добавляем обработчик для получения логов в реальном времени через SSE
-    server.on("/logs", HTTP_GET, [](AsyncWebServerRequest *request)
+    server.on("/logs.html", HTTP_GET, [](AsyncWebServerRequest *request)
               { request->send(SPIFFS, "/logs.html", "text/html"); });
 
     server.begin();

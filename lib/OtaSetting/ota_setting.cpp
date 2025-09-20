@@ -23,7 +23,7 @@ bool initOTA()
     }
     LOG_I("OTA инициализация.");
     // Настройка имени устройства для OTA
-    ArduinoOTA.setHostname(OTA_HOSTNAME);
+    ArduinoOTA.setHostname(WEB_SERVER_HOSTNAME);
 
     // Настройка пароля для OTA
     ArduinoOTA.setPassword(OTA_PASSWORD);
@@ -125,31 +125,16 @@ bool initOTA()
     ArduinoOTA.begin();
     LOG_I("OTA ready");
 
-    // Настройка mDNS для легкого обнаружения устройства
-    if (!MDNS.begin(OTA_HOSTNAME))
+    // Добавляем сервис OTA через существующий mDNS
+    // Так как mDNS уже инициализирован в main.cpp, просто добавляем сервис
+    if (MDNS.addService("arduino", "tcp", OTA_PORT))
     {
-        LOG_I("Error setting up MDNS responder!");
-        // Продолжаем работу даже при ошибке mDNS
+        LOG_I("MDNS Arduino OTA service registered");
+        LOG_I("OTA Port: %s", OTA_PORT);
     }
     else
     {
-        // Пробуем добавить сервис OTA с проверкой результата
-        if (MDNS.addService("arduino", "tcp", OTA_PORT))
-        {
-            LOG_I("MDNS Arduino OTA service registered");
-        }
-        else
-        {
-            LOG_I("Failed to register MDNS Arduino OTA service");
-            // Можно попробовать альтернативное имя сервиса
-            if (MDNS.addService("esp32-ota", "tcp", OTA_PORT))
-            {
-                LOG_I("MDNS ESP32-OTA service registered instead");
-            }
-        }
-
-        LOG_I("Device URL: http://%s.local", OTA_HOSTNAME);
-        LOG_I("OTA Port: %s", OTA_PORT);
+        LOG_I("Failed to register MDNS Arduino OTA service");
     }
     return true;
 }

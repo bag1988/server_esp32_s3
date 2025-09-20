@@ -45,7 +45,7 @@
 
             eventSource.addEventListener('log', function (event) {
                 const logEntry = event.data;
-                logContainer.textContent += logEntry;
+                logContainer.insertAdjacentText("beforeend", logEntry);
 
                 if (autoscroll.checked) {
                     logContainer.scrollTop = logContainer.scrollHeight;

@@ -4,7 +4,6 @@
 #include <Arduino.h>
 
 // Настройки OTA
-#define OTA_HOSTNAME "ota-home-server"  // Имя устройства для OTA
 #define OTA_PASSWORD "admin123"             // Пароль для OTA (рекомендуется изменить)
 #define OTA_PORT 8266                       // Порт для OTA (стандартный: 3232)
 
