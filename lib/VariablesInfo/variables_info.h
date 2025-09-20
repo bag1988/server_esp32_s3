@@ -5,6 +5,8 @@
 #include <vector>
 #include <string>
 
+#define WEB_SERVER_HOSTNAME "home-server"
+
 // Константы
 #define SCROLL_DELAY 300           // Задержка прокрутки текста (мс)
 #define CONTROL_DELAY 30000        // Интервал проверки и управления GPIO (мс)

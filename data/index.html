@@ -12,9 +12,11 @@
     <div class="container">
         <h1>Управление отоплением</h1>
         <div>
+            <a href="index.html">Главная</a>
             <a href="heating_stats.html">Статистика обогрева</a>
             <a href="managment_device.html">Управление устройствами</a>
             <a href="gpio_settings.html">Настройки GPIO</a>
+            <a href="logs.html">Логи</a>
         </div>
     </div>
 
@@ -39,9 +41,6 @@
                     displayDevices(data);
                 })
                 .catch(error => {
-                    // displayDevices([{ name: "Kyhnya", macAddress: "1234567890", currentTemperature: 20, targetTemperature: 22, enabled: true, isOnline: true, heatingActive: true, humidity: 50, battery: 80, lastUpdate: 9000, totalHeatingTime: 10000 },
-                    // { name: "Vannaya", macAddress: "12345678220", currentTemperature: 22, targetTemperature: 22, enabled: true, isOnline: false, heatingActive: true, humidity: 50, battery: 80, lastUpdate: 9000, totalHeatingTime: 10000 }
-                    // ]);
                     console.error('Ошибка при загрузке клиентов:', error);
                 });
         }
@@ -100,7 +99,6 @@
                     displayServerInfo(data);
                 })
                 .catch(error => {
-                    //displayServerInfo({ cpu_frequency_mhz: 240, chip_revision: 1, processor_cores: 1, sdk_version: "1.2.3", sram_size_bytes: 1024, free_sram_bytes: 1024, flash_size_bytes: 1024, flash_frequency_mhz: 160, psram_size_bytes: 1024, free_psram_bytes: 1024, flash_mode: "QIO", chip_id: "1234567890", millis: "00:10:15", board_temperature: 100 });
                     console.error('Ошибка при загрузке информации о сервере:', error);
                 });
         }
@@ -121,21 +119,21 @@
             cpu_frequency_mhz.innerHTML = `Частота CPU: ${data.cpu_frequency_mhz}`;
             serverContainer.appendChild(cpu_frequency_mhz);
             const sram_size_bytes = document.createElement("div");
-            sram_size_bytes.innerHTML = `Размер SRAM: ${data.sram_size_bytes}`;
+            sram_size_bytes.innerHTML = `Размер SRAM: ${(data.sram_size_bytes / 1024 / 1024).toFixed(3)} мб`;
             serverContainer.appendChild(sram_size_bytes);
             const free_sram_bytes = document.createElement("div");
-            free_sram_bytes.innerHTML = `Свободная SRAM: ${data.free_sram_bytes}`;
+            free_sram_bytes.innerHTML = `Свободная SRAM: ${(data.free_sram_bytes / 1024 / 1024).toFixed(3)} мб`;
             serverContainer.appendChild(free_sram_bytes);
 
             const flash_size_bytes = document.createElement("div");
-            flash_size_bytes.innerHTML = `Размер Flash: ${data.flash_size_bytes}`;
+            flash_size_bytes.innerHTML = `Размер Flash: ${(data.flash_size_bytes / 1024 / 1024).toFixed(3)} мб`;
             serverContainer.appendChild(flash_size_bytes);
 
             const psram_size_bytes = document.createElement("div");
-            psram_size_bytes.innerHTML = `Размер PSRAM: ${data.psram_size_bytes}`;
+            psram_size_bytes.innerHTML = `Размер PSRAM: ${(data.psram_size_bytes / 1024 / 1024).toFixed(3)} мб`;
             serverContainer.appendChild(psram_size_bytes);
             const free_psram_bytes = document.createElement("div");
-            free_psram_bytes.innerHTML = `Свободная PSRAM: ${data.free_psram_bytes}`;
+            free_psram_bytes.innerHTML = `Свободная PSRAM: ${(data.free_psram_bytes / 1024 / 1024).toFixed(3)} мб`;
             serverContainer.appendChild(free_psram_bytes);
         }
 

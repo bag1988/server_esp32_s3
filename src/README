@@ -126,45 +126,7 @@ spiffs,   data, spiffs,  0x620000,10M,
 10 МБ для файловой системы SPIFFS
 
 
-For example, see the structure of the following example libraries `Foo` and `Bar`:
 
-|--lib
-|  |
-|  |--Bar
-|  |  |--docs
-|  |  |--examples
-|  |  |--src
-|  |     |- Bar.c
-|  |     |- Bar.h
-|  |  |- library.json (optional. for custom build options, etc) https://docs.platformio.org/page/librarymanager/config.html
-|  |
-|  |--Foo
-|  |  |- Foo.c
-|  |  |- Foo.h
-|  |
-|  |- README --> THIS FILE
-|
-|- platformio.ini
-|--src
-   |- main.c
-
-Example contents of `src/main.c` using Foo and Bar:
-```
-#include <Foo.h>
-#include <Bar.h>
-
-int main (void)
-{
-  ...
-}
-
-```
-
-The PlatformIO Library Dependency Finder will find automatically dependent
-libraries by scanning project source files.
-
-More information about PlatformIO Library Dependency Finder
-- https://docs.platformio.org/page/librarymanager/ldf.html
 
 
 Общая информация
@@ -251,3 +213,299 @@ LCD Keypad Shield имеет 6 кнопок:
     Если устройство не отвечает в течение длительного времени, оно будет отмечено как "Нет данных".
     При отключении WiFi некоторые функции могут быть недоступны.
     Изменения, внесенные через LCD интерфейс, синхронизируются с веб-интерфейсом и наоборот.
+
+
+
+
+    # Документация по API и архитектуре проекта server_esp32_s3
+
+## Общее описание
+
+Проект server_esp32_s3 представляет собой систему управления на базе ESP32-S3, предоставляющую веб-интерфейс для управления устройствами отопления и мониторинга состояния. Система сканирует устройства Xiaomi, отображает информацию о них и позволяет управлять параметрами отопления.
+
+## Архитектура проекта
+
+### Компоненты системы
+
+1. **Веб-сервер (WebServerSettings)**
+   - Обеспечивает REST API для взаимодействия с клиентами
+   - Отдает статические файлы из SPIFFS (HTML, CSS)
+   - Обрабатывает запросы на управление устройствами
+
+2. **Настройки LCD-дисплея (LcdSetting, LcdUtils)**
+   - Управление отображением информации на LCD-экране
+   - Отображение состояния системы и устройств
+
+3. **OTA-обновления (OtaSetting)**
+   - Поддержка обновления прошивки по воздуху
+   - Настройка параметров OTA
+
+4. **Файловая система SPIFFS (SpiffsSetting)**
+   - Хранение конфигурационных файлов
+   - Хранение статических веб-ресурсов
+
+5. **Сканер устройств Xiaomi (XiaomiScanner)**
+   - Сканирование Bluetooth-устройств Xiaomi
+   - Получение данных о температуре, влажности и состоянии устройств
+
+6. **Система логирования (Logger)**
+   - Запись и вывод системных сообщений
+
+### Связи между компонентами
+
+```
+main.cpp
+├── Инициализирует все модули
+├── WebServerSettings
+│   ├── Обрабатывает HTTP-запросы
+│   ├── Взаимодействует с XiaomiScanner для управления устройствами
+│   └── Использует SpiffsSetting для загрузки конфигураций
+├── LcdSetting
+│   ├── Отображает информацию на LCD
+│   └── Получает данные от других модулей
+├── OtaSetting
+│   └── Обеспечивает OTA-обновления
+├── SpiffsSetting
+│   └── Управляет файлами конфигурации
+└── XiaomiScanner
+    └── Сканирует устройства и предоставляет данные
+```
+
+## REST API
+
+### Базовая информация
+
+- Базовый URL: `http://[device_ip]` или `http://[hostname].local`
+- Все ответы в формате JSON, если не указано иное
+- Все даты и время в формате Unix timestamp
+
+### Эндпоинты
+
+#### 1. Получение списка клиентов
+
+**Запрос:**
+```
+GET /clients
+```
+
+**Ответ:**
+```json
+[
+  {
+    "name": "string",
+    "macAddress": "string",
+    "currentTemperature": 0.0,
+    "targetTemperature": 0.0,
+    "enabled": true,
+    "isOnline": true,
+    "heatingActive": true,
+    "humidity": 0.0,
+    "battery": 0,
+    "lastUpdate": 0,
+    "totalHeatingTime": 0,
+    "gpioPins": [0, 1, 2]
+  }
+]
+```
+
+#### 2. Получение списка доступных GPIO
+
+**Запрос:**
+```
+GET /availablegpio
+```
+
+**Ответ:**
+```json
+[
+  {
+    "pin": 0,
+    "name": "string"
+  }
+]
+```
+
+#### 3. Обновление списка доступных GPIO
+
+**Запрос:**
+```
+POST /availablegpio
+Content-Type: application/x-www-form-urlencoded
+
+availablegpio=[{"pin": 0, "name": "string"}, ...]
+```
+
+**Ответ:**
+```
+Status: 200 OK
+Body: availablegpio updated
+```
+
+#### 4. Получение информации о сервере
+
+**Запрос:**
+```
+GET /serverinfo
+```
+
+**Ответ:**
+```json
+{
+  "cpu_frequency_mhz": 0,
+  "chip_revision": 0,
+  "processor_cores": 0,
+  "sdk_version": "string",
+  "sram_size_bytes": 0,
+  "free_sram_bytes": 0,
+  "flash_size_bytes": 0,
+  "flash_frequency_mhz": 0,
+  "psram_size_bytes": 0,
+  "free_psram_bytes": 0,
+  "flash_mode": "string",
+  "chip_id": 0,
+  "millis": "string",
+  "board_temperature": 0.0
+}
+```
+
+#### 5. Обновление информации о клиенте
+
+**Запрос:**
+```
+POST /client
+Content-Type: application/x-www-form-urlencoded
+
+address=MAC_ADDRESS
+&name=DEVICE_NAME
+&targetTemperature=TARGET_TEMP
+&enabled=true|false
+&gpioPins=[0,1,2]
+```
+
+**Ответ:**
+```
+Status: 200 OK
+Body: Client updated
+```
+
+#### 6. Запуск сканирования BLE-устройств
+
+**Запрос:**
+```
+GET /scan
+```
+
+**Ответ:**
+```
+Status: 200 OK
+Body: BLE Scan started
+```
+
+#### 7. Получение статистики обогрева
+
+**Запрос:**
+```
+GET /heating_stats
+```
+
+**Ответ:**
+```json
+{
+  "devices": [
+    {
+      "name": "string",
+      "macAddress": "string",
+      "currentTemperature": 0.0,
+      "targetTemperature": 0.0,
+      "heatingActive": true,
+      "totalHeatingTimeMs": 0,
+      "totalHeatingTimeFormatted": "string"
+    }
+  ]
+}
+```
+
+#### 8. Сброс статистики обогрева
+
+**Запрос:**
+```
+POST /reset_stats
+Content-Type: application/x-www-form-urlencoded
+
+device=MAC_ADDRESS (опционально)
+```
+
+**Ответ:**
+```
+Status: 200 OK
+Body: Статистика сброшена
+```
+
+### Статические файлы
+
+Следующие статические файлы доступны через веб-сервер:
+
+- `/` или `/index.html` - главная страница
+- `/index2` - альтернативная главная страница
+- `/app.css` - стили
+- `/gpio_settings.html` - страница настройки GPIO
+- `/heating_stats.html` - страница статистики обогрева
+
+## Конфигурация и настройки
+
+### Параметры Wi-Fi
+
+Параметры подключения к Wi-Fi хранятся в конфигурационном файле и загружаются при запуске системы.
+
+### mDNS
+
+Система поддерживает mDNS для доступа по имени в локальной сети:
+- Имя хоста: определяется переменной [WEB_SERVER_HOSTNAME](file://c:\projects\arduino\server_esp32_s3\lib\WebServerSettings\web_server_setting.h#L2-L3)
+- Адрес: `http://[hostname].local`
+
+### OTA-обновления
+
+Система поддерживает обновление прошивки по воздуху с использованием стандартного протокола ArduinoOTA.
+
+## Потоки выполнения
+
+1. **Основной поток (setup)**
+   - Инициализация SPIFFS
+   - Загрузка конфигураций
+   - Подключение к Wi-Fi
+   - Инициализация mDNS
+   - Запуск веб-сервера
+   - Инициализация LCD
+   - Запуск OTA
+   - Запуск задачи обновления LCD
+
+2. **Основной цикл (loop)**
+   - Обработка OTA-обновлений
+   - Проверка состояния Wi-Fi и переподключение при необходимости
+   - Обновление информации на LCD
+   - Проверка и обновление состояния устройств
+
+3. **Задача обновления LCD**
+   - Периодическое обновление информации на дисплее
+   - Отображение состояния устройств и системы
+
+4. **Задача мониторинга устройств**
+   - Периодическая проверка состояния устройств
+   - Обновление времени нагрева
+   - Управление реле через GPIO
+
+## Безопасность
+
+В текущей реализации система не имеет механизмов аутентификации и авторизации. Рекомендуется добавить:
+- HTTP Basic Auth или токен-аутентификацию
+- Шифрование соединений (HTTPS)
+- Валидацию входных данных
+
+## Возможные улучшения
+
+1. **Добавление аутентификации** для защиты веб-интерфейса
+2. **Реализация HTTPS** для безопасной передачи данных
+3. **Добавление unit-тестов** для проверки функциональности
+4. **Создание подробной документации API** с примерами использования
+5. **Добавление механизма логирования** для отладки и мониторинга
+6. **Реализация механизма резервного копирования** конфигураций

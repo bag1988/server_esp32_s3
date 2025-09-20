@@ -10,6 +10,21 @@ h2 {
     color: #333;
 }
 
+.menu a {
+    margin-left: 10px;
+}
+
+#logContainer {
+    background-color: #000;
+    color: #00ff00;
+    padding: 10px;
+    border-radius: 5px;
+    height: 80vh;
+    overflow-y: scroll;
+    white-space: pre-wrap;
+    font-family: 'Courier New', monospace;
+}
+
 .device-container {
     display: flex;
     gap: 10px;
@@ -72,6 +87,11 @@ h2 {
 .device-name[data-online="false"]::after {
     content: "offline";
     color: red;
+}
+
+button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
 }
 
 .device-info {

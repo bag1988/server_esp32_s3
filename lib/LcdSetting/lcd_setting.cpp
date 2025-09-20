@@ -4,11 +4,16 @@
 #include <WiFi.h>
 #include <xiaomi_scanner.h>
 #include <LiquidCrystal.h> // Используем стандартную библиотеку LiquidCrystal вместо I2C
+#include "logger.h"
 // LCD Keypad Shield использует следующие пины для подключения LCD
 // RS, E, D4, D5, D6, D7
 // LiquidCrystal lcd(8, 9, 4, 5, 6, 7); // Стандартные пины для LCD Keypad Shield
 // Для ESP32-S3 UNO с LCD Keypad Shield
 LiquidCrystal lcd(21, 46, 19, 20, 3, 14); // Пины для ESP32-S3 UNO
+
+// Переменные для управления подсветкой
+bool backlightState = false;
+unsigned long lastActivityTime = 0;
 
 // Прокрутка текста
 std::string scrollText = "";
@@ -44,8 +49,7 @@ bool needLcdUpdate = true;
 int readKeypad()
 {
   int adcValue = analogRead(KEYPAD_PIN);
-  // Serial.print("Нажата кнопка, значение: ");
-  // Serial.println(adcValue);
+  // LOG_I("Нажата кнопка, значение: %s", adcValue);
   if (adcValue > 10 && adcValue < KEY_UP_VAL)
   {
     return BUTTON_NONE;
@@ -74,6 +78,11 @@ void initLCD()
 {
   // Инициализация LCD
   lcd.begin(16, 2);
+
+// Инициализация пина подсветки
+  pinMode(BACKLIGHT_PIN, OUTPUT);
+  digitalWrite(BACKLIGHT_PIN, LOW); // По умолчанию подсветка выключена
+
   displayText("Initialization...");
 
   delay(1000);
@@ -85,6 +94,31 @@ void initLCD()
 
   // Настройка пина для считывания кнопок
   pinMode(KEYPAD_PIN, INPUT);
+}
+
+// Функция для включения подсветки
+void turnOnBacklight() {
+  if (!backlightState) {
+    digitalWrite(BACKLIGHT_PIN, HIGH);
+    backlightState = true;
+  }
+  lastActivityTime = millis();
+}
+
+// Функция для выключения подсветки
+void turnOffBacklight() {
+  if (backlightState) {
+    digitalWrite(BACKLIGHT_PIN, LOW);
+    backlightState = false;
+  }
+}
+
+// Функция для автоматического управления подсветкой
+void handleBacklight() {
+  // Если подсветка включена и прошло больше времени, чем BACKLIGHT_TIMEOUT, выключаем её
+  if (backlightState && (millis() - lastActivityTime > BACKLIGHT_TIMEOUT)) {
+    turnOffBacklight();
+  }
 }
 
 // Функция для отображения главного экрана
@@ -308,6 +342,9 @@ void handleButtons()
     return;
   }
 
+  // При любом нажатии включаем подсветку
+  turnOnBacklight();
+
   // Обработка дребезга контактов и длительного нажатия
   static unsigned long lastButtonTime = 0;
   static int lastButton = BUTTON_NONE;
@@ -331,8 +368,8 @@ void handleButtons()
 
   // Проверка длительного нажатия RIGHT (замена SELECT)
   if (pressedButton == BUTTON_RIGHT && !longPressHandled &&
-      currentTime - buttonPressStartTime > 1000)
-  {                                // 1000 мс для длительного нажатия
+      currentTime - buttonPressStartTime > 2000)
+  {                                // 2000 мс для длительного нажатия
     pressedButton = BUTTON_SELECT; // Заменяем на SELECT
     longPressHandled = true;
   }
@@ -458,7 +495,7 @@ void handleButtons()
     }
     else if (pressedButton == BUTTON_SELECT)
     {
-      Serial.println("Нажата кнопка SELECT, сохраняем результаты");
+      LOG_I("Нажата кнопка SELECT, сохраняем результаты");
       // Сохранение и возврат в меню устройства
       saveClientsToFile();
       currentMenu = DEVICE_MENU;
@@ -507,7 +544,7 @@ void handleButtons()
         {
           devices[deviceListIndex].gpioPins.push_back(selectedGpio);
         }
-        Serial.println("Нажата кнопка SELECT при редактироании GPIO, сохраняем результаты");
+        LOG_I("Нажата кнопка SELECT при редактироании GPIO, сохраняем результаты");
         // Сохраняем изменения
         saveClientsToFile();
       }
@@ -536,7 +573,7 @@ void handleButtons()
       {
         devices[deviceListIndex].heatingActive = false;
       }
-      Serial.println("Нажата кнопка BUTTON_UP при изменении доступности устройства, сохраняем результаты");
+      LOG_I("Нажата кнопка BUTTON_UP при изменении доступности устройства, сохраняем результаты");
       // Сохраняем изменения
       saveClientsToFile();
     }
@@ -577,6 +614,9 @@ void updateLCDTask()
   // Прокрутка текста на главном экране
   scrollMainScreenText();
 
+// Управление подсветкой
+  handleBacklight();
+
   // Обновление экрана при необходимости
   if (needLcdUpdate)
   {
@@ -595,38 +635,29 @@ void refreshLCDData()
 }
 
 // Обновление статуса устройств
-void updateDevicesStatus()
+void updateDevicesInformation()
 {
-  unsigned long currentTime = millis();
-  bool statusChanged = false;
-
   for (auto &device : devices)
   {
     // Проверяем, не устарели ли данные
-    if (!device.isDataValid())
+    if (device.isDataValid())
     {
       device.isOnline = false;
-      statusChanged = true;
 
-      Serial.print("Устройство ");
-      Serial.print(device.name.c_str());
-      Serial.println(" перешло в оффлайн (нет данных более 5 минут)");
+      LOG_I("Устройство %s", device.name.c_str());
+      LOG_I(" перешло в оффлайн (нет данных более 5 минут)");
     }
   }
-
-  // Если статус изменился, обновляем текст прокрутки
-  if (statusChanged)
-  {
-    refreshLCDData();
-  }
+  refreshLCDData();
 }
 
 // Функция для форматирования времени работы обогрева
 String formatHeatingTime(unsigned long timeInMillis)
 {
-  unsigned long seconds = timeInMillis / 1000;
-  unsigned long minutes = seconds / 60;
-  unsigned long hours = minutes / 60;
+  unsigned long totalSeconds = timeInMillis / 1000;
+  unsigned long hours = totalSeconds / 3600;
+  unsigned long minutes = (totalSeconds % 3600) / 60;
+  unsigned long seconds = totalSeconds % 60;
 
   char buffer[20];
   sprintf(buffer, "%02lu:%02lu:%02lu", hours, minutes % 60, seconds % 60);
@@ -774,7 +805,7 @@ void displayText(const String &text, int column, int row, bool clearLine, bool c
   // Проверка корректности параметров
   if (row < 0 || row > 1)
   {
-    Serial.println("Ошибка: Некорректный номер строки. Допустимые значения: 0 или 1");
+    LOG_I("Ошибка: Некорректный номер строки. Допустимые значения: 0 или 1");
     return;
   }
 

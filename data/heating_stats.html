@@ -11,12 +11,15 @@
 <body>
     <div class="container">
         <h1>Статистика обогрева</h1>
-        <div>            
+        <div>
+            <a href="index.html">Главная</a>
+            <a href="heating_stats.html">Статистика обогрева</a>
             <a href="managment_device.html">Управление устройствами</a>
             <a href="gpio_settings.html">Настройки GPIO</a>
-            <a href="index.html">На главную</a>
+            <a href="logs.html">Логи</a>
         </div>
-        <br />
+    </div>
+    <div class="container">
         <table id="stats-table">
             <thead>
                 <tr>
@@ -59,7 +62,7 @@
                     // { name: "dev2", currentTemperature: 21, targetTemperature: 22, heatingActive: false, totalHeatingTimeMs: 10000, totalHeatingTimeFormatted: "00:16:40" }
                     // ]);
                     console.error('Ошибка при получении статистики:', error);
-                    document.getElementById('stats-body').innerHTML ='<tr><td colspan="5">Ошибка при загрузке данных</td></tr>';
+                    document.getElementById('stats-body').innerHTML = '<tr><td colspan="5">Ошибка при загрузке данных</td></tr>';
                 });
         }
 

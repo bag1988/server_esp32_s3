@@ -5,16 +5,18 @@
 #include <spiffs_setting.h>
 #include "xiaomi_scanner.h"
 #include <SPIFFS.h>
+#include "logger.h"
+
 // Web Server
 AsyncWebServer server(80);
-// server.setStackSize(8192);
-// Connect to WiFi +++++++++++++++++++++++++++++++++++
+
+// Создаем экземпляр AsyncEventSource
+AsyncEventSource events("/events");
+
 void connectWiFi()
 {
-    Serial.print(F("Connecting to WiFi: "));
-    Serial.print(F(wifiCredentials.ssid.c_str()));
-    Serial.print(F(", password: "));
-    Serial.println(F(wifiCredentials.password.c_str()));
+    LOG_I("Connecting to WiFi: %s", wifiCredentials.ssid.c_str());
+    LOG_I(", password: %s", wifiCredentials.password.c_str());
     WiFi.begin(wifiCredentials.ssid.c_str(), wifiCredentials.password.c_str());
     lastWiFiAttemptTime = millis();
 
@@ -22,28 +24,30 @@ void connectWiFi()
     while (WiFi.status() != WL_CONNECTED && attempts < 10)
     {
         delay(1000);
-        Serial.print(F("..."));
+        Serial.print("...");
         attempts++;
     }
 
     if (WiFi.status() == WL_CONNECTED)
     {
-        Serial.println(F(""));
-        Serial.println(F("WiFi connected"));
-        Serial.print(F("IP address: "));
-        Serial.println(WiFi.localIP());
+        LOG_I("");
+        LOG_I("WiFi connected");
+        LOG_I("IP address: %s", WiFi.localIP());
         wifiConnected = true;
+
     }
     else
     {
-        Serial.println(F(""));
-        Serial.println(F("Failed to connect to WiFi"));
+        LOG_I("");
+        LOG_I("Failed to connect to WiFi");
         wifiConnected = false;
     }
 }
 // web server +++++++++++++++++++++++++++++++++
 void initWebServer()
 {
+    // Добавляем обработчик событий
+    server.addHandler(&events);
     // GET /clients (get list of all clients)
     server.on("/clients", HTTP_GET, [](AsyncWebServerRequest *request)
               {
@@ -128,9 +132,10 @@ void initWebServer()
     server.on("/serverinfo", HTTP_GET, [](AsyncWebServerRequest *request)
               {
 
-                unsigned long seconds = serverWorkTime / 1000;
-                unsigned long minutes = seconds / 60;
-                unsigned long hours = minutes / 60;
+                unsigned long totalSeconds = serverWorkTime / 1000;
+                unsigned long hours = totalSeconds / 3600;           // Получаем количество полных часов
+                unsigned long minutes = (totalSeconds % 3600) / 60;  // Получаем остаток минут после часов
+                unsigned long seconds = totalSeconds % 60;           // Получаем остаток секунд
                 char buffer[20];
                 sprintf(buffer, "%02lu:%02lu:%02lu", hours, minutes % 60, seconds % 60);
                 JsonDocument doc;
@@ -220,7 +225,7 @@ void initWebServer()
                         xSemaphoreGive(devicesMutex);
                         
                         if (isSaving) {
-                            Serial.println("Получены изменения по HTTP, сохраняем результаты");
+                            LOG_I("Получены изменения по HTTP, сохраняем результаты");
                             saveClientsToFile(); // Save changes to file
                             request->send(200, "text/plain", "Client updated");
                             return;
@@ -232,7 +237,7 @@ void initWebServer()
     // GET /scan (start BLE scan)
     server.on("/scan", HTTP_GET, [](AsyncWebServerRequest *request)
               {
-                Serial.println("Получен запрос на запуск сканирования устройств");
+                LOG_I("Получен запрос на запуск сканирования устройств");
                 startXiaomiScan();
             request->send(200, "text/plain", "BLE Scan started"); });
     // Добавляем обработчик для получения статистики обогрева
@@ -256,10 +261,7 @@ void initWebServer()
             unsigned long seconds = totalSeconds % 60;
             
             deviceObj["totalHeatingTimeMs"] =  device.totalHeatingTime;
-            deviceObj["totalHeatingTimeFormatted"] = 
-                String(hours) + ":" + 
-                (minutes < 10 ? "0" : "") + String(minutes) + ":" + 
-                (seconds < 10 ? "0" : "") + String(seconds);
+            deviceObj["totalHeatingTimeFormatted"] =  String(hours) + ":" + String(minutes % 60) + ":" + String(seconds % 60);
         }
         xSemaphoreGive(devicesMutex);
     }
@@ -292,9 +294,11 @@ void initWebServer()
             }
             xSemaphoreGive(devicesMutex);
         }        
-        Serial.println("Сброшена статистика, сохраняем результаты");
+        LOG_I("Сброшена статистика, сохраняем результаты");
         // Сохраняем изменения
         saveClientsToFile();    
+        serverWorkTime = 0;
+        saveServerWorkTime();
         request->send(200, "text/plain", "Статистика сброшена"); });
 
     // Обработчик для корневого пути и /index
@@ -313,6 +317,10 @@ void initWebServer()
     server.on("/heating_stats.html", HTTP_GET, [](AsyncWebServerRequest *request)
               { request->send(SPIFFS, "/heating_stats.html", "text/html"); });
 
+    // Добавляем обработчик для получения логов в реальном времени через SSE
+    server.on("/logs", HTTP_GET, [](AsyncWebServerRequest *request)
+              { request->send(SPIFFS, "/logs.html", "text/html"); });
+
     server.begin();
-    Serial.println(F("Web server started"));
+    LOG_I("Web server started");
 }
