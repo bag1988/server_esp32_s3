@@ -74,7 +74,7 @@
                 const humidity = document.createElement('div');
                 humidity.textContent = `Влажность: ${device.humidity}%`;
                 const battery = document.createElement('div');
-                battery.textContent = `Батарея: ${device.battery}%`;
+                battery.textContent = `Батарея: ${device.battery}% (${device.batteryV})`;
 
                 const devEnabled = document.createElement('div');
                 devEnabled.textContent = `Статус: ${device.enabled ? 'включен' : 'выключен'}`;

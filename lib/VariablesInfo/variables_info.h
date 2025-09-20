@@ -26,7 +26,7 @@ struct DeviceData {
     float targetTemperature = 25.0; // Целевая температура
     float currentTemperature = 0.0; // Текущая температура
     float humidity = 0.0;             // Влажность
-    int battery = 0;              // Уровень заряда батареи
+    uint8_t battery = 0;              // Уровень заряда батареи
     bool enabled = true;          // Включено ли устройство
     bool isOnline = false;        // Находится ли устройство в сети
     unsigned long lastUpdate = 0; // Время последнего обновления данных
@@ -34,7 +34,7 @@ struct DeviceData {
     bool heatingActive; // Добавляем поле для отслеживания текущего состояния обогрева
     unsigned long heatingStartTime;    // Время последнего включения обогрева
     unsigned long totalHeatingTime;    // Общее время работы обогрева в миллисекундах
-    
+    uint16_t batteryV = 0;
     // Конструктор по умолчанию
     DeviceData() : 
         name(""),
@@ -42,6 +42,7 @@ struct DeviceData {
         currentTemperature(25.0),
         humidity(0.0),
         battery(0),
+        batteryV(0),
         lastUpdate(0),
         isOnline(false),
         targetTemperature(25.0),
@@ -56,6 +57,7 @@ struct DeviceData {
         currentTemperature(25.0),
         humidity(0.0),
         battery(0),
+        batteryV(0),
         lastUpdate(0),
         isOnline(true),
         targetTemperature(25.0),
@@ -64,12 +66,13 @@ struct DeviceData {
         totalHeatingTime(0) {}
         
     // Метод для обновления данных датчика
-    void updateSensorData(float temp, float hum, uint8_t bat) {
+    void updateSensorData(float temp, float hum, uint8_t bat, uint16_t batV) {
         currentTemperature = temp;
         humidity = hum;
         battery = bat;
         lastUpdate = millis();
         isOnline = true;
+        batteryV = batV;
     }
     
     // Метод для проверки актуальности данных

@@ -22,7 +22,7 @@
 // Эти значения требуют калибровки для конкретного устройства
 #define KEY_RIGHT_VAL 0   // Значение около 0//0
 #define KEY_UP_VAL 700    // Примерные значения//790
-#define KEY_DOWN_VAL 1700 // Требуют калибровки//1860
+#define KEY_DOWN_VAL 1800 // Требуют калибровки//1860
 #define KEY_LEFT_VAL 2800 // 2937
 #define KEY_SELECT_VAL 3000
 #define KEY_NONE_VAL 4095 // Ни одна кнопка не нажата

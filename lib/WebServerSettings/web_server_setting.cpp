@@ -64,6 +64,7 @@ void initWebServer()
                         deviceObj["heatingActive"] = device.heatingActive;
                         deviceObj["humidity"] = device.humidity;
                         deviceObj["battery"] = device.battery;
+                        deviceObj["batteryV"] = device.batteryV;
                         deviceObj["lastUpdate"] = device.lastUpdate;
                         deviceObj["totalHeatingTime"] = device.totalHeatingTime;
                         
@@ -238,8 +239,7 @@ void initWebServer()
     server.on("/heating_stats", HTTP_GET, [](AsyncWebServerRequest *request)
               {
     JsonDocument doc;
-    JsonArray statsArray = doc["devices"].to<JsonArray>();
-    
+    JsonArray statsArray = doc.to<JsonArray>();
     if (xSemaphoreTake(devicesMutex, portMAX_DELAY) == pdTRUE) {
         for (const auto& device : devices) {
             JsonObject deviceObj = statsArray.add<JsonObject>();
@@ -303,8 +303,8 @@ void initWebServer()
 
     server.on("/index.html", HTTP_GET, [](AsyncWebServerRequest *request)
               { request->send(SPIFFS, "/index.html", "text/html"); });
-    server.on("/index2", HTTP_GET, [](AsyncWebServerRequest *request)
-              { request->send(SPIFFS, "/index2.html", "text/html"); });
+    server.on("/managment_device.html", HTTP_GET, [](AsyncWebServerRequest *request)
+              { request->send(SPIFFS, "/managment_device.html", "text/html"); });
     server.on("/app.css", HTTP_GET, [](AsyncWebServerRequest *request)
               { request->send(SPIFFS, "/app.css", "text/css"); });
     server.on("/gpio_settings.html", HTTP_GET, [](AsyncWebServerRequest *request)

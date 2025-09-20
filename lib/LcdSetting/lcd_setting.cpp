@@ -1,10 +1,9 @@
 #include <lcd_setting.h>
-#include <LiquidCrystal.h> // Используем стандартную библиотеку LiquidCrystal вместо I2C
 #include <spiffs_setting.h>
 #include <variables_info.h>
 #include <WiFi.h>
 #include <xiaomi_scanner.h>
-#include <lcd_utils.h>
+#include <LiquidCrystal.h> // Используем стандартную библиотеку LiquidCrystal вместо I2C
 // LCD Keypad Shield использует следующие пины для подключения LCD
 // RS, E, D4, D5, D6, D7
 // LiquidCrystal lcd(8, 9, 4, 5, 6, 7); // Стандартные пины для LCD Keypad Shield
@@ -36,7 +35,7 @@ int gpioSelectionIndex = 0; // Индекс для выбора GPIO
 
 // Опции меню устройства
 const char *deviceMenuOptions[] = {"Temperature", "GPIO", "On/Off", "Back"};
-const int deviceMenuOptionsCount = 5;
+const int deviceMenuOptionsCount = 4;
 
 // Флаг для обновления экрана
 bool needLcdUpdate = true;
@@ -47,7 +46,7 @@ int readKeypad()
   int adcValue = analogRead(KEYPAD_PIN);
   // Serial.print("Нажата кнопка, значение: ");
   // Serial.println(adcValue);
-  if (adcValue == 0)
+  if (adcValue > 10 && adcValue < KEY_UP_VAL)
   {
     return BUTTON_NONE;
   }
@@ -598,28 +597,28 @@ void refreshLCDData()
 // Обновление статуса устройств
 void updateDevicesStatus()
 {
-    unsigned long currentTime = millis();
-    bool statusChanged = false;
+  unsigned long currentTime = millis();
+  bool statusChanged = false;
 
-    for (auto &device : devices)
+  for (auto &device : devices)
+  {
+    // Проверяем, не устарели ли данные
+    if (!device.isDataValid())
     {
-        // Проверяем, не устарели ли данные
-        if (device.isDataValid())
-        {
-            device.isOnline = false;
-            statusChanged = true;
+      device.isOnline = false;
+      statusChanged = true;
 
-            Serial.print("Устройство ");
-            Serial.print(device.name.c_str());
-            Serial.println(" перешло в оффлайн (нет данных более 5 минут)");
-        }
+      Serial.print("Устройство ");
+      Serial.print(device.name.c_str());
+      Serial.println(" перешло в оффлайн (нет данных более 5 минут)");
     }
+  }
 
-    // Если статус изменился, обновляем текст прокрутки
-    if (statusChanged)
-    {
-        refreshLCDData();
-    }
+  // Если статус изменился, обновляем текст прокрутки
+  if (statusChanged)
+  {
+    refreshLCDData();
+  }
 }
 
 // Функция для форматирования времени работы обогрева
@@ -731,7 +730,7 @@ void showTemperatureInfo()
   // Показываем целевую температуру и статус
   displayText("Target: " + String(device.targetTemperature, 1) + "C ", 0, 1);
 
-  // Статус обогрева  
+  // Статус обогрева
   if (device.enabled)
   {
     displayText(device.heatingActive ? "Heat" : "ОК", 12, 1, false);
@@ -786,9 +785,6 @@ void displayText(const String &text, int column, int row, bool clearLine, bool c
     lcd.print("                "); // 16 пробелов для очистки строки
   }
 
-  // Преобразуем текст в кодировку A02 для корректного отображения кириллицы
-  String a02Text = utf8ToA02(text);
-
   // Если нужно центрировать текст
   if (center)
   {
@@ -808,5 +804,5 @@ void displayText(const String &text, int column, int row, bool clearLine, bool c
 
   // Устанавливаем курсор и выводим текст
   lcd.setCursor(column, row);
-  lcd.print(a02Text);
+  lcd.print(text);
 }

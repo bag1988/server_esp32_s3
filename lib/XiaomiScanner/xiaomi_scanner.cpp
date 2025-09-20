@@ -220,7 +220,7 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
         float temperature = 0.0;
         float humidity = 0;
         uint8_t battery = 0;
-        uint16_t batteryV = 0.0;
+        uint16_t batteryV = 0;
         bool dataFound = false;
 
         // Обработка данных для устройств с кастомной прошивкой ATC
@@ -274,7 +274,7 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
                 if (it != devices.end())
                 {
                     // Устройство найдено, обновляем данные
-                    it->updateSensorData(temperature, humidity, battery);
+                    it->updateSensorData(temperature, humidity, battery, batteryV);
 
                     Serial.print("Обновлены данные устройства: ");
                     Serial.print(it->name.c_str());
@@ -300,7 +300,7 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
                     }
 
                     DeviceData newDevice(deviceName, deviceAddress);
-                    newDevice.updateSensorData(temperature, humidity, battery);
+                    newDevice.updateSensorData(temperature, humidity, battery, batteryV);
                     devices.push_back(newDevice);
 
                     Serial.print("Найдено новое устройство: ");

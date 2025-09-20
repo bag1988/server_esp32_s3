@@ -18,7 +18,7 @@
         </div>
         <br />
         <button id="scanButton" class="scan-button">Сканировать устройства</button>
-        <div id="devicesList"></div>
+        <div id="devicesList" class="device-container"></div>
     </div>
 
     <script>
@@ -88,11 +88,15 @@
                 const temperature = document.createElement('div');
                 temperature.textContent = `Температура: ${device.currentTemperature}°C`;
 
+                 const humidity = document.createElement('div');
+                humidity.textContent = `Влажность: ${device.humidity}%`;
+
                 const battery = document.createElement('div');
                 battery.textContent = `Батарея: ${device.battery}%`;
 
                 info.appendChild(macAddress);
                 info.appendChild(temperature);
+                info.appendChild(humidity);
                 info.appendChild(battery);
                 deviceElement.appendChild(info);
 

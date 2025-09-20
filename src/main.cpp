@@ -200,7 +200,7 @@ void networkFunc()
             // Обновляем время последнего сканирования
             lastScanTime = millis();
             startXiaomiScan();
-            xSemaphoreGive(bleMutex);            
+            xSemaphoreGive(bleMutex);
         }
     }
 
@@ -239,7 +239,7 @@ void mainlogicFunc()
         {
             lastGpioControlTime = millis();
             controlGPIO();
-            xSemaphoreGive(devicesMutex);            
+            xSemaphoreGive(devicesMutex);
         }
         vTaskDelay(20 / portTICK_PERIOD_MS); // Добавьте задержку
         updateDevicesStatus();
@@ -254,7 +254,7 @@ void mainlogicFunc()
         lastStatsSaveTime = currentTime;
         saveClientsToFile();
         serverWorkTime += currentTime;
-        saveServerWorkTime();        
+        saveServerWorkTime();
     }
     // monitorMemory();
     //  Даем время другим задачам
@@ -357,12 +357,6 @@ void setup()
 
     connectWiFi();
 
-    // Инициализация OTA после подключения к WiFi
-    if (wifiConnected)
-    {
-        initOTA();
-    }
-
     // Инициализация BLE сканера
     setupXiaomiScanner();
 
@@ -373,10 +367,13 @@ void setup()
     initScrollText();
     updateLCD();
 
-    Serial.println("Система готова к работе");
-
     createTasksStandart();
-    Serial.println("Настройка завершена");
+
+    // Инициализация OTA после подключения к WiFi
+    if (wifiConnected)
+    {
+        initOTA();
+    }
 
     // Инициализация датчика температуры (старый API)
     temp_sensor_config_t temp_sensor = TSENS_CONFIG_DEFAULT();
@@ -384,6 +381,8 @@ void setup()
     ESP_ERROR_CHECK(temp_sensor_start());
 
     Serial.println("Датчик температуры инициализирован");
+    Serial.println("Настройка завершена");
+    Serial.println("Система готова к работе");
 }
 
 void loop()

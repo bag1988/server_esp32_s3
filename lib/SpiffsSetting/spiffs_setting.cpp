@@ -7,14 +7,16 @@ void saveServerWorkTime()
   if (preferences.begin("server_setting", false))
   {
     preferences.putLong64("server_time", serverWorkTime);
+    preferences.end();
   }
 }
 
 void loadServerWorkTime()
 {
-  if (preferences.begin("server_setting", false))
+  if (preferences.begin("server_setting", true))
   {
     serverWorkTime = preferences.getLong64("server_time", 0);
+    preferences.end();
   }
 }
 // Загружаем клиентов из Preferences как единый Blob
@@ -80,8 +82,8 @@ void loadClientsFromFile()
                 device.currentTemperature = device.targetTemperature;
                 device.heatingActive = false;
                 device.humidity = deviceObj["humidity"].as<float>();
-                device.battery = deviceObj["battery"].as<int>();
-
+                device.battery = deviceObj["battery"].as<uint8_t>();
+                device.batteryV = deviceObj["batteryV"].as<uint16_t>();
                 // Добавляем устройство в вектор
                 devices.push_back(device);
               }
@@ -154,7 +156,7 @@ void saveClientsToFile()
         deviceObj["total_heating"] = device.totalHeatingTime;
         deviceObj["humidity"] = device.humidity;
         deviceObj["battery"] = device.battery;
-
+        deviceObj["batteryV"] = device.batteryV;
         // Сохраняем массив GPIO пинов
         for (int pin : device.gpioPins)
         {
@@ -219,10 +221,8 @@ void loadWifiCredentialsFromFile()
 {
   if (preferences.begin("wifi", true)) // true = только чтение
   {
-    preferences.begin("wifi", true); // true = только чтение
-
-    wifiCredentials.ssid = preferences.getString("ssid", "Bag").c_str();
-    wifiCredentials.password = preferences.getString("password", "01123581321").c_str();
+    wifiCredentials.ssid = preferences.getString("ssid", "").c_str();
+    wifiCredentials.password = preferences.getString("password", "").c_str();
 
     preferences.end();
 
@@ -382,5 +382,6 @@ void loadGpioFromFile()
         Serial.println(F("Failed to allocate memory for blob data"));
       }
     }
+    preferences.end();
   }
 }

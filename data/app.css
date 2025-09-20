@@ -13,6 +13,7 @@ h2 {
 .device-container {
     display: flex;
     gap: 10px;
+    flex-wrap: wrap;
 }
 
 .container {
@@ -29,15 +30,23 @@ h2 {
     padding: 15px;
     margin-bottom: 15px;
     border-radius: 5px;
+    flex: 1;
+    min-width: 200px;
+    max-width: 100%;
 }
-.active
-{
+@media (width > 800px) {
+  .device {  
+    min-width: 400px;
+}
+}
+.active {
     color: green;
 }
-.inactive
-{
+
+.inactive {
     color: red;
 }
+
 .device-header {
     display: flex;
     justify-content: space-between;
@@ -252,6 +261,7 @@ button {
 button:hover {
     background-color: #45a049;
 }
+
 /* 
 button.scan {
     background-color: #2196F3;
