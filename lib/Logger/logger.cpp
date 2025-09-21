@@ -1,11 +1,11 @@
 #include "logger.h"
 #include <stdarg.h>
-#include <web_server_setting.h> // Для доступа к events
+//#include <web_server_setting.h> // Для доступа к events
 // Текущий уровень логирования
 LogLevel currentLogLevel = LOG_INFO;
 
 // Внешняя ссылка на events из web_server_setting.cpp
-extern AsyncEventSource events;
+//extern AsyncEventSource events;
 
 // Функция логирования
 void logMessage(LogLevel level, const char *format, ...)
@@ -50,8 +50,8 @@ void logMessage(LogLevel level, const char *format, ...)
     Serial.println(F(buffer));
 
     // Отправляем через SSE если клиент подключен
-    if (events.count() > 0)
-    {
-        events.send((String(prefix)+ " "+ buffer).c_str(), "log");
-    }
+    // if (events.count() > 0)
+    // {
+    //     events.send((String(prefix)+ " "+ buffer).c_str(), "log");
+    // }
 }

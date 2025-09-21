@@ -11,7 +11,7 @@
 AsyncWebServer server(80);
 
 // Создаем экземпляр AsyncEventSource
-AsyncEventSource events("/events");
+//AsyncEventSource events("/events");
 
 void connectWiFi()
 {
@@ -46,7 +46,7 @@ void connectWiFi()
 void initWebServer()
 {
     // Добавляем обработчик событий
-    server.addHandler(&events);
+    //server.addHandler(&events);
     // GET /clients (get list of all clients)
     server.on("/clients", HTTP_GET, [](AsyncWebServerRequest *request)
               {
@@ -340,8 +340,8 @@ void initWebServer()
               { request->send(SPIFFS, "/heating_stats.html", "text/html"); });
 
     // Добавляем обработчик для получения логов в реальном времени через SSE
-    server.on("/logs.html", HTTP_GET, [](AsyncWebServerRequest *request)
-              { request->send(SPIFFS, "/logs.html", "text/html"); });
+    // server.on("/logs.html", HTTP_GET, [](AsyncWebServerRequest *request)
+    //           { request->send(SPIFFS, "/logs.html", "text/html"); });
 
     server.begin();
     LOG_I("Web server started");
