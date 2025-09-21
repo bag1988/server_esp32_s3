@@ -19,12 +19,23 @@
 #define SSID_CHARACTERISTIC_UUID "93d971b2-4bb8-45d0-9ab3-74d7f881d828"     // New SSID and password Characteristic UUID
 #define PASSWORD_CHARACTERISTIC_UUID "c5481513-22cb-4aae-9fe3-e9db5d06bf6f" // New Password Characteristic UUID
 
+// Структура для передачи данных через очередь
+struct BLEDeviceData {
+    std::string address;
+    std::string name;
+    std::string serviceData[5];  // Максимум 5 сервисных данных
+    BLEUUID serviceUUID[5];
+    int serviceDataCount = 0;
+    bool hasName = false;
+    bool hasServiceData = false;
+};
+
 // Глобальные переменные
 extern BLEScan* pBLEScan;
 extern bool scanningActive;
 // Функции
 void setupXiaomiScanner();
 void startXiaomiScan(uint32_t duration = XIAOMI_SCAN_DURATION);
-void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice);
+void processXiaomiAdvertisement(BLEDeviceData& deviceData);
 void printDevicesData();
 #endif // XIAOMI_SCANNER_H

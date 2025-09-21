@@ -266,7 +266,7 @@ void createTasksStandart()
     xTaskCreate(
         mainLogicTaskFunction,   // Функция
         "mainLogicTaskFunction", // Имя
-        8192,                    // Стек: 2048 слов = 8192 байт
+        4096,                    // Стек: 2048 слов = 8192 байт
         NULL,                    // Параметры
         1,                       // Приоритет
         NULL                     // Хэндл (не нужен)
@@ -275,7 +275,7 @@ void createTasksStandart()
     xTaskCreate(
         networkTaskFunction,   // Функция
         "networkTaskFunction", // Имя
-        8192,                  // Стек: 2048 слов = 8192 байт
+        4096,                  // Стек: 2048 слов = 8192 байт
         NULL,                  // Параметры
         1,                     // Приоритет
         NULL                   // Хэндл (не нужен)

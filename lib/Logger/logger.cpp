@@ -38,7 +38,7 @@ void logMessage(LogLevel level, const char *format, ...)
     }
 
     // Выводим префикс
-    Serial.print(prefix);
+    Serial.print(F(prefix));
 
     // Форматируем и выводим сообщение
     char buffer[256];
@@ -47,7 +47,7 @@ void logMessage(LogLevel level, const char *format, ...)
     vsnprintf(buffer, sizeof(buffer), format, args);
     va_end(args);
 
-    Serial.println(buffer);
+    Serial.println(F(buffer));
 
     // Отправляем через SSE если клиент подключен
     if (events.count() > 0)

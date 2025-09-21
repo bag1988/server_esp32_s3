@@ -7,22 +7,44 @@
 BLEScan *pBLEScan = nullptr;
 bool scanningActive = false;
 BLEServer *pServer = nullptr;
-
+QueueHandle_t bleDataQueue = nullptr;  // Очередь для передачи данных BLE
 // Класс для обработки результатов сканирования
 class XiaomiAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
 {
     void onResult(BLEAdvertisedDevice advertisedDevice)
     {
-        // Создаем структуру данных для передачи в очередь       
+        // Создаем структуру данных для передачи в очередь
         LOG_I("Обнаружено устройство: %s", advertisedDevice.getAddress().toString().c_str());
-
-        if (advertisedDevice.haveName())
+        // Создаем структуру данных для передачи в очередь
+        BLEDeviceData *deviceData = new BLEDeviceData();
+        deviceData->address = advertisedDevice.getAddress().toString();
+        deviceData->hasName = advertisedDevice.haveName();
+        if (deviceData->hasName)
         {
             LOG_I("Имя: %s", advertisedDevice.getName().c_str());
+            deviceData->name = advertisedDevice.getName();
         }
 
-        processXiaomiAdvertisement(advertisedDevice);
-        LOG_I("//////////////////////////////////");
+        deviceData->hasServiceData = advertisedDevice.haveServiceData();
+        if (deviceData->hasServiceData && advertisedDevice.getServiceDataCount() <= 5)
+        {
+            deviceData->serviceDataCount = advertisedDevice.getServiceDataCount();
+            for (int i = 0; i < deviceData->serviceDataCount; i++)
+            {
+                deviceData->serviceData[i] = advertisedDevice.getServiceData(i);
+                deviceData->serviceUUID[i] = advertisedDevice.getServiceDataUUID(i);
+            }
+        }
+
+        // Отправляем данные в очередь
+        if (bleDataQueue != nullptr)
+        {
+            if (xQueueSend(bleDataQueue, &deviceData, 0) != pdTRUE)
+            {
+                // Очередь заполнена, удаляем данные
+                delete deviceData;
+            }
+        }
     }
 };
 
@@ -57,6 +79,12 @@ class SetServerSettingCallbacks : public BLECharacteristicCallbacks
 // Инициализация сканера BLE
 void setupXiaomiScanner()
 {
+    // Создаем очередь для передачи данных BLE если она еще не создана
+    if (bleDataQueue == nullptr)
+    {
+        bleDataQueue = xQueueCreate(10, sizeof(BLEDeviceData *));
+    }
+
     BLEDevice::init(SERVER_NAME);
     pBLEScan = BLEDevice::getScan();
     pBLEScan->setAdvertisedDeviceCallbacks(new XiaomiAdvertisedDeviceCallbacks());
@@ -71,15 +99,15 @@ void setupXiaomiScanner()
 
     // SSID Characteristic
     BLECharacteristic *pSSIDCharacteristic = pService->createCharacteristic(
-        SSID_CHARACTERISTIC_UUID,        
-            BLECharacteristic::PROPERTY_WRITE);
+        SSID_CHARACTERISTIC_UUID,
+        BLECharacteristic::PROPERTY_WRITE);
     pSSIDCharacteristic->setValue("SSID");
     // Password Characteristic
     BLECharacteristic *pPasswordCharacteristic = pService->createCharacteristic(
         PASSWORD_CHARACTERISTIC_UUID,
-            BLECharacteristic::PROPERTY_WRITE);
+        BLECharacteristic::PROPERTY_WRITE);
     pPasswordCharacteristic->setValue("PASSWORD");
-   
+
     pSSIDCharacteristic->setCallbacks(new SetServerSettingCallbacks());
     pPasswordCharacteristic->setCallbacks(new SetServerSettingCallbacks());
 
@@ -91,6 +119,27 @@ void setupXiaomiScanner()
     pAdvertising->setMaxPreferred(0x12);
     BLEDevice::startAdvertising();
     LOG_I("Сервисы редактирования SSID и пароля запущены");
+
+    // Создаем задачу для обработки данных BLE из очереди
+    xTaskCreate([](void *parameter)
+                {
+                    BLEDeviceData* deviceData;
+                    while (true) {
+                        // Ждем данные из очереди
+                        if (xQueueReceive(bleDataQueue, &deviceData, portMAX_DELAY) == pdTRUE) {
+                            // Создаем временный объект BLEAdvertisedDevice для обработки
+                            BLEAddress address(deviceData->address.c_str());
+                            BLEAdvertisedDevice tempDevice;
+                            
+                            // Восстанавливаем данные для обработки
+                            // Примечание: Из-за ограничений API мы не можем полностью восстановить объект
+                            // Поэтому вызываем упрощенную версию обработки
+                            processXiaomiAdvertisement(*deviceData);
+                            
+                            // Освобождаем память
+                            delete deviceData;
+                        }
+                    } }, "bleDataProcessor", 4096, nullptr, 1, nullptr);
 }
 
 void startScan(uint32_t duration)
@@ -112,56 +161,45 @@ void startXiaomiScan(uint32_t duration)
         return;
     }
     scanningActive = true;
-    uint32_t *durationPtr = new uint32_t(duration);
-
-    xTaskCreate([](void *parameter)
-                {
-                    uint32_t duration = *(uint32_t*)parameter;
-                    startScan(duration);
-                    delete (uint32_t*)parameter; // Освобождаем память
-                    vTaskDelete(NULL); }, "scanBleDevice", 8192, durationPtr, 1, NULL);
+    startScan(duration);
 }
 
 // Обработка рекламного пакета
-void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
+void processXiaomiAdvertisement(BLEDeviceData &deviceData)
 {
     bool isXiaomiDevice = false;
-    std::string deviceAddress = advertisedDevice.getAddress().toString().c_str();
+    std::string deviceAddress = deviceData.address;
     bool isCustomFirmware = false;
 
     // Проверка на кастомную прошивку ATC
-    if (advertisedDevice.haveServiceData())
+    if (deviceData.hasServiceData && deviceData.serviceDataCount > 0)
     {
-        LOG_I("Есть сервисные данные: %d", advertisedDevice.getServiceDataCount());
-        for (int i = 0; i < advertisedDevice.getServiceDataCount(); i++)
+        LOG_I("Есть сервисные данные: %d", deviceData.serviceDataCount);
+        for (int i = 0; i < deviceData.serviceDataCount; i++)
         {
-            std::string serviceData = advertisedDevice.getServiceData(i);
-            BLEUUID serviceUUID = advertisedDevice.getServiceDataUUID(i);
-
             // Проверка на ATC прошивку (UUID: 0x181A или 0xFE95)
-            bool isAtc = serviceUUID.equals(BLEUUID((uint16_t)0x181A)) || serviceUUID.equals(BLEUUID("fe95"));
-            LOG_I("Проверка на ATC прошивку пройдена: %s", isAtc ? "успешно" : "не успешно");
+            bool isAtc = deviceData.serviceUUID[i].equals(BLEUUID((uint16_t)0x181A)) ||
+                         deviceData.serviceUUID[i].equals(BLEUUID("fe95"));
             if (isAtc)
             {
-                if (serviceData.length() >= 15)
+                if (deviceData.serviceData[i].length() >= 15)
                 {
                     // Проверка MAC-адреса в данных (для ATC)
                     uint8_t mac[6];
                     for (int j = 0; j < 6; j++)
                     {
-                        mac[j] = (uint8_t)serviceData[5 - j];
+                        mac[j] = (uint8_t)deviceData.serviceData[i][5 - j];
                     }
 
                     // Сравниваем MAC в пакете с MAC устройства
                     BLEAddress packetAddr(mac);
-                    bool equalsMac = packetAddr.equals(advertisedDevice.getAddress()); // || serviceData[0] == 0xA4 || serviceData[0] == 0x16;
-                    LOG_I("Сравниваем MAC %s в пакете с MAC устройства: %s, равны: %s", advertisedDevice.getAddress().toString().c_str(), packetAddr.toString().c_str(), equalsMac ? "да" : "нет");
+                    BLEAddress deviceAddr(deviceAddress.c_str());
+                    bool equalsMac = packetAddr.equals(deviceAddr);
 
                     if (equalsMac)
                     {
                         isXiaomiDevice = true;
                         isCustomFirmware = true;
-                        LOG_I("Обнаружено устройство с кастомной прошивкой ATC");
                     }
                 }
             }
@@ -179,12 +217,12 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
         bool dataFound = false;
 
         // Обработка данных для устройств с кастомной прошивкой ATC
-        if (isCustomFirmware && advertisedDevice.haveServiceData())
+        if (isCustomFirmware && deviceData.hasServiceData)
         {
-            for (int i = 0; i < advertisedDevice.getServiceDataCount(); i++)
+            for (int i = 0; i < deviceData.serviceDataCount; i++)
             {
-                std::string serviceData = advertisedDevice.getServiceData(i);
-                BLEUUID serviceUUID = advertisedDevice.getServiceDataUUID(i);
+                std::string serviceData = deviceData.serviceData[i];
+                BLEUUID serviceUUID = deviceData.serviceUUID[i];
 
                 // Проверка на ATC прошивку (UUID: 0x181A или 0xFE95)
                 if ((serviceUUID.equals(BLEUUID((uint16_t)0x181A)) || serviceUUID.equals(BLEUUID("fe95"))) && serviceData.length() >= 15)
@@ -202,7 +240,6 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
                         humidity = humidityRaw / 100.0f;
 
                         batteryV = (int16_t)((uint8_t)serviceData[11] << 8 | (uint8_t)serviceData[10]);
-
                         battery = (uint8_t)serviceData[12];
                     }
 
@@ -239,9 +276,9 @@ void processXiaomiAdvertisement(BLEAdvertisedDevice advertisedDevice)
                     std::string deviceName = "Xiaomi " + deviceAddress.substr(deviceAddress.length() - 5);
 
                     // Если устройство имеет имя, используем его
-                    if (advertisedDevice.haveName())
+                    if (deviceData.hasName)
                     {
-                        deviceName = advertisedDevice.getName().c_str();
+                        deviceName = deviceData.name;
                     }
 
                     DeviceData newDevice(deviceName, deviceAddress);
