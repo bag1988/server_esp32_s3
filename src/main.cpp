@@ -12,7 +12,6 @@
 #include "esp_system.h"         // Библиотека ESP-IDF для работы с системными функциями
 #include "driver/temp_sensor.h" // Библиотека для работы с датчиком температуры
 #include <Adafruit_NeoPixel.h>
-#include "logger.h"
 #include <ESPmDNS.h>
 #define KEYPAD_PIN 2 // GPIO1 соответствует A0 на ESP32-S3 UNO
 #define NUM_LEDS 1   // Один светодиод
@@ -63,8 +62,6 @@ float board_temperature = 0.0;
 // Мьютекс для защиты доступа к общим данным
 // Создаем мьютекс для защиты доступа к данным
 SemaphoreHandle_t devicesMutex = xSemaphoreCreateMutex();
-SemaphoreHandle_t wifiMutex = xSemaphoreCreateMutex();
-SemaphoreHandle_t bleMutex = xSemaphoreCreateMutex();
 
 // Функция для создания эффекта радуги
 void rainbow(int wait)
@@ -94,7 +91,7 @@ unsigned long safeTimeDifference(unsigned long currentTime, unsigned long previo
 // Управление GPIO
 void controlGPIO()
 {
-    LOG_I("Проверка необходимости включения GPIO");
+    Serial.println("Проверка необходимости включения GPIO");
     std::vector<int> gpiosToTurnOn;
     unsigned long currentTime = millis();
     // Собираем GPIO для включения
@@ -112,23 +109,20 @@ void controlGPIO()
                 device.heatingStartTime = currentTime;
             }
 
-            LOG_I("Устройство %s: обогрев включен - %s, необходим обогрев - %s",
-                  device.name.c_str(), device.heatingActive ? "да" : "нет", (device.currentTemperature + 2) < device.targetTemperature ? "да" : "нет");
+            //Serial.printf("Устройство %s: обогрев включен - %s, необходим обогрев - %s\r\n", device.name.c_str(), device.heatingActive ? "да" : "нет", (device.currentTemperature + 2) < device.targetTemperature ? "да" : "нет");
             if (!device.heatingActive && device.enabled && device.isOnline && (device.currentTemperature + 2) < device.targetTemperature)
             {
                 device.heatingActive = true;
                 device.heatingStartTime = currentTime; // Запоминаем время включения
                 gpiosToTurnOn.insert(gpiosToTurnOn.end(), device.gpioPins.begin(), device.gpioPins.end());
 
-                LOG_I("Устройство %s: включаем обогрев (температура %.1f°C, целевая %.1f°C)",
-                      device.name.c_str(), device.currentTemperature, device.targetTemperature);
+                //Serial.printf("Устройство %s: включаем обогрев (температура %.1f°C, целевая %.1f°C)\r\n", device.name.c_str(), device.currentTemperature, device.targetTemperature);
             }
             else if (device.heatingActive && device.currentTemperature >= device.targetTemperature)
             {
                 // Температура достигла целевой - выключаем обогрев
                 device.heatingActive = false;
-                LOG_I("Устройство %s: выключаем обогрев (температура %.1f°C, целевая %.1f°C)",
-                      device.name.c_str(), device.currentTemperature, device.targetTemperature);
+                //Serial.printf("Устройство %s: выключаем обогрев (температура %.1f°C, целевая %.1f°C)\r\n", device.name.c_str(), device.currentTemperature, device.targetTemperature);
             }
             else if (!device.enabled && device.heatingActive)
             {
@@ -142,7 +136,7 @@ void controlGPIO()
         {
             device.isOnline = false;
             device.heatingActive = false;
-            LOG_I("Устройство %s: нет данных", device.name.c_str());
+            //Serial.printf("Устройство %s: нет данных\r\n", device.name.c_str());
         }
     }
 
@@ -170,17 +164,13 @@ void networkFunc()
     // Проверка подключения WiFi
     if (!wifiConnected && (millis() - lastWiFiAttemptTime > WIFI_RECONNECT_DELAY))
     {
-        if (xSemaphoreTake(wifiMutex, portMAX_DELAY) == pdTRUE)
-        {
-            connectWiFi();
-            vTaskDelay(20 / portTICK_PERIOD_MS); // Добавьте задержку
-            xSemaphoreGive(wifiMutex);
-        }
+        connectWiFi();
+        vTaskDelay(20 / portTICK_PERIOD_MS); // Добавьте задержку
     }
 
     // Обработка OTA обновлений
     if (wifiConnected)
-    {
+    {        
         handleOTA();
     }
 
@@ -189,13 +179,9 @@ void networkFunc()
     static unsigned long lastScanTime = 0;
     if (millis() - lastScanTime > XIAOMI_SCAN_INTERVAL)
     {
-        if (xSemaphoreTake(bleMutex, portMAX_DELAY) == pdTRUE)
-        {
-            // Обновляем время последнего сканирования
-            lastScanTime = millis();
-            startXiaomiScan();
-            xSemaphoreGive(bleMutex);
-        }
+        // Обновляем время последнего сканирования
+        lastScanTime = millis();
+        startXiaomiScan();
     }
 
     // Даем время другим задачам
@@ -215,7 +201,7 @@ void mainlogicFunc()
     // Обновление LCD
     updateLCDTask();
 
-    // // Управление GPIO
+    // Управление GPIO
     static unsigned long lastGpioControlTime = 0;
     if (millis() - lastGpioControlTime > CONTROL_DELAY)
     {
@@ -235,7 +221,7 @@ void mainlogicFunc()
     unsigned long currentTime = millis();
     if ((currentTime - lastStatsSaveTime > 300000) || (currentTime < lastStatsSaveTime))
     {
-        LOG_I("Сохранение статистики согласно таймаута, сохраняем результаты");
+        Serial.println("Сохранение статистики согласно таймаута, сохраняем результаты");
         saveClientsToFile();
         serverWorkTime += currentTime - lastStatsSaveTime;
         lastStatsSaveTime = currentTime;
@@ -275,7 +261,7 @@ void createTasksStandart()
     xTaskCreate(
         networkTaskFunction,   // Функция
         "networkTaskFunction", // Имя
-        4096,                  // Стек: 2048 слов = 8192 байт
+        8192,                  // Стек: 2048 слов = 8192 байт
         NULL,                  // Параметры
         1,                     // Приоритет
         NULL                   // Хэндл (не нужен)
@@ -296,7 +282,7 @@ void ReadDataInSPIFFS()
 void setup()
 {
     Serial.begin(115200);
-    LOG_I("Запуск системы...");
+    Serial.println("Запуск системы...");
     pixels.begin();           // Инициализация NeoPixel
     pixels.setBrightness(50); // Установка яркости (0-255)
     pixels.show();            // Инициализация всех пикселей в 'выключено'
@@ -304,18 +290,18 @@ void setup()
     // Инициализация и проверка PSRAM
     if (psramFound())
     {
-        LOG_I("PSRAM найдена и инициализирована");
-        LOG_I("Доступно PSRAM: %d байт", ESP.getFreePsram());
+        Serial.println("PSRAM найдена и инициализирована");
+        //Serial.printf("Доступно PSRAM: %d байт\r\n", ESP.getFreePsram());
     }
     else
     {
-        LOG_I("PSRAM не найдена! Некоторые функции могут работать некорректно");
+        Serial.println("PSRAM не найдена! Некоторые функции могут работать некорректно");
     }
 
     // Инициализация SPIFFS
     if (!SPIFFS.begin(true))
     {
-        LOG_I("Ошибка инициализации SPIFFS");
+        Serial.println("Ошибка инициализации SPIFFS");
         return;
     }
 
@@ -345,12 +331,12 @@ void setup()
     initScrollText();
     updateLCD();
     createTasksStandart();
-    
+
     if (wifiConnected)
     {
         initOTA();
         MDNS.addService("http", "tcp", 80);
-        LOG_I("MDNS http service registered");
+        Serial.println("MDNS http service registered");
     }
 
     // Инициализация датчика температуры (старый API)
@@ -358,9 +344,9 @@ void setup()
     ESP_ERROR_CHECK(temp_sensor_set_config(temp_sensor));
     ESP_ERROR_CHECK(temp_sensor_start());
 
-    LOG_I("Датчик температуры инициализирован");
-    LOG_I("Настройка завершена");
-    LOG_I("Система готова к работе");
+    Serial.println("Датчик температуры инициализирован");
+    Serial.println("Настройка завершена");
+    Serial.println("Система готова к работе");
 }
 
 void loop()
@@ -370,19 +356,8 @@ void loop()
         // Зеленый
         pixels.setPixelColor(0, pixels.Color(0, 255, 0));
         pixels.show();
-
         // Чтение температуры (старый API)
-
         esp_err_t ret = temp_sensor_read_celsius(&board_temperature);
-
-        // if (ret == ESP_OK)
-        // {
-        //     LOG_I("Внутренняя температура: %.2f °C", board_temperature);
-        // }
-        // else
-        // {
-        //     LOG_I("Ошибка при чтении датчика температуры");
-        // }
         vTaskDelay(5000 / portTICK_PERIOD_MS); // Небольшая задержка для предотвращения перегрузки CPU
     }
     else
@@ -397,16 +372,16 @@ void loop()
     }
 
     //     // Синий
-    //     LOG_I("Blue");
+    //     //Serial.printf("Blue");
     //     pixels.setPixelColor(0, pixels.Color(0, 0, 255));
     //     pixels.show();
     //     delay(1000);
     //     // Белый
-    //     LOG_I("White");
+    //     //Serial.printf("White");
     //     pixels.setPixelColor(0, pixels.Color(255, 255, 255));
     //     pixels.show();
     //     delay(1000);
     //     // Радуга
-    //     LOG_I("Rainbow");
+    //     //Serial.printf("Rainbow");
     //     rainbow(10);
 }

@@ -5,7 +5,7 @@
 #include <spiffs_setting.h>
 #include "xiaomi_scanner.h"
 #include <SPIFFS.h>
-#include "logger.h"
+
 
 // Web Server
 AsyncWebServer server(80);
@@ -15,8 +15,8 @@ AsyncWebServer server(80);
 
 void connectWiFi()
 {
-    LOG_I("Connecting to WiFi: %s", wifiCredentials.ssid.c_str());
-    LOG_I(", password: %s", wifiCredentials.password.c_str());
+    //Serial.printf("Connecting to WiFi: %s\r\n", wifiCredentials.ssid.c_str());
+    //Serial.printf(", password: %s\r\n", wifiCredentials.password.c_str());
     WiFi.begin(wifiCredentials.ssid.c_str(), wifiCredentials.password.c_str());
     lastWiFiAttemptTime = millis();
 
@@ -24,21 +24,18 @@ void connectWiFi()
     while (WiFi.status() != WL_CONNECTED && attempts < 10)
     {
         vTaskDelay(1000 / portTICK_PERIOD_MS);
-        Serial.print("...");
         attempts++;
     }
 
     if (WiFi.status() == WL_CONNECTED)
     {
-        LOG_I("");
-        LOG_I("WiFi connected");
-        LOG_I("IP address: %s", WiFi.localIP().toString().c_str());
+        Serial.println("WiFi connected");
+        //Serial.printf("IP address: %s\r\n", WiFi.localIP().toString().c_str());
         wifiConnected = true;
     }
     else
     {
-        LOG_I("");
-        LOG_I("Failed to connect to WiFi");
+        Serial.println("Failed to connect to WiFi");
         wifiConnected = false;
     }
 }
@@ -224,7 +221,7 @@ void initWebServer()
                         xSemaphoreGive(devicesMutex);
                         
                         if (isSaving) {
-                            LOG_I("Получены изменения по HTTP, сохраняем результаты");
+                            Serial.println("Получены изменения по HTTP, сохраняем результаты");
                             saveClientsToFile(); // Save changes to file
                             request->send(200, "text/plain", "Client updated");
                             return;
@@ -249,7 +246,7 @@ void initWebServer()
                             );                                                                      
                         xSemaphoreGive(devicesMutex);
                         
-                        LOG_I("Удаляем устройство %s", address.c_str());
+                        //Serial.printf("Удаляем устройство %s\r\n", address.c_str());
                             saveClientsToFile(); // Save changes to file
                             request->send(200, "text/plain", "Client remove");
                             return;
@@ -259,7 +256,7 @@ void initWebServer()
     // GET /scan (start BLE scan)
     server.on("/scan", HTTP_GET, [](AsyncWebServerRequest *request)
               {
-                LOG_I("Получен запрос на запуск сканирования устройств");
+                Serial.println("Получен запрос на запуск сканирования устройств");
                 startXiaomiScan();
             request->send(200, "text/plain", "BLE Scan started"); });
     // Добавляем обработчик для получения статистики обогрева
@@ -316,7 +313,7 @@ void initWebServer()
             }
             xSemaphoreGive(devicesMutex);
         }        
-        LOG_I("Сброшена статистика, сохраняем результаты");
+        Serial.println("Сброшена статистика, сохраняем результаты");
         // Сохраняем изменения
         saveClientsToFile();    
         serverWorkTime = 0;
@@ -344,5 +341,5 @@ void initWebServer()
     //           { request->send(SPIFFS, "/logs.html", "text/html"); });
 
     server.begin();
-    LOG_I("Web server started");
+    Serial.println("Web server started");
 }

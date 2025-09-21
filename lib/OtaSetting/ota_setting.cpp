@@ -5,7 +5,7 @@
 #include "variables_info.h"
 #include "lcd_setting.h"
 #include "web_server_setting.h"
-#include "logger.h"
+
 // Инициализация переменных состояния
 OtaState otaState = OTA_STATE_IDLE;
 int otaProgress = 0;
@@ -18,10 +18,10 @@ bool initOTA()
 {
     if (!wifiConnected)
     {
-        LOG_I("OTA: WiFi не подключен. OTA не инициализирован.");
+        Serial.println("OTA: WiFi не подключен. OTA не инициализирован.");
         return false;
     }
-    LOG_I("OTA инициализация.");
+    Serial.println("OTA инициализация.");
     // Настройка имени устройства для OTA
     ArduinoOTA.setHostname(WEB_SERVER_HOSTNAME);
 
@@ -48,8 +48,7 @@ bool initOTA()
         // Отображение информации на LCD        
         displayText("OTA Update", 0, 0, true, true);
         displayText("Type: " + type, 0, 1);
-        
-        LOG_I("Start updating %s", type); });
+        });
 
     ArduinoOTA.onEnd([]()
                      {
@@ -60,8 +59,7 @@ bool initOTA()
         // Отображение информации на LCD
         displayText("Update Complete", 0, 0, true, true);
         displayText("Rebooting...", 0, 1, true, true);
-        
-        LOG_I("End"); });
+         });
 
     ArduinoOTA.onProgress([](unsigned int progress, unsigned int total)
                           {
@@ -82,16 +80,16 @@ bool initOTA()
         progressBar += "]";
         
         displayText(progressBar, 0, 1);
-        displayText(String(percentage) + "%", 12, 1, false);
-        
-        Serial.printf("Progress: %u%%\r", percentage); });
+        displayText(String(percentage) + "%", 12, 1, false);                
+        //Serial.printf("Progress: %u%%\r", percentage); 
+        });
 
     ArduinoOTA.onError([](ota_error_t error)
                        {
         // Обновление состояния
         otaState = OTA_STATE_ERROR;
         
-        LOG_E("Error[%u]: ", error);
+        log_e("Error[%u]: ", error);
         displayText("Update Error", 0, 0, true, true);
         
         switch (error) {
@@ -116,7 +114,7 @@ bool initOTA()
         }
         
         displayText(otaErrorMessage, 0, 1, true, true);
-        LOG_I(otaErrorMessage.c_str());
+        Serial.println(otaErrorMessage.c_str());
         
         // Выход из режима OTA через 10 секунд после ошибки
         vTaskDelay(10000 / portTICK_PERIOD_MS);
@@ -124,8 +122,8 @@ bool initOTA()
     // выключаем инициализацию mDNS
 
     ArduinoOTA.begin();
-    LOG_I("OTA ready");
-    LOG_I("mDNS started: http://%s.local", WEB_SERVER_HOSTNAME); 
+    Serial.println("OTA ready");
+    //Serial.printf("mDNS started: http://%s.local\r\n", WEB_SERVER_HOSTNAME); 
     return true;
 }
 
@@ -137,7 +135,7 @@ void handleOTA()
     // Проверка таймаута режима OTA
     if (otaActive && millis() - otaStartTime > otaTimeout)
     {
-        LOG_I("OTA: Таймаут режима OTA. Возврат к нормальной работе.");
+        Serial.println("OTA: Таймаут режима OTA. Возврат к нормальной работе.");
         otaActive = false;
         displayText("OTA Timeout", 0, 0, true, true);
         displayText("Normal mode", 0, 1, true, true);

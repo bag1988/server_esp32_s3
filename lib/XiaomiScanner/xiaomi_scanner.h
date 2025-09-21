@@ -35,7 +35,7 @@ extern BLEScan* pBLEScan;
 extern bool scanningActive;
 // Функции
 void setupXiaomiScanner();
-void startXiaomiScan(uint32_t duration = XIAOMI_SCAN_DURATION);
+void startXiaomiScan();
 void processXiaomiAdvertisement(BLEDeviceData& deviceData);
 void printDevicesData();
 #endif // XIAOMI_SCANNER_H

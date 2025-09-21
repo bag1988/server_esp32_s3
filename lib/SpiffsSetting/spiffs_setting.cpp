@@ -1,5 +1,5 @@
 #include <spiffs_setting.h>
-#include "logger.h"
+
 Preferences preferences;
 
 void saveServerWorkTime()
@@ -22,7 +22,7 @@ void loadServerWorkTime()
 // Загружаем клиентов из Preferences как единый Blob
 void loadClientsFromFile()
 {
-  LOG_I("Loading clients from Preferences...");
+  Serial.println("Loading clients from Preferences...");
 
   // Открываем пространство имен "devices" в режиме только для чтения
   if (preferences.begin("devices", true))
@@ -88,16 +88,16 @@ void loadClientsFromFile()
                 devices.push_back(device);
               }
 
-              LOG_I("Loaded %d clients from Preferences blob", devices.size());
+              //Serial.printf("Loaded %d clients from Preferences blob\r\n", devices.size());
             }
             else
             {
-              LOG_I("deserializeJson() failed: %s", error.c_str());
+              //Serial.printf("deserializeJson() failed: %s\r\n", error.c_str());
             }
           }
           else
           {
-            LOG_I("Failed to read complete blob data");
+            Serial.println("Failed to read complete blob data");
           }
 
           // Освобождаем память
@@ -105,33 +105,33 @@ void loadClientsFromFile()
         }
         else
         {
-          LOG_I("Failed to allocate memory for blob data");
+          Serial.println("Failed to allocate memory for blob data");
         }
       }
       else
       {
-        LOG_I("No devices data found in Preferences");
+        Serial.println("No devices data found in Preferences");
       }
 
       xSemaphoreGive(devicesMutex);
     }
     else
     {
-      LOG_I("Failed to take devicesMutex");
+      Serial.println("Failed to take devicesMutex");
     }
 
     preferences.end();
   }
   else
   {
-    LOG_I("Failed to open 'devices' namespace");
+    Serial.println("Failed to open 'devices' namespace");
   }
 }
 
 // Сохраняем клиентов в Preferences как единый Blob
 void saveClientsToFile()
 {
-  LOG_I("Начинаем сохранение устройств в файл");
+  Serial.println("Начинаем сохранение устройств в файл");
 
   // Открываем пространство имен "devices" в режиме чтения-записи
   if (preferences.begin("devices", false))
@@ -179,12 +179,11 @@ void saveClientsToFile()
           // Сохраняем буфер в Preferences
           if (preferences.putBytes("devices_blob", buffer, serializedSize))
           {
-            LOG_I("Saved %d clients to Preferences blob (%d bytes)",
-                          devices.size(), serializedSize);
+            //Serial.printf("Saved %d clients to Preferences blob (%d bytes)\r\n", devices.size(), serializedSize);
           }
           else
           {
-            LOG_I("Failed to save devices blob to Preferences");
+            Serial.println("Failed to save devices blob to Preferences");
           }
 
           // Освобождаем память
@@ -192,26 +191,26 @@ void saveClientsToFile()
         }
         else
         {
-          LOG_I("Failed to allocate memory for serialization");
+          Serial.println("Failed to allocate memory for serialization");
         }
       }
       else
       {
-        LOG_I("Empty devices collection, nothing to save");
+        Serial.println("Empty devices collection, nothing to save");
       }
 
       xSemaphoreGive(devicesMutex);
     }
     else
     {
-      LOG_I("Failed to take devicesMutex");
+      Serial.println("Failed to take devicesMutex");
     }
 
     preferences.end();
   }
   else
   {
-    LOG_I("Failed to open 'devices' namespace");
+    Serial.println("Failed to open 'devices' namespace");
   }
 }
 
@@ -225,11 +224,11 @@ void loadWifiCredentialsFromFile()
 
     preferences.end();
 
-    LOG_I("WiFi-креденциалы загружены из Preferences");
+    Serial.println("WiFi-креденциалы загружены из Preferences");
   }
   else
   {
-    LOG_I("Нет доступа для чтения данных wifi");
+    Serial.println("Нет доступа для чтения данных wifi");
   }
 }
 // Сохраняем настройки Wifi +++++++++++++++++++++++++++
@@ -242,18 +241,18 @@ void saveWifiCredentialsToFile()
 
     preferences.end();
 
-    LOG_I("WiFi-креденциалы сохранены в Preferences");
+    Serial.println("WiFi-креденциалы сохранены в Preferences");
   }
   else
   {
-    LOG_I("Нет доступа для записи данных wifi");
+    Serial.println("Нет доступа для записи данных wifi");
   }
 }
 // Функция для сохранения GPIO в файл
 // Функция для сохранения GPIO в Preferences как Blob
 void saveGpioToFile()
 {
-  LOG_I("Saving GPIO to Preferences...");
+  Serial.println("Saving GPIO to Preferences...");
 
   // Открываем пространство имен "gpio" в режиме чтения-записи
   if (preferences.begin("gpio", false))
@@ -286,12 +285,11 @@ void saveGpioToFile()
         // Сохраняем буфер в Preferences
         if (preferences.putBytes("gpio_blob", buffer, serializedSize))
         {
-          LOG_I("Saved %d GPIO pins to Preferences blob (%d bytes)",
-                        availableGpio.size(), serializedSize);
+          //Serial.printf("Saved %d GPIO pins to Preferences blob (%d bytes)\r\n", availableGpio.size(), serializedSize);
         }
         else
         {
-          LOG_I("Failed to save GPIO blob to Preferences");
+          Serial.println("Failed to save GPIO blob to Preferences");
         }
 
         // Освобождаем память
@@ -299,26 +297,26 @@ void saveGpioToFile()
       }
       else
       {
-        LOG_I("Failed to allocate memory for serialization");
+        Serial.println("Failed to allocate memory for serialization");
       }
     }
     else
     {
-      LOG_I("Empty GPIO collection, nothing to save");
+      Serial.println("Empty GPIO collection, nothing to save");
     }
 
     preferences.end();
   }
   else
   {
-    LOG_I("Failed to open 'gpio' namespace");
+    Serial.println("Failed to open 'gpio' namespace");
   }
 }
 
 // Функция для загрузки GPIO из Preferences как Blob
 void loadGpioFromFile()
 {
-  LOG_I("Loading GPIO from Preferences...");
+  Serial.println("Loading GPIO from Preferences...");
 
   // Открываем пространство имен "gpio" в режиме только для чтения
   if (preferences.begin("gpio", true))
@@ -360,16 +358,16 @@ void loadGpioFromFile()
               availableGpio.push_back(gpio);
             }
 
-            LOG_I("Loaded %d GPIO pins from Preferences blob", availableGpio.size());
+            //Serial.printf("Loaded %d GPIO pins from Preferences blob\r\n", availableGpio.size());
           }
           else
           {
-            LOG_I("deserializeJson() failed: %s",error.c_str());
+            //Serial.printf("deserializeJson() failed: %s\r\n",error.c_str());
           }
         }
         else
         {
-          LOG_I("Failed to read complete blob data");
+          Serial.println("Failed to read complete blob data");
         }
 
         // Освобождаем память
@@ -377,7 +375,7 @@ void loadGpioFromFile()
       }
       else
       {
-        LOG_I("Failed to allocate memory for blob data");
+        Serial.println("Failed to allocate memory for blob data");
       }
     }
     preferences.end();
