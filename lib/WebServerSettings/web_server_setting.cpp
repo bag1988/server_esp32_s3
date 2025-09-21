@@ -232,7 +232,30 @@ void initWebServer()
                     }
                 }                
                 request->send(404, "text/plain", "Client not found"); });
-
+    server.on("/client", HTTP_DELETE, [](AsyncWebServerRequest *request)
+              {
+                if (request->hasParam("address", true))
+                {
+                    String address = request->getParam("address", true)->value();
+                   
+                    if (xSemaphoreTake(devicesMutex, portMAX_DELAY) == pdTRUE) {
+                        // Находим устройство по адресу
+                        devices.erase(
+                                std::remove_if(devices.begin(), devices.end(),
+                                [&](const DeviceData& d) {
+                                    return d.macAddress == address.c_str();
+                                }),
+                                devices.end()
+                            );                                                                      
+                        xSemaphoreGive(devicesMutex);
+                        
+                        LOG_I("Удаляем устройство %s", address.c_str());
+                            saveClientsToFile(); // Save changes to file
+                            request->send(200, "text/plain", "Client remove");
+                            return;
+                    }
+                }                
+                request->send(404, "text/plain", "Client not found"); });
     // GET /scan (start BLE scan)
     server.on("/scan", HTTP_GET, [](AsyncWebServerRequest *request)
               {

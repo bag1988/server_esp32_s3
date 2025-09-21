@@ -32,9 +32,6 @@
                 const devices = await response.json();
                 displayDevices(devices);
             } catch (error) {
-                // displayDevices([{ name: "dev1", macAddress: "1234567890", currentTemperature: 20, targetTemperature: 22, enabled: true, isOnline: true, heatingActive: true, humidity: 50, battery: 80, lastUpdate: 9000, totalHeatingTime: 10000 },
-                // { name: "dev2", macAddress: "12345678220", currentTemperature: 22, targetTemperature: 22, enabled: true, isOnline: true, heatingActive: true, humidity: 50, battery: 80, lastUpdate: 9000, totalHeatingTime: 10000 }
-                // ]);
                 console.error('Ошибка при загрузке устройств:', error);
             }
         }
@@ -46,7 +43,6 @@
                 return await response.json();
             } catch (error) {
                 console.error('Ошибка при загрузке GPIO пинов:', error);
-                //return [{pin:15, name:"GPIO 15"}, {pin:16, name:"GPIO 16"}, {pin:17, name:"GPIO 17"}, {pin:18, name:"GPIO 18"}, {pin:19, name:"GPIO 19"}];
                 return [];
             }
         }
@@ -91,7 +87,7 @@
                 const temperature = document.createElement('div');
                 temperature.textContent = `Температура: ${device.currentTemperature}°C`;
 
-                 const humidity = document.createElement('div');
+                const humidity = document.createElement('div');
                 humidity.textContent = `Влажность: ${device.humidity}%`;
 
                 const battery = document.createElement('div');
@@ -173,6 +169,11 @@
                 saveButton.textContent = 'Сохранить';
                 saveButton.onclick = () => saveDevice(device.macAddress);
 
+                const removeButton = document.createElement('button');
+                removeButton.textContent = 'Удалить';
+                removeButton.setAttribute("style", "background-color: red;");
+                removeButton.onclick = () => removeDevice(device.macAddress);
+
                 controls.appendChild(nameLabel);
                 controls.appendChild(nameInput);
                 controls.appendChild(tempLabel);
@@ -181,6 +182,7 @@
                 controls.appendChild(gpioSelect);
                 controls.appendChild(selectedGpio);
                 controls.appendChild(saveButton);
+                controls.appendChild(removeButton);
 
                 deviceElement.appendChild(controls);
                 devicesList.appendChild(deviceElement);
@@ -230,6 +232,33 @@
                 }
             });
         }
+
+        async function removeDevice(macAddress) {
+
+            if (!confirm('Вы уверены, что хотите удалить устройство?')) {
+                return;
+            }
+            const formData = new FormData();
+            formData.append('address', macAddress);
+
+            try {
+                const response = await fetch('/client', {
+                    method: 'DELETE',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    alert('Устройство успешно удалено');
+                    loadDevices();
+                } else {
+                    alert('Ошибка при удалении устройства');
+                }
+            } catch (error) {
+                console.error('Ошибка при удалении устройства:', error);
+                alert('Ошибка при удалении устройства');
+            }
+        }
+
 
         // Сохранение устройства
         async function saveDevice(macAddress) {
