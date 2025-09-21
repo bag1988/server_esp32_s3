@@ -19,6 +19,11 @@
         </div>
     </div>
     <div class="container">
+        <button class="button" onclick="refreshStats()">Обновить статистику</button>
+        <!-- Добавляем кнопку сброса статистики -->
+        <button class="button" onclick="resetStats()">Сбросить статистику</button>
+    </div>
+    <div class="container">
         <table id="stats-table">
             <thead>
                 <tr>
@@ -35,10 +40,6 @@
                 </tr>
             </tbody>
         </table>
-        <br />
-        <button class="button" onclick="refreshStats()">Обновить статистику</button>
-        <!-- Добавляем кнопку сброса статистики -->
-        <button class="button" onclick="resetStats()">Сбросить статистику</button>
     </div>
 
     <script>
