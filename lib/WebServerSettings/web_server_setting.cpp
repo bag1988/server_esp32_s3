@@ -6,17 +6,16 @@
 #include "xiaomi_scanner.h"
 #include <SPIFFS.h>
 
-
 // Web Server
 AsyncWebServer server(80);
 
 // Создаем экземпляр AsyncEventSource
-//AsyncEventSource events("/events");
+// AsyncEventSource events("/events");
 
 void connectWiFi()
 {
-    //Serial.printf("Connecting to WiFi: %s\r\n", wifiCredentials.ssid.c_str());
-    //Serial.printf(", password: %s\r\n", wifiCredentials.password.c_str());
+    // Serial.printf("Connecting to WiFi: %s\r\n", wifiCredentials.ssid.c_str());
+    // Serial.printf(", password: %s\r\n", wifiCredentials.password.c_str());
     WiFi.begin(wifiCredentials.ssid.c_str(), wifiCredentials.password.c_str());
     lastWiFiAttemptTime = millis();
 
@@ -30,7 +29,7 @@ void connectWiFi()
     if (WiFi.status() == WL_CONNECTED)
     {
         Serial.println("WiFi connected");
-        //Serial.printf("IP address: %s\r\n", WiFi.localIP().toString().c_str());
+        // Serial.printf("IP address: %s\r\n", WiFi.localIP().toString().c_str());
         wifiConnected = true;
     }
     else
@@ -43,7 +42,7 @@ void connectWiFi()
 void initWebServer()
 {
     // Добавляем обработчик событий
-    //server.addHandler(&events);
+    // server.addHandler(&events);
     // GET /clients (get list of all clients)
     server.on("/clients", HTTP_GET, [](AsyncWebServerRequest *request)
               {
@@ -315,10 +314,28 @@ void initWebServer()
         }        
         Serial.println("Сброшена статистика, сохраняем результаты");
         // Сохраняем изменения
-        saveClientsToFile();    
-        serverWorkTime = 0;
-        saveServerWorkTime();
+        saveClientsToFile();
         request->send(200, "text/plain", "Статистика сброшена"); });
+
+    server.on("/reset_work_time", HTTP_DELETE, [](AsyncWebServerRequest *request)
+              {       
+        Serial.println("Сброшено время работы, сохраняем результаты");        
+        serverWorkTime = 0;
+        saveServerSetting();
+        request->send(200, "text/plain", "Статистика сброшена"); });
+
+    server.on("/save_hysteresis_temp", HTTP_POST, [](AsyncWebServerRequest *request)
+              {       
+                if (request->hasParam("hysteresis_temp", true)) {
+                    hysteresisTemp = request->getParam("hysteresis_temp", true)->value().toFloat();
+                    Serial.println("Cохраняем настройки для гистерезиса");  
+                    saveServerSetting();
+                    request->send(200, "text/plain", "Настройки для гистерезиса сохранены"); 
+                }
+     request->send(404, "text/plain", "Param not found"); });
+
+    server.on("/get_hysteresis_temp", HTTP_GET, [](AsyncWebServerRequest *request)
+              { request->send(200, "application/json", String(hysteresisTemp, 1)); });
 
     // Обработчик для корневого пути и /index
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)

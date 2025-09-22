@@ -49,11 +49,20 @@ h2 {
     min-width: 200px;
     max-width: 100%;
 }
+
 @media (width > 800px) {
-  .device {  
-    min-width: 400px;
+    .device {
+        min-width: 400px;
+    }
 }
+
+@media (width < 800px) {
+    .menu a {
+        display: block;
+        margin-bottom: 5px;
+    }
 }
+
 .active {
     color: green;
 }

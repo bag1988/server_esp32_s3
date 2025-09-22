@@ -12,5 +12,5 @@ void saveWifiCredentialsToFile();
 void saveGpioToFile();
 void loadGpioFromFile();
 void loadServerWorkTime();
-void saveServerWorkTime();
+void saveServerSetting();
 #endif

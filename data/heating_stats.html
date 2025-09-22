@@ -58,9 +58,6 @@
                     displayStat(data);
                 })
                 .catch(error => {
-                    // displayStat([{ name: "dev1", currentTemperature: 20, targetTemperature: 22, heatingActive: true, totalHeatingTimeMs: 10000, totalHeatingTimeFormatted: "00:16:40" },
-                    // { name: "dev2", currentTemperature: 21, targetTemperature: 22, heatingActive: false, totalHeatingTimeMs: 10000, totalHeatingTimeFormatted: "00:16:40" }
-                    // ]);
                     console.error('Ошибка при получении статистики:', error);
                     document.getElementById('stats-body').innerHTML = '<tr><td colspan="5">Ошибка при загрузке данных</td></tr>';
                 });

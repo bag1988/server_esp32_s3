@@ -55,6 +55,7 @@ std::vector<GpioPin> availableGpio = {
 // WiFi
 WifiCredentials wifiCredentials;
 unsigned long serverWorkTime = 0;
+float hysteresisTemp = 1.5;
 bool wifiConnected = false;
 unsigned long lastWiFiAttemptTime = 0;
 float board_temperature = 0.0;
@@ -109,8 +110,8 @@ void controlGPIO()
                 device.heatingStartTime = currentTime;
             }
 
-            //Serial.printf("Устройство %s: обогрев включен - %s, необходим обогрев - %s\r\n", device.name.c_str(), device.heatingActive ? "да" : "нет", (device.currentTemperature + 2) < device.targetTemperature ? "да" : "нет");
-            if (!device.heatingActive && device.enabled && device.isOnline && (device.currentTemperature + 2) < device.targetTemperature)
+            //Serial.printf("Устройство %s: обогрев включен - %s, необходим обогрев - %s\r\n", device.name.c_str(), device.heatingActive ? "да" : "нет", (device.currentTemperature + hysteresisTemp) < device.targetTemperature ? "да" : "нет");
+            if (!device.heatingActive && device.enabled && device.isOnline && (device.currentTemperature + hysteresisTemp) < device.targetTemperature)
             {
                 device.heatingActive = true;
                 device.heatingStartTime = currentTime; // Запоминаем время включения
@@ -135,6 +136,8 @@ void controlGPIO()
         else if (device.isOnline)
         {
             device.isOnline = false;
+            unsigned long elapsedTime = safeTimeDifference(currentTime, device.heatingStartTime);
+            device.totalHeatingTime += elapsedTime;
             device.heatingActive = false;
             //Serial.printf("Устройство %s: нет данных\r\n", device.name.c_str());
         }
@@ -225,7 +228,7 @@ void mainlogicFunc()
         saveClientsToFile();
         serverWorkTime += currentTime - lastStatsSaveTime;
         lastStatsSaveTime = currentTime;
-        saveServerWorkTime();
+        saveServerSetting();
     }
     //  Даем время другим задачам
     vTaskDelay(200 / portTICK_PERIOD_MS); // Небольшая задержка для предотвращения перегрузки CPU

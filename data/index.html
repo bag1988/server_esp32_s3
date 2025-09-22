@@ -29,6 +29,20 @@
         <div id="serverInfoContainer">
             <!-- Отображение информации о сервере -->
         </div>
+        <button onclick="resetWorkTime()">Сбросить время работы</button>
+    </div>
+
+    <div class="container">
+        <h2>Гистерезис температуры</h2>
+        <form method="post" action="/save_hysteresis_temp">
+            <div>
+                <label for="hysteresis_temp">Значение:</label>
+                <input type="number" required id="hysteresis_temp" name="hysteresis_temp" min="1" max="10"
+                    step="0.1"></input>
+            </div>
+            <button type="submit">Сохранить</button>
+        </form>
+    </div>
     </div>
 
     <script>
@@ -43,6 +57,28 @@
                     console.error('Ошибка при загрузке клиентов:', error);
                 });
         }
+
+        async function resetWorkTime() {
+            if (!confirm('Вы уверены, что хотите сбросить время работы?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/reset_work_time', {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    alert('Время работы сброшено');
+                } else {
+                    alert('Ошибка при сбросе времени работы');
+                }
+            } catch (error) {
+                console.error('Ошибка при сбросе времени работы:', error);
+                alert('Ошибка при сбросе времени работы');
+            }
+        }
+
         // Отображение устройств на странице
         function displayDevices(devices) {
             const devicesList = document.getElementById('devicesList');
@@ -102,6 +138,18 @@
                 });
         }
 
+        function loadHysteresisTemp() {
+            fetch('/get_hysteresis_temp')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('hysteresis_temp').value = data;
+                })
+                .catch(error => {
+                    console.error('Ошибка при загрузке информации о гистерезисе температуры:', error);
+                });
+        }
+
+
         function displayServerInfo(data) {
             const serverContainer = document.getElementById('serverInfoContainer');
             serverContainer.innerHTML = '';
@@ -140,6 +188,7 @@
         window.onload = function () {
             loadClients();
             loadServerInfo();
+            loadHysteresisTemp();
         };
     </script>
 </body>

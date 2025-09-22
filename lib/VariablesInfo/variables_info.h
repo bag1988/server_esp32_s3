@@ -83,7 +83,6 @@ struct DeviceData {
     }
 };
 
-
 struct GpioPin {
     int pin;
     std::string name;
@@ -104,4 +103,5 @@ extern unsigned long lastWiFiAttemptTime;
 extern SemaphoreHandle_t devicesMutex;
 extern float board_temperature;
 extern unsigned long serverWorkTime;
+extern float hysteresisTemp;
 #endif // VARIABLES_INFO_H

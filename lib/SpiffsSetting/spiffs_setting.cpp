@@ -2,11 +2,12 @@
 
 Preferences preferences;
 
-void saveServerWorkTime()
+void saveServerSetting()
 {
   if (preferences.begin("server_setting", false))
   {
     preferences.putLong64("server_time", serverWorkTime);
+    preferences.putFloat("hysteresis_temp", hysteresisTemp);
     preferences.end();
   }
 }
@@ -16,6 +17,7 @@ void loadServerWorkTime()
   if (preferences.begin("server_setting", true))
   {
     serverWorkTime = preferences.getLong64("server_time", 0);
+    hysteresisTemp = preferences.getFloat("hysteresis_temp", 1.5);
     preferences.end();
   }
 }
