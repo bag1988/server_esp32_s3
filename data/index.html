@@ -115,14 +115,15 @@
 
                 const heatingActive = document.createElement('div');
                 heatingActive.textContent = `Обогрев: ${device.heatingActive ? 'включен' : 'выключен'}`;
-
+                if (device.heatingActive) {
+                    heatingActive.style.color = 'green';
+                }
                 info.appendChild(temperature);
                 info.appendChild(humidity);
                 info.appendChild(battery);
                 info.appendChild(devEnabled);
                 info.appendChild(heatingActive);
                 deviceElement.appendChild(info);
-
                 devicesList.appendChild(deviceElement);
             });
         }
@@ -166,10 +167,10 @@
             cpu_frequency_mhz.innerHTML = `Частота CPU: ${data.cpu_frequency_mhz}`;
             serverContainer.appendChild(cpu_frequency_mhz);
             const sram_size_bytes = document.createElement("div");
-            sram_size_bytes.innerHTML = `Размер SRAM: ${(data.sram_size_bytes / 1024 / 1024).toFixed(3)} мб`;
+            sram_size_bytes.innerHTML = `Размер SRAM: ${(data.sram_size_bytes / 1024).toFixed(3)} кб`;
             serverContainer.appendChild(sram_size_bytes);
             const free_sram_bytes = document.createElement("div");
-            free_sram_bytes.innerHTML = `Свободная SRAM: ${(data.free_sram_bytes / 1024 / 1024).toFixed(3)} мб`;
+            free_sram_bytes.innerHTML = `Свободная SRAM: ${(data.free_sram_bytes / 1024).toFixed(3)} кб`;
             serverContainer.appendChild(free_sram_bytes);
 
             const flash_size_bytes = document.createElement("div");
