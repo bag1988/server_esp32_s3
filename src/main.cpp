@@ -41,16 +41,13 @@ Adafruit_NeoPixel pixels(NUM_LEDS, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
 // UART: GPIO43 (TX), GPIO44 (RX) - если не используются для отладки
 
 std::vector<GpioPin> availableGpio = {
-    {15, "GPIO 15"},
-    {16, "GPIO 16"},
-    {17, "GPIO 17"},
-    {18, "GPIO 18"},
+    {35, "GPIO 35"},
+    {36, "GPIO 36"},
     {38, "GPIO 38"},
     {39, "GPIO 39"},
     {40, "GPIO 40"},
-    {42, "GPIO 41"},
-    {45, "GPIO 45"},
-    {47, "GPIO 47"}};
+    {41, "GPIO 41"},
+    {42, "GPIO 42"}};
 
 // WiFi
 WifiCredentials wifiCredentials;
@@ -110,20 +107,20 @@ void controlGPIO()
                 device.heatingStartTime = currentTime;
             }
 
-            //Serial.printf("Устройство %s: обогрев включен - %s, необходим обогрев - %s\r\n", device.name.c_str(), device.heatingActive ? "да" : "нет", (device.currentTemperature + hysteresisTemp) < device.targetTemperature ? "да" : "нет");
+            // Serial.printf("Устройство %s: обогрев включен - %s, необходим обогрев - %s\r\n", device.name.c_str(), device.heatingActive ? "да" : "нет", (device.currentTemperature + hysteresisTemp) < device.targetTemperature ? "да" : "нет");
             if (!device.heatingActive && device.enabled && device.isOnline && (device.currentTemperature + hysteresisTemp) < device.targetTemperature)
             {
                 device.heatingActive = true;
                 device.heatingStartTime = currentTime; // Запоминаем время включения
                 gpiosToTurnOn.insert(gpiosToTurnOn.end(), device.gpioPins.begin(), device.gpioPins.end());
 
-                //Serial.printf("Устройство %s: включаем обогрев (температура %.1f°C, целевая %.1f°C)\r\n", device.name.c_str(), device.currentTemperature, device.targetTemperature);
+                // Serial.printf("Устройство %s: включаем обогрев (температура %.1f°C, целевая %.1f°C)\r\n", device.name.c_str(), device.currentTemperature, device.targetTemperature);
             }
             else if (device.heatingActive && device.currentTemperature >= device.targetTemperature)
             {
                 // Температура достигла целевой - выключаем обогрев
                 device.heatingActive = false;
-                //Serial.printf("Устройство %s: выключаем обогрев (температура %.1f°C, целевая %.1f°C)\r\n", device.name.c_str(), device.currentTemperature, device.targetTemperature);
+                // Serial.printf("Устройство %s: выключаем обогрев (температура %.1f°C, целевая %.1f°C)\r\n", device.name.c_str(), device.currentTemperature, device.targetTemperature);
             }
             else if (!device.enabled && device.heatingActive)
             {
@@ -139,7 +136,7 @@ void controlGPIO()
             unsigned long elapsedTime = safeTimeDifference(currentTime, device.heatingStartTime);
             device.totalHeatingTime += elapsedTime;
             device.heatingActive = false;
-            //Serial.printf("Устройство %s: нет данных\r\n", device.name.c_str());
+            // Serial.printf("Устройство %s: нет данных\r\n", device.name.c_str());
         }
     }
 
@@ -173,7 +170,7 @@ void networkFunc()
 
     // Обработка OTA обновлений
     if (wifiConnected)
-    {        
+    {
         handleOTA();
     }
 
@@ -294,7 +291,7 @@ void setup()
     if (psramFound())
     {
         Serial.println("PSRAM найдена и инициализирована");
-        //Serial.printf("Доступно PSRAM: %d байт\r\n", ESP.getFreePsram());
+        // Serial.printf("Доступно PSRAM: %d байт\r\n", ESP.getFreePsram());
     }
     else
     {

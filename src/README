@@ -58,7 +58,7 @@ std::vector<GpioPin> availableGpio = {
     {45, "GPIO 45"},
     {46, "GPIO 46"},
     {47, "GPIO 47"},
-    {48, "GPIO 48"}
+    {48, "GPIO 48"}  - PIN_NEOPIXEL
 };
 При подключении LCD Keypad Shield к ESP32-S3 UNO WROOM-1-N16R8 используются следующие пины:
 

@@ -85,8 +85,7 @@ struct DeviceData {
 
 struct GpioPin {
     int pin;
-    std::string name;
-    
+    std::string name;    
     GpioPin() :
         pin(0),
         name(""){}
