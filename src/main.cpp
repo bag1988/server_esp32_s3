@@ -41,13 +41,14 @@ Adafruit_NeoPixel pixels(NUM_LEDS, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
 // UART: GPIO43 (TX), GPIO44 (RX) - если не используются для отладки
 
 std::vector<GpioPin> availableGpio = {
-    {35, "GPIO 35"},
-    {36, "GPIO 36"},
+    {15, "GPIO 15"},
+    {16, "GPIO 16"},
     {38, "GPIO 38"},
     {39, "GPIO 39"},
     {40, "GPIO 40"},
     {41, "GPIO 41"},
-    {42, "GPIO 42"}};
+    {42, "GPIO 42"}
+};
 
 // WiFi
 WifiCredentials wifiCredentials;
