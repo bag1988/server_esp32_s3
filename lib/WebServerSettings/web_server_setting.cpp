@@ -69,7 +69,7 @@ void initWebServer()
                         
                         // Добавляем массив GPIO пинов
                         JsonArray pinsArray = deviceObj["gpioPins"].to<JsonArray>();
-                        for (int pin : device.gpioPins) {
+                        for (uint8_t pin : device.gpioPins) {
                             pinsArray.add(pin);
                         }
                     }
@@ -88,6 +88,7 @@ void initWebServer()
                   for (const auto& gpio : availableGpio) {
                       JsonObject gpioObj = gpioArray.add<JsonObject>();
                       gpioObj["pin"] = gpio.pin;
+                      gpioObj["state"] = gpio.state;
                       gpioObj["name"] = gpio.name;
                   }
                   
@@ -111,7 +112,8 @@ void initWebServer()
                             JsonArray gpioArray = doc.as<JsonArray>();
                             for (JsonObject gpioObj : gpioArray) {
                                 GpioPin gpio;
-                                gpio.pin = gpioObj["pin"].as<int>();
+                                gpio.pin = gpioObj["pin"].as<uint8_t>();
+                                gpio.state = gpioObj["state"].as<uint8_t>();
                                 gpio.name = gpioObj["name"].as<const char*>();
                                 availableGpio.push_back(gpio);
                             }
@@ -206,7 +208,7 @@ void initWebServer()
                                     // Если входные данные - массив
                                     if (doc.is<JsonArray>()) {
                                         JsonArray pinsArray = doc.as<JsonArray>();
-                                        for (int pin : pinsArray) {
+                                        for (uint8_t pin : pinsArray) {
                                             deviceIt->gpioPins.push_back(pin);
                                         }
                                     }                                     

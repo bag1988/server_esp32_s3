@@ -32,34 +32,28 @@ std::vector<GpioPin> availableGpio = {
     {39, "GPIO 39 (только вход)"}};
 
 // Список доступных GPIO для ESP32 UNO WROOM-1-N16R8
-std::vector<GpioPin> availableGpio = {
-    {0, "GPIO 0 (Boot)"},
-    {2, "GPIO 2"},
-    {3, "GPIO 3"},
-    {10, "GPIO 10 (SPI CS)"},
-    {11, "GPIO 11 (SPI MOSI)"},
-    {12, "GPIO 12 (SPI MISO)"},
-    {13, "GPIO 13 (SPI CLK)"},
-    {14, "GPIO 14"},
-    {15, "GPIO 15"},
-    {16, "GPIO 16"},
-    {17, "GPIO 17"},
-    {18, "GPIO 18"},
-    {19, "GPIO 19"},
-    {20, "GPIO 20"},
-    {21, "GPIO 21"},    
-    {38, "GPIO 38"},
-    {39, "GPIO 39"},
-    {40, "GPIO 40"},
-    {41, "GPIO 41"},
-    {42, "GPIO 42"},
-    {43, "GPIO 43 (UART TX)"},
-    {44, "GPIO 44 (UART RX)"},
-    {45, "GPIO 45"},
-    {46, "GPIO 46"},
-    {47, "GPIO 47"},
-    {48, "GPIO 48"}  - PIN_NEOPIXEL
-};
+
+GPIO	Назначение по умолчанию	Статус	Комментарий
+GPIO0	Boot, GPIO	⚠️ ограничено	влияет на загрузку
+GPIO1–17	GPIO, UART, SPI, I2C, PWM, ADC	✅ свободны	универсальные, доступны
+GPIO18	SPI, PWM	✅ свободен	часто используется
+GPIO19	USB D+	⚠️ занят	если используется USB
+GPIO20	USB D−	⚠️ занят	если используется USB
+GPIO21	USB VBUS	⚠️ занят	если используется USB
+GPIO33	SPI, PWM, ADC	✅ свободен	доступен
+GPIO34	PSRAM	❌ занят	используется PSRAM
+GPIO35	PSRAM	❌ занят	используется PSRAM
+GPIO36	PSRAM	❌ занят	используется PSRAM
+GPIO37	PSRAM	❌ занят	используется PSRAM
+GPIO38	RGB LED	⚠️ занят	встроенный WS2812
+GPIO39	PSRAM	❌ занят	используется PSRAM
+GPIO40	Flash	❌ занят	используется Flash
+GPIO41	Flash	❌ занят	используется Flash
+GPIO42	Flash	❌ занят	используется Flash
+GPIO43	Flash	❌ занят	используется Flash
+GPIO44	Flash	❌ занят	используется Flash
+GPIO45	GPIO-only	✅ свободен	без альтернативных функций
+GPIO46	GPIO-only	✅ свободен	без альтернативных функций
 При подключении LCD Keypad Shield к ESP32-S3 UNO WROOM-1-N16R8 используются следующие пины:
 
 LCD интерфейс: GPIO8, GPIO9, GPIO4, GPIO5, GPIO6, GPIO7

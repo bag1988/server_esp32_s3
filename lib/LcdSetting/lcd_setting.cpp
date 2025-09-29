@@ -234,7 +234,7 @@ void showGpioEdit()
 
   // Проверяем, выбран ли этот GPIO для устройства
   bool isSelected = false;
-  for (int gpio : devices[deviceListIndex].gpioPins)
+  for (uint8_t gpio : devices[deviceListIndex].gpioPins)
   {
     if (gpio == availableGpio[gpioSelectionIndex].pin)
     {
@@ -525,7 +525,7 @@ void handleButtons()
       else if (pressedButton == BUTTON_SELECT)
       {
         // Выбор/отмена выбора текущего GPIO
-        int selectedGpio = availableGpio[gpioSelectionIndex].pin;
+        uint8_t selectedGpio = availableGpio[gpioSelectionIndex].pin;
         bool isSelected = false;
 
         // Проверяем, выбран ли уже этот GPIO

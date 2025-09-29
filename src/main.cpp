@@ -41,14 +41,13 @@ Adafruit_NeoPixel pixels(NUM_LEDS, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
 // UART: GPIO43 (TX), GPIO44 (RX) - если не используются для отладки
 
 std::vector<GpioPin> availableGpio = {
-    {15, "GPIO 15"},
-    {16, "GPIO 16"},
-    {38, "GPIO 38"},
-    {39, "GPIO 39"},
-    {40, "GPIO 40"},
-    {41, "GPIO 41"},
-    {42, "GPIO 42"}
-};
+    {15, 0, "GPIO 15"},
+    {16, 0, "GPIO 16"},
+    {38, 0, "GPIO 38"},
+    {39, 0, "GPIO 39"},
+    {40, 0, "GPIO 40"},
+    {41, 0, "GPIO 41"},
+    {42, 0, "GPIO 42"}};
 
 // WiFi
 WifiCredentials wifiCredentials;
@@ -91,7 +90,7 @@ unsigned long safeTimeDifference(unsigned long currentTime, unsigned long previo
 void controlGPIO()
 {
     Serial.println("Проверка необходимости включения GPIO");
-    std::vector<int> gpiosToTurnOn;
+    std::vector<uint8_t> gpiosToTurnOn;
     unsigned long currentTime = millis();
     // Собираем GPIO для включения
     for (auto &device : devices)
@@ -140,11 +139,7 @@ void controlGPIO()
             // Serial.printf("Устройство %s: нет данных\r\n", device.name.c_str());
         }
     }
-
-    // Удаляем дубликаты GPIO
-    std::sort(gpiosToTurnOn.begin(), gpiosToTurnOn.end());
-    gpiosToTurnOn.erase(std::unique(gpiosToTurnOn.begin(), gpiosToTurnOn.end()), gpiosToTurnOn.end());
-
+    
     // Управляем GPIO
     for (auto &gpio : availableGpio)
     {
@@ -272,8 +267,6 @@ void createTasksStandart()
 void ReadDataInSPIFFS()
 {
     // Загрузка данных устройств
-    loadGpioFromFile();
-    // Загрузка данных устройств
     loadWifiCredentialsFromFile();
     loadClientsFromFile();
     loadServerWorkTime();
@@ -310,6 +303,9 @@ void setup()
                 {
                     ReadDataInSPIFFS();
                     vTaskDelete(NULL); }, "ReadSPIFFS", 4096, NULL, 1, NULL);
+
+    // Загрузка данных устройств
+    loadGpioFromFile();
     // Инициализация GPIO
     for (auto &gpio : availableGpio)
     {

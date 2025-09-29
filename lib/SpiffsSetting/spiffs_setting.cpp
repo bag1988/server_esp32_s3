@@ -71,7 +71,7 @@ void loadClientsFromFile()
                 if (!deviceObj["gpio_pins"].isNull())
                 {
                   JsonArray pinsArray = deviceObj["gpio_pins"].as<JsonArray>();
-                  for (int pin : pinsArray)
+                  for (uint8_t pin : pinsArray)
                   {
                     device.gpioPins.push_back(pin);
                   }
@@ -159,7 +159,7 @@ void saveClientsToFile()
         deviceObj["battery"] = device.battery;
         deviceObj["batteryV"] = device.batteryV;
         // Сохраняем массив GPIO пинов
-        for (int pin : device.gpioPins)
+        for (uint8_t pin : device.gpioPins)
         {
           deviceObj["gpio_pins"].add(pin);
         }
@@ -268,6 +268,7 @@ void saveGpioToFile()
     {
       JsonObject gpioObj = gpioArray.add<JsonObject>();
       gpioObj["pin"] = gpio.pin;
+      gpioObj["state"] = gpio.state;
       gpioObj["name"] = gpio.name;
     }
 
@@ -353,7 +354,8 @@ void loadGpioFromFile()
             for (JsonObject gpioObj : gpioArray)
             {
               GpioPin gpio;
-              gpio.pin = gpioObj["pin"].as<int>();
+              gpio.pin = gpioObj["pin"].as<uint8_t>();
+              gpio.state = gpioObj["state"].as<uint8_t>();
               gpio.name = gpioObj["name"].as<const char *>();              
               // Добавляем GPIO в вектор
               availableGpio.push_back(gpio);
