@@ -13,41 +13,19 @@
 #include "driver/temp_sensor.h" // Библиотека для работы с датчиком температуры
 #include <Adafruit_NeoPixel.h>
 #include <ESPmDNS.h>
-#define KEYPAD_PIN 2 // GPIO1 соответствует A0 на ESP32-S3 UNO
+#define KEYPAD_PIN 2 // GPIO2 соответствует A1 на ESP32-S3 UNO
 #define NUM_LEDS 1   // Один светодиод
 // Глобальные переменные
 std::vector<DeviceData> devices;
 
 Adafruit_NeoPixel pixels(NUM_LEDS, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
-// При подключении LCD Keypad Shield к ESP32-S3 UNO WROOM-1-N16R8 используются следующие пины:
-
-// LCD интерфейс: GPIO8, GPIO9, GPIO4, GPIO5, GPIO6, GPIO7
-// Кнопки: GPIO1 (аналоговый вход A0)
-// Свободные пины ESP32-S3 UNO:
-// Цифровые пины:
-
-// GPIO0 (D0)
-// GPIO2, GPIO3 (D2, D3)
-// GPIO10-GPIO21 (D10-D13, и другие пины, не имеющие прямого соответствия с Arduino UNO)
-// GPIO35-GPIO48 (дополнительные пины ESP32-S3)
-// Аналоговые входы:
-
-// GPIO2-GPIO7 (A1-A5) - обратите внимание, что некоторые из них уже используются для LCD (GPIO4-GPIO7)
-// Другие ADC пины ESP32-S3
-// Специальные пины:
-
-// I2C: GPIO37 (SDA), GPIO36 (SCL) - если не используются для других целей
-// SPI: GPIO11 (MOSI), GPIO13 (MISO), GPIO12 (SCK), GPIO10 (SS) - если не используются для других целей
-// UART: GPIO43 (TX), GPIO44 (RX) - если не используются для отладки
 
 std::vector<GpioPin> availableGpio = {
-    {15, 0, "GPIO 15"},
-    {16, 0, "GPIO 16"},
-    {38, 0, "GPIO 38"},
-    {39, 0, "GPIO 39"},
-    {40, 0, "GPIO 40"},
-    {41, 0, "GPIO 41"},
-    {42, 0, "GPIO 42"}};
+    {GPIO_NUM_1, 0, "GPIO 1"},
+    {GPIO_NUM_4, 0, "GPIO 4"},
+    {GPIO_NUM_5, 0, "GPIO 5"},
+    {GPIO_NUM_6, 0, "GPIO 6"},
+    {GPIO_NUM_7, 0, "GPIO 7"}};
 
 // WiFi
 WifiCredentials wifiCredentials;
@@ -139,7 +117,7 @@ void controlGPIO()
             // Serial.printf("Устройство %s: нет данных\r\n", device.name.c_str());
         }
     }
-    
+
     // Управляем GPIO
     for (auto &gpio : availableGpio)
     {

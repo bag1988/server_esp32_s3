@@ -1,126 +1,32 @@
-
-Для загрузки на устройство файлов (файлы должны находиться в папке "data") необходимо выполинть команду:
-pio run --target uploadfs
-
-// Доступные GPIO пины для ESP32-DevKitC-32
-// GPIO 34-39 могут использоваться только как входы
-// GPIO 6-11 обычно используются для подключения флеш-памяти и не рекомендуются для общего использования
-// GPIO 0 имеет специальное назначение при загрузке (boot mode)
-std::vector<GpioPin> availableGpio = {
-    {2, "GPIO 2 (LED)"},
-    {4, "GPIO 4"},
-    {5, "GPIO 5"},
-    {12, "GPIO 12"},
-    {13, "GPIO 13"},
-    {14, "GPIO 14"},
-    {15, "GPIO 15"},
-    {16, "GPIO 16"},
-    {17, "GPIO 17"},
-    {18, "GPIO 18"},
-    {19, "GPIO 19"},
-    {21, "GPIO 21"},
-    {22, "GPIO 22"},
-    {23, "GPIO 23"},
-    {25, "GPIO 25"},
-    {26, "GPIO 26"},
-    {27, "GPIO 27"},
-    {32, "GPIO 32"},
-    {33, "GPIO 33"},
-    {34, "GPIO 34 (только вход)"},
-    {35, "GPIO 35 (только вход)"},
-    {36, "GPIO 36 (только вход)"},
-    {39, "GPIO 39 (только вход)"}};
-
 // Список доступных GPIO для ESP32 UNO WROOM-1-N16R8
 
-GPIO	Назначение по умолчанию	Статус	Комментарий
-GPIO0	Boot, GPIO	⚠️ ограничено	влияет на загрузку
-GPIO1–17	GPIO, UART, SPI, I2C, PWM, ADC	✅ свободны	универсальные, доступны
-GPIO18	SPI, PWM	✅ свободен	часто используется
-GPIO19	USB D+	⚠️ занят	если используется USB
-GPIO20	USB D−	⚠️ занят	если используется USB
-GPIO21	USB VBUS	⚠️ занят	если используется USB
-GPIO33	SPI, PWM, ADC	✅ свободен	доступен
-GPIO34	PSRAM	❌ занят	используется PSRAM
-GPIO35	PSRAM	❌ занят	используется PSRAM
-GPIO36	PSRAM	❌ занят	используется PSRAM
-GPIO37	PSRAM	❌ занят	используется PSRAM
-GPIO38	RGB LED	⚠️ занят	встроенный WS2812
-GPIO39	PSRAM	❌ занят	используется PSRAM
-GPIO40	Flash	❌ занят	используется Flash
-GPIO41	Flash	❌ занят	используется Flash
-GPIO42	Flash	❌ занят	используется Flash
-GPIO43	Flash	❌ занят	используется Flash
-GPIO44	Flash	❌ занят	используется Flash
-GPIO45	GPIO-only	✅ свободен	без альтернативных функций
-GPIO46	GPIO-only	✅ свободен	без альтернативных функций
-При подключении LCD Keypad Shield к ESP32-S3 UNO WROOM-1-N16R8 используются следующие пины:
-
-LCD интерфейс: GPIO8, GPIO9, GPIO4, GPIO5, GPIO6, GPIO7
-Кнопки: GPIO1 (аналоговый вход A0)
-Свободные пины ESP32-S3 UNO:
-Цифровые пины:
-
-GPIO0 (D0)
-GPIO2, GPIO3 (D2, D3)
-GPIO10-GPIO21 (D10-D13, и другие пины, не имеющие прямого соответствия с Arduino UNO)
-GPIO35-GPIO48 (дополнительные пины ESP32-S3)
-Аналоговые входы:
-
-GPIO2-GPIO7 (A1-A5) - обратите внимание, что некоторые из них уже используются для LCD (GPIO4-GPIO7)
-Другие ADC пины ESP32-S3
-Специальные пины:
-
-I2C: GPIO37 (SDA), GPIO36 (SCL) - если не используются для других целей
-SPI: GPIO11 (MOSI), GPIO13 (MISO), GPIO12 (SCK), GPIO10 (SS) - если не используются для других целей
-UART: GPIO43 (TX), GPIO44 (RX) - если не используются для отладки
-
-This directory is intended for project specific (private) libraries.
-PlatformIO will compile them to static libraries and link into the executable file.
-
-The source code of each library should be placed in a separate directory
-("lib/your_library_name/[Code]").
-
-# Name,   Type, SubType, Offset,  Size, Flags
-nvs,      data, nvs,     0x9000,  0x6000,
-phy_init, data, phy,     0xf000,  0x1000,
-factory,  app,  factory, 0x10000, 3M,
-spiffs,   data, spiffs,  0x310000,12M,
-Объяснение разделов
-nvs (Non-Volatile Storage) - 24 КБ
-
-Используется для хранения настроек Wi-Fi, Bluetooth и других системных параметров
-phy_init - 4 КБ
-
-Данные калибровки для радиочастотного модуля
-factory - 3 МБ
-
-Основной раздел для вашего приложения (прошивки)
-3 МБ достаточно для большинства сложных приложений
-spiffs - 12 МБ
-
-Файловая система для хранения веб-страниц, конфигурационных файлов и других данных
-Большой размер позволяет хранить много файлов и данных
+GPIO	Статус	Комментарий
+GPIO1	✅ свободен	ADC1_CH0, можно использовать как вывод
+GPIO4	✅ свободен	универсальный GPIO
+GPIO5	✅ свободен	универсальный GPIO
+GPIO6	✅ свободен	универсальный GPIO
+GPIO7	✅ свободен	универсальный GPIO
+GPIO8	✅ свободен	универсальный GPIO
+GPIO9	✅ свободен	универсальный GPIO
+GPIO11	✅ свободен	универсальный GPIO
+GPIO12	✅ свободен	универсальный GPIO
+GPIO13	✅ свободен	универсальный GPIO
+GPIO15	✅ свободен	универсальный GPIO
+GPIO16	✅ свободен	универсальный GPIO
+GPIO17	✅ свободен	универсальный GPIO
+GPIO18	✅ свободен	универсальный GPIO
+GPIO33	✅ свободен	универсальный GPIO
+GPIO45	✅ свободен	GPIO-only, без альтернативных функций
+GPIO47	✅ свободен	если не используется для других целей
 
 
-# Name,   Type, SubType, Offset,  Size, Flags
-nvs,      data, nvs,     0x9000,  0x6000,
-phy_init, data, phy,     0xf000,  0x1000,
-factory,  app,  factory, 0x10000, 2M,
-otadata,  data, ota,     0x210000,0x2000,
-ota_0,    app,  ota_0,   0x220000,2M,
-ota_1,    app,  ota_1,   0x420000,2M,
-spiffs,   data, spiffs,  0x620000,10M,
-
-Этот вариант разделяет память на:
-
-2 МБ для основного приложения
-2 МБ для OTA слота 0
-2 МБ для OTA слота 1
-10 МБ для файловой системы SPIFFS
-
-
-
+GPIO0	Boot — требует осторожности
+GPIO2	используется для кнопок LCD
+GPIO3, 14, 19, 20, 21, 46	используются LCD Shield
+GPIO10	используется для подсветки
+GPIO34–39	заняты PSRAM
+GPIO40–44	заняты Flash
+GPIO48	встроенный RGB LED — занят
 
 
 Общая информация
