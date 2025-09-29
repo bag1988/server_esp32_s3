@@ -270,7 +270,6 @@ void setup()
     if (psramFound())
     {
         Serial.println("PSRAM найдена и инициализирована");
-        // Serial.printf("Доступно PSRAM: %d байт\r\n", ESP.getFreePsram());
     }
     else
     {

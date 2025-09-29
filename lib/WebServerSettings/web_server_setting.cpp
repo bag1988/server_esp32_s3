@@ -14,8 +14,7 @@ AsyncWebServer server(80);
 
 void connectWiFi()
 {
-    // Serial.printf("Connecting to WiFi: %s\r\n", wifiCredentials.ssid.c_str());
-    // Serial.printf(", password: %s\r\n", wifiCredentials.password.c_str());
+    Serial.println("Connecting to WiFi: " + String(wifiCredentials.ssid.c_str()) + ", password: " + String(wifiCredentials.password.c_str()));
     WiFi.begin(wifiCredentials.ssid.c_str(), wifiCredentials.password.c_str());
     lastWiFiAttemptTime = millis();
 
@@ -28,8 +27,7 @@ void connectWiFi()
 
     if (WiFi.status() == WL_CONNECTED)
     {
-        Serial.println("WiFi connected");
-        // Serial.printf("IP address: %s\r\n", WiFi.localIP().toString().c_str());
+        Serial.println("WiFi connected. Ip: " + String(WiFi.localIP().toString().c_str()));
         wifiConnected = true;
     }
     else
@@ -247,7 +245,7 @@ void initWebServer()
                             );                                                                      
                         xSemaphoreGive(devicesMutex);
                         
-                        //Serial.printf("Удаляем устройство %s\r\n", address.c_str());
+                        Serial.println("Удаляем устройство "+ address);
                             saveClientsToFile(); // Save changes to file
                             request->send(200, "text/plain", "Client remove");
                             return;

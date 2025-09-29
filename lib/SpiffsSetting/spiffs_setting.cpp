@@ -89,12 +89,10 @@ void loadClientsFromFile()
                 // Добавляем устройство в вектор
                 devices.push_back(device);
               }
-
-              // Serial.printf("Loaded %d clients from Preferences blob\r\n", devices.size());
             }
             else
             {
-              // Serial.printf("deserializeJson() failed: %s\r\n", error.c_str());
+              Serial.println("deserializeJson() failed: " + String(error.c_str()));
             }
           }
           else
@@ -181,7 +179,7 @@ void saveClientsToFile()
           // Сохраняем буфер в Preferences
           if (preferences.putBytes("devices_blob", buffer, serializedSize))
           {
-            // Serial.printf("Saved %d clients to Preferences blob (%d bytes)\r\n", devices.size(), serializedSize);
+            Serial.println("Saved clients to Preferences blob");
           }
           else
           {
@@ -288,7 +286,7 @@ void saveGpioToFile()
         // Сохраняем буфер в Preferences
         if (preferences.putBytes("gpio_blob", buffer, serializedSize))
         {
-          // Serial.printf("Saved %d GPIO pins to Preferences blob (%d bytes)\r\n", availableGpio.size(), serializedSize);
+          Serial.println("Saved GPIO pins to Preferences blob");
         }
         else
         {
@@ -356,16 +354,14 @@ void loadGpioFromFile()
               GpioPin gpio;
               gpio.pin = gpioObj["pin"].as<uint8_t>();
               gpio.state = gpioObj["state"].as<uint8_t>();
-              gpio.name = gpioObj["name"].as<const char *>();              
+              gpio.name = gpioObj["name"].as<const char *>();
               // Добавляем GPIO в вектор
               availableGpio.push_back(gpio);
             }
-
-            // Serial.printf("Loaded %d GPIO pins from Preferences blob\r\n", availableGpio.size());
           }
           else
           {
-            // Serial.printf("deserializeJson() failed: %s\r\n",error.c_str());
+             Serial.println("deserializeJson() failed: " + String(error.c_str()));
           }
         }
         else

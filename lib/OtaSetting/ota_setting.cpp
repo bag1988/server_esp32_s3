@@ -80,8 +80,7 @@ bool initOTA()
         progressBar += "]";
         
         displayText(progressBar, 0, 1);
-        displayText(String(percentage) + "%", 12, 1, false);                
-        //Serial.printf("Progress: %u%%\r", percentage); 
+        displayText(String(percentage) + "%", 12, 1, false);    
         });
 
     ArduinoOTA.onError([](ota_error_t error)
@@ -123,7 +122,6 @@ bool initOTA()
 
     ArduinoOTA.begin();
     Serial.println("OTA ready");
-    //Serial.printf("mDNS started: http://%s.local\r\n", WEB_SERVER_HOSTNAME); 
     return true;
 }
 

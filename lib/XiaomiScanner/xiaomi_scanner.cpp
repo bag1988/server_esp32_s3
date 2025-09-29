@@ -16,7 +16,7 @@ class XiaomiAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
         // Создаем структуру данных для передачи в очередь
         BLEDeviceData *deviceData = new BLEDeviceData();
         deviceData->address = advertisedDevice.getAddress().toString().c_str();
-        //Serial.printf("Обнаружено устройство: %s\r\n", deviceData->address.c_str());
+        Serial.println("Обнаружено устройство: " + String(deviceData->address.c_str()));
 
         deviceData->name = advertisedDevice.getName().c_str();
 
@@ -59,19 +59,19 @@ class SetServerSettingCallbacks : public BLECharacteristicCallbacks
         // Проверяем длину значения перед обработкой
         if (value.length() > 100)
         { // Ограничиваем длину разумным значением
-            //Serial.printf("Получено значение слишком большой длины: %d\r\n", value.length());
+            Serial.println("Получено значение слишком большой длины: " + String(value.length()));
             return;
         }
 
         if (pCharacteristic->getUUID().toString() == SSID_CHARACTERISTIC_UUID)
         {
             wifiCredentials.ssid = value;
-            //Serial.printf("SSID received: %s\r\n", wifiCredentials.ssid.c_str());
+            Serial.println("SSID received: " + String(wifiCredentials.ssid.c_str()));
         }
         else if (pCharacteristic->getUUID().toString() == PASSWORD_CHARACTERISTIC_UUID)
         {
             wifiCredentials.password = value;
-            //Serial.printf("Password received: %s\r\n", wifiCredentials.password.c_str());
+            Serial.println("Password received: " + String(wifiCredentials.password.c_str()));
         }
         saveWifiCredentialsToFile(); // Save credentials to file
     }
@@ -89,11 +89,11 @@ void setupXiaomiScanner()
     BLEDevice::init(SERVER_NAME);
     pBLEScan = BLEDevice::getScan();
     pBLEScan->setAdvertisedDeviceCallbacks(new XiaomiAdvertisedDeviceCallbacks());
-    pBLEScan->setActiveScan(false);              // Пассивное сканирование потребляет меньше ресурсов
-   // pBLEScan->setInterval(XIAOMI_SCAN_INTERVAL); // Больше интервал
-    //pBLEScan->setWindow(100);                    // Меньше окно сканирования
-    //pBLEScan->start(0, false);                   // 0 = бесконечное сканирование
-    
+    pBLEScan->setActiveScan(false); // Пассивное сканирование потребляет меньше ресурсов
+                                    // pBLEScan->setInterval(XIAOMI_SCAN_INTERVAL); // Больше интервал
+    // pBLEScan->setWindow(100);                    // Меньше окно сканирования
+    // pBLEScan->start(0, false);                   // 0 = бесконечное сканирование
+
     Serial.println("Сканер датчиков Xiaomi инициализирован");
     Serial.println("Запускаем сервисы редактирования SSID и пароля");
     pServer = BLEDevice::createServer();
@@ -253,11 +253,9 @@ void processXiaomiAdvertisement(BLEDeviceData &deviceData)
         // Если данные найдены, обновляем информацию об устройстве
         if (dataFound)
         {
-            //Serial.printf("Парсинг данных ATC: Температура: %.1f°C, Влажность: %.1f%%, Батарея: %d%%, Напряжение: %d\r\n", temperature, humidity, battery, batteryV);
             if (xSemaphoreTake(devicesMutex, portMAX_DELAY) == pdTRUE)
             {
-                //Serial.printf("Поиск устройства с MAC: %s\r\n", deviceAddress.c_str());
-                //  Ищем устройство с таким MAC-адресом
+                //   Ищем устройство с таким MAC-адресом
                 auto it = std::find_if(devices.begin(), devices.end(),
                                        [&deviceAddress](const DeviceData &device)
                                        {
@@ -266,8 +264,8 @@ void processXiaomiAdvertisement(BLEDeviceData &deviceData)
 
                 if (it != devices.end())
                 {
-                    //Serial.printf("Обновляем данные устройства: %s (%s) - Температура: %s°C, Влажность: %s%%, Батарея: %s%%\r\n", it->name.c_str(), deviceAddress.c_str(), temperature, humidity, battery);
-                    //  Устройство найдено, обновляем данные
+                    Serial.println("Обновляем данные устройства: " + String(it->name.c_str()));
+                    //   Устройство найдено, обновляем данные
                     it->updateSensorData(temperature, humidity, battery, batteryV);
                 }
                 else
@@ -279,7 +277,7 @@ void processXiaomiAdvertisement(BLEDeviceData &deviceData)
                     {
                         deviceName = deviceData.name;
                     }
-                    //Serial.printf("Найдено новое устройство: %s (%s)\r\n", deviceName.c_str(), deviceAddress.c_str());
+                    Serial.println("Найдено новое устройство: " + String(deviceName.c_str()));
 
                     DeviceData newDevice(deviceName, deviceAddress);
                     newDevice.updateSensorData(temperature, humidity, battery, batteryV);
@@ -290,7 +288,7 @@ void processXiaomiAdvertisement(BLEDeviceData &deviceData)
         }
         else
         {
-            //Serial.printf("Устройство Xiaomi обнаружено, но данные не найдены: %s\r\n", deviceAddress.c_str());
+            Serial.println("Устройство Xiaomi обнаружено, но данные не найдены: " + String(deviceAddress.c_str()));
         }
     }
 }

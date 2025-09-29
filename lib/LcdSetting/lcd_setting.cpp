@@ -648,7 +648,7 @@ void updateDevicesInformation()
     if (!device.isDataValid())
     {
       device.isOnline = false;
-      //Serial.printf("Устройство %s перешло в оффлайн\r\n", device.name.c_str());     
+      Serial.println(String(device.name.c_str()) + " перешло в оффлайн");
     }
   }
   refreshLCDData();
