@@ -22,6 +22,9 @@ struct WifiCredentials
     std::string password;
 };
 
+// Функция для форматирования времени работы обогрева
+String formatHeatingTime(unsigned long timeInMillis);
+
 // Объединенная структура данных для клиента/датчика
 struct DeviceData
 {

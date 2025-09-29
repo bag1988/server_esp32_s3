@@ -126,13 +126,6 @@ void initWebServer()
                     } });
     server.on("/serverinfo", HTTP_GET, [](AsyncWebServerRequest *request)
               {
-
-                unsigned long totalSeconds = serverWorkTime / 1000;
-                unsigned long hours = totalSeconds / 3600;           // Получаем количество полных часов
-                unsigned long minutes = (totalSeconds % 3600) / 60;  // Получаем остаток минут после часов
-                unsigned long seconds = totalSeconds % 60;           // Получаем остаток секунд
-                char buffer[20];
-                sprintf(buffer, "%02lu:%02lu:%02lu", hours, minutes % 60, seconds % 60);
                 JsonDocument doc;
                 doc["cpu_frequency_mhz"] = ESP.getCpuFreqMHz();//Частота CPU
                 doc["chip_revision"] = ESP.getChipRevision();//Ревизия чипа
@@ -146,7 +139,7 @@ void initWebServer()
                 doc["free_psram_bytes"] = ESP.getFreePsram();//Свободная PSRAM
                 doc["flash_mode"] = ESP.getFlashChipMode() == FM_QIO ? "QIO" : "DIO";//Flash режим
                 doc["chip_id"] = ESP.getEfuseMac();//Уникальный ID чипа
-                doc["millis"] = String(buffer);
+                doc["millis"] = formatHeatingTime(serverWorkTime);
                 doc["board_temperature"] = board_temperature;
                 // Сериализуем JSON
                 String payload;
@@ -271,15 +264,9 @@ void initWebServer()
             deviceObj["currentTemperature"] = device.currentTemperature;
             deviceObj["targetTemperature"] = device.targetTemperature;
             deviceObj["heatingActive"] = device.heatingActive;
-                       
-            // Форматируем время для вывода
-            unsigned long totalSeconds =  device.totalHeatingTime / 1000;
-            unsigned long hours = totalSeconds / 3600;
-            unsigned long minutes = (totalSeconds % 3600) / 60;
-            unsigned long seconds = totalSeconds % 60;
             
             deviceObj["totalHeatingTimeMs"] =  device.totalHeatingTime;
-            deviceObj["totalHeatingTimeFormatted"] =  String(hours) + ":" + String(minutes % 60) + ":" + String(seconds % 60);
+            deviceObj["totalHeatingTimeFormatted"] = formatHeatingTime(device.totalHeatingTime);
         }
         xSemaphoreGive(devicesMutex);
     }

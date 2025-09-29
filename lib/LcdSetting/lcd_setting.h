@@ -93,9 +93,6 @@ void showTemperatureInfo();
 // Функция для циклического переключения информационных экранов
 void cycleInfoScreens();
 
-// Функция для форматирования времени работы обогрева
-String formatHeatingTime(unsigned long timeInMillis);
-
 // Метод для отображения текста с указанием столбца и строки
 void displayText(const String &text, int column = 0, int row = 0, bool clearLine = true, bool center = false);
 

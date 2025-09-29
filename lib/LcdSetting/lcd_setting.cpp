@@ -78,7 +78,7 @@ void initLCD()
   // Инициализация LCD
   lcd.begin(16, 2);
 
-// Инициализация пина подсветки
+  // Инициализация пина подсветки
   pinMode(BACKLIGHT_PIN, OUTPUT);
   digitalWrite(BACKLIGHT_PIN, LOW); // По умолчанию подсветка выключена
 
@@ -96,8 +96,10 @@ void initLCD()
 }
 
 // Функция для включения подсветки
-void turnOnBacklight() {
-  if (!backlightState) {
+void turnOnBacklight()
+{
+  if (!backlightState)
+  {
     digitalWrite(BACKLIGHT_PIN, HIGH);
     backlightState = true;
   }
@@ -105,17 +107,21 @@ void turnOnBacklight() {
 }
 
 // Функция для выключения подсветки
-void turnOffBacklight() {
-  if (backlightState) {
+void turnOffBacklight()
+{
+  if (backlightState)
+  {
     digitalWrite(BACKLIGHT_PIN, LOW);
     backlightState = false;
   }
 }
 
 // Функция для автоматического управления подсветкой
-void handleBacklight() {
+void handleBacklight()
+{
   // Если подсветка включена и прошло больше времени, чем BACKLIGHT_TIMEOUT, выключаем её
-  if (backlightState && (millis() - lastActivityTime > BACKLIGHT_TIMEOUT)) {
+  if (backlightState && (millis() - lastActivityTime > BACKLIGHT_TIMEOUT))
+  {
     turnOffBacklight();
   }
 }
@@ -143,7 +149,8 @@ void showMainScreen()
     {
       // Если достигли конца текста, показываем начало
       std::string textPart = scrollText.substr(scrollPosition);
-      if (scrollText.length() > scrollPosition) {
+      if (scrollText.length() > scrollPosition)
+      {
         textPart += scrollText.substr(0, endPos - scrollText.length());
       }
       displayText(textPart.c_str(), 0, 1);
@@ -598,9 +605,12 @@ void scrollMainScreenText()
   // Прокручиваем текст каждые 500 мс
   if (currentMenu == MAIN_SCREEN && millis() - lastScrollTime > SCROLL_DELAY)
   {
-    if (scrollText.length() > 0) {
+    if (scrollText.length() > 0)
+    {
       scrollPosition = (scrollPosition + 1) % scrollText.length();
-    } else {
+    }
+    else
+    {
       scrollPosition = 0;
     }
     lastScrollTime = millis();
@@ -619,7 +629,7 @@ void updateLCDTask()
   // Прокрутка текста на главном экране
   scrollMainScreenText();
 
-// Управление подсветкой
+  // Управление подсветкой
   handleBacklight();
 
   // Обновление экрана при необходимости
@@ -652,19 +662,6 @@ void updateDevicesInformation()
     }
   }
   refreshLCDData();
-}
-
-// Функция для форматирования времени работы обогрева
-String formatHeatingTime(unsigned long timeInMillis)
-{
-  unsigned long totalSeconds = timeInMillis / 1000;
-  unsigned long hours = totalSeconds / 3600;
-  unsigned long minutes = (totalSeconds % 3600) / 60;
-  unsigned long seconds = totalSeconds % 60;
-
-  char buffer[20];
-  sprintf(buffer, "%02lu:%02lu:%02lu", hours, minutes % 60, seconds % 60);
-  return String(buffer);
 }
 
 // Функция для отображения статистики обогрева
