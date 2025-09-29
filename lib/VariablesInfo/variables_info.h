@@ -85,13 +85,20 @@ struct DeviceData
     }
 };
 
+enum stateGpioPin : uint8_t
+{
+    STATE_GPIO_AUTO,
+    STATE_GPIO_ON,
+    STATE_GPIO_OFF
+};
+
 struct GpioPin
 {
     uint8_t pin;
     uint8_t state; // 0-авто, 1-вкл 2-выкл
     std::string name;
     GpioPin() : pin(0),
-                state(0),
+                state(STATE_GPIO_AUTO),
                 name("") {}
     GpioPin(uint8_t p, uint8_t s, const std::string &n) : pin(p), state(s), name(n) {}
 };

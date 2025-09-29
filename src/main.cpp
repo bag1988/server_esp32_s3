@@ -21,11 +21,11 @@ std::vector<DeviceData> devices;
 Adafruit_NeoPixel pixels(NUM_LEDS, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
 
 std::vector<GpioPin> availableGpio = {
-    {GPIO_NUM_1, 0, "GPIO 1"},
-    {GPIO_NUM_4, 0, "GPIO 4"},
-    {GPIO_NUM_5, 0, "GPIO 5"},
-    {GPIO_NUM_6, 0, "GPIO 6"},
-    {GPIO_NUM_7, 0, "GPIO 7"}};
+    {GPIO_NUM_1, STATE_GPIO_AUTO, "GPIO 1"},
+    {GPIO_NUM_4, STATE_GPIO_AUTO, "GPIO 4"},
+    {GPIO_NUM_5, STATE_GPIO_AUTO, "GPIO 5"},
+    {GPIO_NUM_6, STATE_GPIO_AUTO, "GPIO 6"},
+    {GPIO_NUM_7, STATE_GPIO_AUTO, "GPIO 7"}};
 
 // WiFi
 WifiCredentials wifiCredentials;
@@ -121,8 +121,15 @@ void controlGPIO()
     // Управляем GPIO
     for (auto &gpio : availableGpio)
     {
+        if (gpio.state == STATE_GPIO_AUTO)
+    {
         bool shouldTurnOn = std::find(gpiosToTurnOn.begin(), gpiosToTurnOn.end(), gpio.pin) != gpiosToTurnOn.end();
         digitalWrite(gpio.pin, shouldTurnOn ? HIGH : LOW);
+        }
+        else
+        {
+            digitalWrite(gpio.pin, gpio.state == STATE_GPIO_ON ? HIGH : LOW);
+        }
     }
 }
 

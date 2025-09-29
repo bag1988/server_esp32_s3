@@ -323,10 +323,14 @@ select {
     margin-top: 10px;
 }
 
-.gpio-item {
-    display: flex;
-    align-items: center;
-    gap: 5px;
+.gpio-item span
+{
+    display: block;
+    margin-top: 2px;
+}
+.gpio-item label
+{
+    display: block;
 }
 
 .status {

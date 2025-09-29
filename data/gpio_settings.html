@@ -12,14 +12,13 @@
     <div class="container">
         <h1>Настройки GPIO</h1>
         <div class="menu">
-             <a href="index.html">Главная</a>
+            <a href="index.html">Главная</a>
             <a href="heating_stats.html">Статистика обогрева</a>
             <a href="managment_device.html">Управление устройствами</a>
             <a href="gpio_settings.html">Настройки GPIO</a>
         </div>
         <br />
     </div>
-
     <div class="container">
         <h2>Доступные GPIO пины</h2>
         <div id="gpioContainer" class="gpio-container">
@@ -38,32 +37,38 @@
                     writeGpioToContainer(data);
                 })
                 .catch(error => {
-                    //writeGpioToContainer([{pin:15, name:"GPIO 15"}, {pin:16, name:"GPIO 16"}, {pin:17, name:"GPIO 17"}, {pin:18, name:"GPIO 18"}, {pin:19, name:"GPIO 19"}]);
+                    //writeGpioToContainer([{ pin: 15, state: 0, name: "GPIO 15" }, { pin: 16, state: 0, name: "GPIO 16" }, { pin: 17, state: 0, name: "GPIO 17" }, { pin: 18, state: 0, name: "GPIO 18" }, { pin: 19, state: 0, name: "GPIO 19" }]);
                     console.error('Ошибка при загрузке GPIO пинов:', error);
                 });
         }
         function writeGpioToContainer(data) {
             const gpioContainer = document.getElementById('gpioContainer');
-                    gpioContainer.innerHTML = '';
-                    data.forEach(gpioItem => {
-                        const gpioDiv = document.createElement('div');
-                        gpioDiv.className = 'gpio-item';
+            gpioContainer.innerHTML = '';
+            data.forEach(gpioItem => {
+                const gpioDiv = document.createElement('fieldset');
+                gpioDiv.className = 'gpio-item';
 
-                        const label = document.createElement('label');
-                        label.htmlFor = 'gpio-' + gpioItem.pin;
-                        label.textContent = `GPIO ${gpioItem.pin}`;
+                const label = document.createElement('legend');
+                label.htmlFor = 'gpio-' + gpioItem.pin;
+                label.textContent = `GPIO ${gpioItem.pin}`;
 
-                        const nameInput = document.createElement('input');
-                        nameInput.type = 'text';
-                        nameInput.id = 'gpio-' + gpioItem.pin;
-                        nameInput.value = gpioItem.name;
-                        nameInput.dataset.pin = gpioItem.pin;
-                        nameInput.placeholder = 'Название';
+                const nameInput = document.createElement('input');
+                nameInput.type = 'text';
+                nameInput.id = 'gpio-' + gpioItem.pin;
+                nameInput.value = gpioItem.name;
+                nameInput.dataset.pin = gpioItem.pin;
+                nameInput.placeholder = 'Название';
 
-                        gpioDiv.appendChild(label);
-                        gpioDiv.appendChild(nameInput);
-                        gpioContainer.appendChild(gpioDiv);
-                    });
+                gpioDiv.appendChild(label);
+                gpioDiv.appendChild(nameInput);
+                gpioDiv.insertAdjacentHTML("beforeend", `<span>Состояние:</span>`);
+                for (var i = 0; i <= 2; i++) {
+                    let stateStr = (i == 0 ? "Авто" : i == 1 ? "Включено" : "Выключено");
+                    const radiobox = `<label for="state_${gpioItem.pin}_${i}"><input type="radio" ${(gpioItem.state == i ? "checked" : "")} name="state_${gpioItem.pin}" id="state_${gpioItem.pin}_${i}" value="${i}"/> ${stateStr}</label>`;
+                    gpioDiv.insertAdjacentHTML("beforeend", radiobox);
+                }
+                gpioContainer.appendChild(gpioDiv);
+            });
         }
         // Сохранение доступных GPIO пинов
         function saveGpioPins() {
@@ -71,6 +76,7 @@
             const gpioItems = Array.from(inputsGpio).map(cb => {
                 return {
                     pin: parseInt(cb.dataset.pin),
+                    state: parseInt(document.querySelector(`input[name="state_${cb.dataset.pin}"]:checked`).value),
                     name: cb.value ? cb.value : `GPIO ${cb.dataset.pin}`
                 };
             });
@@ -99,7 +105,6 @@
                     statusDiv.className = 'status error';
                 });
         }
-
         // Инициализация страницы
         window.onload = function () {
             loadGpioPins();
