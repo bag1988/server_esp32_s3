@@ -75,6 +75,28 @@ void controlGPIO()
     {
         if (device.isDataValid())
         {
+            // Включаем обогрев если устройство доступно и температура ниже целевой
+            if (!device.heatingActive && device.enabled && (device.currentTemperature + hysteresisTemp) < device.targetTemperature)
+            {
+                Serial.println("Включаем обогрев для: " + String(device.name.c_str()));
+                device.heatingActive = true;                
+            }
+            // Если температура достигла целевой - выключаем обогрев
+            else if (device.heatingActive && device.currentTemperature >= device.targetTemperature)
+            {
+                Serial.println("Выключаем обогрев для:" + String(device.name.c_str()));
+                device.heatingActive = false;
+            }
+            // Если обогрев был активен, обновляем общее время работы перед выключением
+            else if (!device.enabled && device.heatingActive)
+            {
+                Serial.println("Устройство выключено. Выключаем обогрев для: " + String(device.name.c_str()));
+                unsigned long elapsedTime = safeTimeDifference(currentTime, device.heatingStartTime);
+                device.totalHeatingTime += elapsedTime;
+                device.heatingActive = false;
+            }
+
+            // Обновляем общее время работы            
             if (device.heatingActive)
             {
                 // Вычисляем время, прошедшее с момента последнего обновления
@@ -82,39 +104,17 @@ void controlGPIO()
                 // Обновляем общее время работы
                 device.totalHeatingTime += elapsedTime;
                 // Обновляем время начала для следующего расчета
-                device.heatingStartTime = currentTime;
-            }
-
-            // Serial.printf("Устройство %s: обогрев включен - %s, необходим обогрев - %s\r\n", device.name.c_str(), device.heatingActive ? "да" : "нет", (device.currentTemperature + hysteresisTemp) < device.targetTemperature ? "да" : "нет");
-            if (!device.heatingActive && device.enabled && device.isOnline && (device.currentTemperature + hysteresisTemp) < device.targetTemperature)
-            {
-                device.heatingActive = true;
-                device.heatingStartTime = currentTime; // Запоминаем время включения
+                device.heatingStartTime = currentTime;// Запоминаем время включения
                 gpiosToTurnOn.insert(gpiosToTurnOn.end(), device.gpioPins.begin(), device.gpioPins.end());
-
-                // Serial.printf("Устройство %s: включаем обогрев (температура %.1f°C, целевая %.1f°C)\r\n", device.name.c_str(), device.currentTemperature, device.targetTemperature);
-            }
-            else if (device.heatingActive && device.currentTemperature >= device.targetTemperature)
-            {
-                // Температура достигла целевой - выключаем обогрев
-                device.heatingActive = false;
-                // Serial.printf("Устройство %s: выключаем обогрев (температура %.1f°C, целевая %.1f°C)\r\n", device.name.c_str(), device.currentTemperature, device.targetTemperature);
-            }
-            else if (!device.enabled && device.heatingActive)
-            {
-                // Если обогрев был активен, обновляем общее время работы перед выключением
-                unsigned long elapsedTime = safeTimeDifference(currentTime, device.heatingStartTime);
-                device.totalHeatingTime += elapsedTime;
-                device.heatingActive = false;
             }
         }
         else if (device.isOnline)
         {
+            Serial.println("Устройство: " + String(device.name.c_str()) + " переходит в оффлайн");
             device.isOnline = false;
             unsigned long elapsedTime = safeTimeDifference(currentTime, device.heatingStartTime);
             device.totalHeatingTime += elapsedTime;
             device.heatingActive = false;
-            // Serial.printf("Устройство %s: нет данных\r\n", device.name.c_str());
         }
     }
 
@@ -122,9 +122,9 @@ void controlGPIO()
     for (auto &gpio : availableGpio)
     {
         if (gpio.state == STATE_GPIO_AUTO)
-    {
-        bool shouldTurnOn = std::find(gpiosToTurnOn.begin(), gpiosToTurnOn.end(), gpio.pin) != gpiosToTurnOn.end();
-        digitalWrite(gpio.pin, shouldTurnOn ? HIGH : LOW);
+        {
+            bool shouldTurnOn = std::find(gpiosToTurnOn.begin(), gpiosToTurnOn.end(), gpio.pin) != gpiosToTurnOn.end();
+            digitalWrite(gpio.pin, shouldTurnOn ? HIGH : LOW);
         }
         else
         {
