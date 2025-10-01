@@ -263,8 +263,7 @@ void initWebServer()
             deviceObj["macAddress"] = device.macAddress;
             deviceObj["currentTemperature"] = device.currentTemperature;
             deviceObj["targetTemperature"] = device.targetTemperature;
-            deviceObj["heatingActive"] = device.heatingActive;
-            
+            deviceObj["heatingActive"] = device.heatingActive;            
             deviceObj["totalHeatingTimeMs"] =  device.totalHeatingTime;
             deviceObj["totalHeatingTimeFormatted"] = formatHeatingTime(device.totalHeatingTime);
         }
@@ -285,8 +284,7 @@ void initWebServer()
         if (request->hasParam("device", true)) {
             deviceMac = request->getParam("device", true)->value();
             resetAll = false;
-        }
-        
+        }        
         if (xSemaphoreTake(devicesMutex, portMAX_DELAY) == pdTRUE) {
             for (auto& device : devices) {
                 if (resetAll || device.macAddress == deviceMac.c_str()) {
@@ -302,6 +300,33 @@ void initWebServer()
         Serial.println("Сброшена статистика, сохраняем результаты");
         // Сохраняем изменения
         saveClientsToFile();
+        request->send(200, "text/plain", "Статистика сброшена"); });
+
+    server.on("/heating_gpio_stats", HTTP_GET, [](AsyncWebServerRequest *request)
+              {
+    JsonDocument doc;
+    JsonArray statsArray = doc.to<JsonArray>();
+    for (const auto& gpio : availableGpio) {
+            JsonObject gpioObj = statsArray.add<JsonObject>();
+            gpioObj["pin"] = gpio.pin;  
+            gpioObj["state"] = gpio.state;  
+            gpioObj["name"] = gpio.name;            
+            gpioObj["totalHeatingTimeFormatted"] = formatHeatingTime(gpio.totalHeatingTime);
+        }
+    
+    String response;
+    serializeJson(doc, response);
+    request->send(200, "application/json", response); });
+
+    server.on("/reset_gpio_stats", HTTP_POST, [](AsyncWebServerRequest *request)
+              {                
+                for (auto &gpio : availableGpio)
+                    {
+                    gpio.totalHeatingTime = 0;
+                    }
+        Serial.println("Сброшена статистика, сохраняем результаты");
+        // Сохраняем изменения
+        saveGpioToFile();
         request->send(200, "text/plain", "Статистика сброшена"); });
 
     server.on("/reset_work_time", HTTP_DELETE, [](AsyncWebServerRequest *request)

@@ -20,11 +20,12 @@
     </div>
     <div class="container">
         <!-- Добавляем кнопку сброса статистики -->
-        <button class="button" style="background-color: chocolate; float: right;" onclick="resetStats()">Сбросить</button>
-        <button class="button" onclick="refreshStats()">Обновить</button>        
+        <button class="button" style="background-color: chocolate; float: right;"
+            onclick="resetStats()">Сбросить</button>
+        <button class="button" onclick="refreshStats()">Обновить</button>
     </div>
     <div class="container">
-        <table id="stats-table">
+        <table>
             <thead>
                 <tr>
                     <th>Название</th>
@@ -42,14 +43,43 @@
         </table>
     </div>
 
+
+    <!-- Статистика для gpio -->
+    <div class="container">
+        <!-- Добавляем кнопку сброса статистики -->
+        <button class="button" style="background-color: chocolate; float: right;" onclick="resetGpioStats()">Сбросить
+            Gpio</button>
+        <button class="button" onclick="refreshGpioStats()">Обновить Gpio</button>
+    </div>
+    <div class="container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Название</th>
+                    <th>Пин</th>
+                    <th>Статус</th>
+                    <th>Общее время работы</th>
+                </tr>
+            </thead>
+            <tbody id="stats-gpio-body">
+                <tr>
+                    <td colspan="4">Загрузка данных...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
     <script>
         // Загрузка данных при загрузке страницы
         document.addEventListener('DOMContentLoaded', function () {
-            refreshStats();
+            refreshDisplayData();
             // Обновляем статистику каждые 10 секунд
-            setInterval(refreshStats, 10000);
+            setInterval(refreshDisplayData, 10000);
         });
 
+        function refreshDisplayData() {
+            refreshStats();
+            refreshGpioStats();
+        }
         // Функция обновления статистики
         function refreshStats() {
             fetch('/heating_stats')
@@ -62,6 +92,57 @@
                     document.getElementById('stats-body').innerHTML = '<tr><td colspan="5">Ошибка при загрузке данных</td></tr>';
                 });
         }
+
+        function refreshGpioStats() {
+            fetch('/heating_gpio_stats')
+                .then(response => response.json())
+                .then(data => {
+                    displayGpioStat(data);
+                })
+                .catch(error => {
+                    console.error('Ошибка при получении статистики gpio:', error);
+                    document.getElementById('stats-gpio-body').innerHTML = '<tr><td colspan="4">Ошибка при загрузке данных</td></tr>';
+                });
+        }
+
+
+        function displayGpioStat(data) {
+            const tbody = document.getElementById('stats-gpio-body');
+            tbody.innerHTML = '';
+
+            data.forEach(gpio => {
+                const row = document.createElement('tr');
+
+                // Название
+                const nameCell = document.createElement('td');
+                nameCell.textContent = gpio.name;
+                row.appendChild(nameCell);
+
+                // Pin
+                const pinCell = document.createElement('td');
+                pinCell.textContent = gpio.pin;
+                row.appendChild(pinCell);
+
+                // Статус
+                const statusCell = document.createElement('td');
+                if (gpio.status == 0) {
+                    statusCell.textContent = 'Авто';
+                } else if (gpio.status == 1) {
+                    statusCell.textContent = 'Включен';
+                }
+                else {
+                    statusCell.textContent = 'Выключен';
+                }
+                row.appendChild(statusCell);
+
+                // Общее время работы
+                const timeCell = document.createElement('td');
+                timeCell.textContent = gpio.totalHeatingTimeFormatted;
+                row.appendChild(timeCell);
+                tbody.appendChild(row);
+            });
+        }
+
 
         function displayStat(data) {
             const tbody = document.getElementById('stats-body');
@@ -99,7 +180,6 @@
                 const timeCell = document.createElement('td');
                 timeCell.textContent = device.totalHeatingTimeFormatted;
                 row.appendChild(timeCell);
-
                 tbody.appendChild(row);
             });
         }
@@ -118,6 +198,23 @@
                     .catch(error => {
                         console.error('Ошибка при сбросе статистики:', error);
                         alert('Ошибка при сбросе статистики');
+                    });
+            }
+        }
+
+        function resetGpioStats() {
+            if (confirm('Вы уверены, что хотите сбросить статистику Gpio?')) {
+                fetch('/reset_gpio_stats', {
+                    method: 'POST'
+                })
+                    .then(response => response.text())
+                    .then(data => {
+                        alert(data);
+                        refreshGpioStats();
+                    })
+                    .catch(error => {
+                        console.error('Ошибка при сбросе статистики Gpio:', error);
+                        alert('Ошибка при сбросе статистики Gpio');
                     });
             }
         }

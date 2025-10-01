@@ -268,6 +268,7 @@ void saveGpioToFile()
       gpioObj["pin"] = gpio.pin;
       gpioObj["state"] = gpio.state;
       gpioObj["name"] = gpio.name;
+      gpioObj["total_heating"] = gpio.totalHeatingTime;
     }
 
     // Определяем размер буфера для сериализации
@@ -355,6 +356,7 @@ void loadGpioFromFile()
               gpio.pin = gpioObj["pin"].as<uint8_t>();
               gpio.state = gpioObj["state"].as<uint8_t>();
               gpio.name = gpioObj["name"].as<const char *>();
+              gpio.totalHeatingTime = gpioObj["total_heating"].as<long>();
               // Добавляем GPIO в вектор
               availableGpio.push_back(gpio);
             }

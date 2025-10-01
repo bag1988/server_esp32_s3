@@ -50,26 +50,15 @@ void rainbow(int wait)
     }
 }
 
-// Функция для безопасного вычисления разницы времени с учетом переполнения millis()
-unsigned long safeTimeDifference(unsigned long currentTime, unsigned long previousTime)
-{
-    // Если произошло переполнение
-    if (currentTime < previousTime)
-    {
-        return (ULONG_MAX - previousTime) + currentTime + 1;
-    }
-    else
-    {
-        return currentTime - previousTime;
-    }
-}
-
 // Управление GPIO
 void controlGPIO()
 {
     Serial.println("Проверка необходимости включения GPIO");
     std::vector<uint8_t> gpiosToTurnOn;
-    unsigned long currentTime = millis();
+
+    static unsigned long lastcontrolGPIOTime = 0;
+    unsigned long elapsedTime = millis() - lastcontrolGPIOTime;
+
     // Собираем GPIO для включения
     for (auto &device : devices)
     {
@@ -91,7 +80,6 @@ void controlGPIO()
             else if (!device.enabled && device.heatingActive)
             {
                 Serial.println("Устройство выключено. Выключаем обогрев для: " + String(device.name.c_str()));
-                unsigned long elapsedTime = safeTimeDifference(currentTime, device.heatingStartTime);
                 device.totalHeatingTime += elapsedTime;
                 device.heatingActive = false;
             }
@@ -99,12 +87,8 @@ void controlGPIO()
             // Обновляем общее время работы
             if (device.heatingActive)
             {
-                // Вычисляем время, прошедшее с момента последнего обновления
-                unsigned long elapsedTime = safeTimeDifference(currentTime, device.heatingStartTime);
                 // Обновляем общее время работы
                 device.totalHeatingTime += elapsedTime;
-                // Обновляем время начала для следующего расчета
-                device.heatingStartTime = currentTime; // Запоминаем время включения
                 gpiosToTurnOn.insert(gpiosToTurnOn.end(), device.gpioPins.begin(), device.gpioPins.end());
             }
         }
@@ -112,7 +96,6 @@ void controlGPIO()
         {
             Serial.println("Устройство: " + String(device.name.c_str()) + " перешло в оффлайн");
             device.isOnline = false;
-            unsigned long elapsedTime = safeTimeDifference(currentTime, device.heatingStartTime);
             device.totalHeatingTime += elapsedTime;
             device.heatingActive = false;
         }
@@ -121,16 +104,23 @@ void controlGPIO()
     // Управляем GPIO
     for (auto &gpio : availableGpio)
     {
+        bool shouldTurnOn = false;
         if (gpio.state == STATE_GPIO_AUTO)
         {
-            bool shouldTurnOn = std::find(gpiosToTurnOn.begin(), gpiosToTurnOn.end(), gpio.pin) != gpiosToTurnOn.end();
-            digitalWrite(gpio.pin, shouldTurnOn ? HIGH : LOW);
+            shouldTurnOn = std::find(gpiosToTurnOn.begin(), gpiosToTurnOn.end(), gpio.pin) != gpiosToTurnOn.end();
         }
         else
         {
-            digitalWrite(gpio.pin, gpio.state == STATE_GPIO_ON ? HIGH : LOW);
+            shouldTurnOn = gpio.state == STATE_GPIO_ON ? true : false;
+        }
+
+        digitalWrite(gpio.pin, shouldTurnOn ? HIGH : LOW);
+        if (shouldTurnOn)
+        {
+            gpio.totalHeatingTime += elapsedTime;
         }
     }
+    lastcontrolGPIOTime = millis();
 }
 
 void networkFunc()
@@ -164,7 +154,6 @@ void networkFunc()
         lastScanTime = millis();
         startXiaomiScan();
     }
-
     // Даем время другим задачам
     vTaskDelay(3000 / portTICK_PERIOD_MS); // Небольшая задержка для предотвращения перегрузки CPU
 }
@@ -183,10 +172,10 @@ void mainlogicFunc()
     static unsigned long lastGpioControlTime = 0;
     if (millis() - lastGpioControlTime > CONTROL_DELAY)
     {
+        lastGpioControlTime = millis();
         // Обработка логики управления устройствами
         if (xSemaphoreTake(devicesMutex, portMAX_DELAY) == pdTRUE)
         {
-            lastGpioControlTime = millis();
             controlGPIO();
             xSemaphoreGive(devicesMutex);
         }
@@ -200,6 +189,7 @@ void mainlogicFunc()
     {
         Serial.println("Сохранение статистики согласно таймаута, сохраняем результаты");
         saveClientsToFile();
+        saveGpioToFile();
         serverWorkTime += currentTime - lastStatsSaveTime;
         lastStatsSaveTime = currentTime;
         saveServerSetting();
