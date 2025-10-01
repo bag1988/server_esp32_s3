@@ -79,7 +79,7 @@ void controlGPIO()
             if (!device.heatingActive && device.enabled && (device.currentTemperature + hysteresisTemp) < device.targetTemperature)
             {
                 Serial.println("Включаем обогрев для: " + String(device.name.c_str()));
-                device.heatingActive = true;                
+                device.heatingActive = true;
             }
             // Если температура достигла целевой - выключаем обогрев
             else if (device.heatingActive && device.currentTemperature >= device.targetTemperature)
@@ -96,7 +96,7 @@ void controlGPIO()
                 device.heatingActive = false;
             }
 
-            // Обновляем общее время работы            
+            // Обновляем общее время работы
             if (device.heatingActive)
             {
                 // Вычисляем время, прошедшее с момента последнего обновления
@@ -104,13 +104,13 @@ void controlGPIO()
                 // Обновляем общее время работы
                 device.totalHeatingTime += elapsedTime;
                 // Обновляем время начала для следующего расчета
-                device.heatingStartTime = currentTime;// Запоминаем время включения
+                device.heatingStartTime = currentTime; // Запоминаем время включения
                 gpiosToTurnOn.insert(gpiosToTurnOn.end(), device.gpioPins.begin(), device.gpioPins.end());
             }
         }
         else if (device.isOnline)
         {
-            Serial.println("Устройство: " + String(device.name.c_str()) + " переходит в оффлайн");
+            Serial.println("Устройство: " + String(device.name.c_str()) + " перешло в оффлайн");
             device.isOnline = false;
             unsigned long elapsedTime = safeTimeDifference(currentTime, device.heatingStartTime);
             device.totalHeatingTime += elapsedTime;
@@ -174,13 +174,10 @@ void mainlogicFunc()
     // Если активен режим OTA, пропускаем обычную обработку
     if (isOtaActive())
     {
+        disabledButtonForOta(true);
         vTaskDelay(20 / portTICK_PERIOD_MS); // Небольшая задержка для стабильности
         return;
     }
-    // Обработка нажатий кнопок
-    handleButtons();
-    // Обновление LCD
-    updateLCDTask();
 
     // Управление GPIO
     static unsigned long lastGpioControlTime = 0;
@@ -194,7 +191,6 @@ void mainlogicFunc()
             xSemaphoreGive(devicesMutex);
         }
         vTaskDelay(20 / portTICK_PERIOD_MS); // Добавьте задержку
-        updateDevicesInformation();
     }
     // Добавляем переменную для отслеживания времени последнего сохранения
     static unsigned long lastStatsSaveTime = 0;
@@ -308,9 +304,6 @@ void setup()
     // Инициализация веб-сервера
     initWebServer();
 
-    // Обновление текста прокрутки
-    initScrollText();
-    updateLCD();
     createTasksStandart();
 
     if (wifiConnected)
@@ -324,6 +317,8 @@ void setup()
     temp_sensor_config_t temp_sensor = TSENS_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(temp_sensor_set_config(temp_sensor));
     ESP_ERROR_CHECK(temp_sensor_start());
+
+    updateMainScreenLCD();
 
     Serial.println("Датчик температуры инициализирован");
     Serial.println("Настройка завершена");

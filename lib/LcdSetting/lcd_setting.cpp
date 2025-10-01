@@ -15,19 +15,16 @@ LiquidCrystal lcd(21, 46, 19, 20, 3, 14); // Пины для ESP32-S3 UNO
 bool backlightState = false;
 unsigned long lastActivityTime = 0;
 
-// Прокрутка текста
-std::string scrollText = "";
-int scrollPosition = 0;
-
 // Состояния для меню
 enum MenuState
 {
   MAIN_SCREEN,      // Главный экран с информацией
-  DEVICE_LIST,      // Список устройств
   DEVICE_MENU,      // Меню настроек устройства
+  INFO_DEVICE,      // Отображение информации
   EDIT_TEMPERATURE, // Редактирование целевой температуры
   EDIT_GPIO,        // Редактирование GPIO пинов
-  EDIT_ENABLED      // Включение/выключение устройства
+  EDIT_ENABLED,     // Включение/выключение устройства
+  OTA_UPDATE        // Обновление по OTA
 };
 
 // Текущее состояние меню
@@ -39,11 +36,8 @@ int deviceMenuIndex = 0;    // Индекс в меню устройства
 int gpioSelectionIndex = 0; // Индекс для выбора GPIO
 
 // Опции меню устройства
-const char *deviceMenuOptions[] = {"Temperature", "GPIO", "On/Off", "Back"};
+const char *deviceMenuOptions[] = {"Info", "Target temp", "GPIO", "On/Off"};
 const int deviceMenuOptionsCount = 4;
-
-// Флаг для обновления экрана
-bool needLcdUpdate = true;
 
 // Функция для определения нажатой кнопки
 int readKeypad()
@@ -71,28 +65,6 @@ int readKeypad()
   }
 
   return BUTTON_NONE; // Ни одна кнопка не нажата
-}
-
-void initLCD()
-{
-  // Инициализация LCD
-  lcd.begin(16, 2);
-
-  // Инициализация пина подсветки
-  pinMode(BACKLIGHT_PIN, OUTPUT);
-  digitalWrite(BACKLIGHT_PIN, LOW); // По умолчанию подсветка выключена
-
-  displayText("Initialization...");
-
-  vTaskDelay(1000 / portTICK_PERIOD_MS);
-
-  // Информация о навигации
-  displayText("Navigation info:");
-  displayText("LONG RIGHT=SELECT", 0, 1);
-  vTaskDelay(2000 / portTICK_PERIOD_MS);
-
-  // Настройка пина для считывания кнопок
-  pinMode(KEYPAD_PIN, INPUT);
 }
 
 // Функция для включения подсветки
@@ -126,8 +98,44 @@ void handleBacklight()
   }
 }
 
-// Функция для отображения главного экрана
-void showMainScreen()
+void handleButtonsTaskFunction(void *parameter)
+{
+  for (;;)
+  {
+    handleButtons();
+    handleBacklight();
+    vTaskDelay(100 / portTICK_PERIOD_MS); // Небольшая задержка для предотвращения перегрузки CPU
+  }
+}
+
+void initLCD()
+{
+  // Инициализация LCD
+  lcd.begin(16, 2);
+
+  // Инициализация пина подсветки
+  pinMode(BACKLIGHT_PIN, OUTPUT);
+  digitalWrite(BACKLIGHT_PIN, LOW); // По умолчанию подсветка выключена
+
+  displayText("Initialization...");
+
+  vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+  // Настройка пина для считывания кнопок
+  pinMode(KEYPAD_PIN, INPUT);
+
+  xTaskCreate(
+      handleButtonsTaskFunction,   // Функция
+      "handleButtonsTaskFunction", // Имя
+      2048,                        // Стек: 2048 слов = 8192 байт
+      NULL,                        // Параметры
+      1,                           // Приоритет
+      NULL                         // Хэндл (не нужен)
+  );
+}
+
+// Функция для отображения списка устройств
+void showDeviceList()
 {
   // Верхняя строка - статус системы
   // Отображаем статус WiFi
@@ -140,81 +148,91 @@ void showMainScreen()
     displayText("WiFi: Disabled");
   }
 
-  // Нижняя строка - информация о датчиках или прокручиваемый текст
-  if (scrollText.length() > 0)
-  {
-    // Вычисляем, какую часть текста показать
-    int endPos = scrollPosition + 16;
-    if (endPos > scrollText.length())
-    {
-      // Если достигли конца текста, показываем начало
-      std::string textPart = scrollText.substr(scrollPosition);
-      if (scrollText.length() > scrollPosition)
-      {
-        textPart += scrollText.substr(0, endPos - scrollText.length());
-      }
-      displayText(textPart.c_str(), 0, 1);
-    }
-    else
-    {
-      displayText(scrollText.substr(scrollPosition, 16).c_str(), 0, 1);
-    }
-  }
-  else
-  {
-    displayText("LONG RIGHT=SELECT", 0, 1);
-  }
-}
-
-// Функция для отображения списка устройств
-void showDeviceList()
-{
-  displayText("Devices:");
-
   if (devices.size() > 0)
   {
-    // Показываем текущее устройство с индикатором выбора
-    displayText("> ", 0, 1);
-
     // Проверяем, не выходит ли индекс за пределы
     if (deviceListIndex >= devices.size())
     {
       deviceListIndex = 0;
     }
-
     // Отображаем имя устройства
     std::string deviceName = devices[deviceListIndex].name;
     // Ограничиваем длину имени, чтобы оно поместилось на экране
-    if (deviceName.length() > 14)
+    if (deviceName.length() > 9)
     {
-      deviceName = deviceName.substr(0, 14);
+      deviceName = deviceName.substr(0, 9);
     }
+    if (devices[deviceListIndex].isDataValid())
+    {
+      deviceName += "*";
+    }
+    else
+    {
+      deviceName += "?";
+    }
+    deviceName += "-";
+    deviceName += String(devices[deviceListIndex].currentTemperature, 1).c_str();
+    deviceName += "C";
     displayText(deviceName.c_str(), 0, 1);
   }
   else
   {
-    displayText("There are no devices", 0, 1);
+    displayText("No devices", 0, 1);
   }
 }
 
 // Функция для отображения меню устройства
 void showDeviceMenu()
 {
-  // Показываем имя устройства
-  std::string deviceName = devices[deviceListIndex].name;
-  if (deviceName.length() > 16)
+  if (devices.size() > 0)
   {
-    deviceName = deviceName.substr(0, 16);
+    // Проверяем, не выходит ли индекс за пределы
+    if (deviceListIndex >= devices.size())
+    {
+      return;
+    }
+    // Показываем имя устройства
+    std::string deviceName = devices[deviceListIndex].name;
+    if (deviceName.length() > 16)
+    {
+      deviceName = deviceName.substr(0, 16);
+    }
+    displayText(deviceName.c_str());
+    // Показываем текущий пункт меню
+    displayText("> " + String(deviceMenuOptions[deviceMenuIndex]), 0, 1);
   }
-  displayText(deviceName.c_str());
-  // Показываем текущий пункт меню
-  displayText("> " + String(deviceMenuOptions[deviceMenuIndex]), 0, 1);
+}
+
+void showInfoDevice()
+{
+  displayText("Info:");
+  if (devices.size() > 0)
+  {
+    // Проверяем, не выходит ли индекс за пределы
+    if (deviceListIndex >= devices.size())
+    {
+      return;
+    }
+    // Отображаем имя устройства
+    std::string deviceInfo = String(devices[deviceListIndex].currentTemperature, 1).c_str(); // 4 symbols
+    deviceInfo += "C/";
+    deviceInfo += String(devices[deviceListIndex].targetTemperature, 1).c_str();
+    deviceInfo += "C  ";
+    deviceInfo += String(devices[deviceListIndex].humidity).c_str();
+    deviceInfo += "%";
+    // Ограничиваем длину имени, чтобы оно поместилось на экране
+    if (deviceInfo.length() > 10)
+    {
+      deviceInfo = deviceInfo.substr(0, 10);
+    }
+    displayText(deviceInfo.c_str(), 0, 1);
+  }
 }
 
 // Функция для редактирования температуры
 void showTemperatureEdit()
 {
-  displayText("Temp:");
+  displayText("Target temp:");
   displayText(String(devices[deviceListIndex].targetTemperature) + " C  [+/-]", 0, 1);
 }
 
@@ -260,23 +278,20 @@ void showEnabledEdit()
 }
 
 // Обновление LCD дисплея в зависимости от текущего состояния меню
-void updateLCD()
+void updateMainScreenLCD()
 {
-  if (!needLcdUpdate)
-  {
-    return;
-  }
-
   switch (currentMenu)
   {
-  case MAIN_SCREEN:
-    showMainScreen();
+  case OTA_UPDATE:
     break;
-  case DEVICE_LIST:
+  case MAIN_SCREEN:
     showDeviceList();
     break;
   case DEVICE_MENU:
     showDeviceMenu();
+    break;
+  case INFO_DEVICE:
+    showInfoDevice();
     break;
   case EDIT_TEMPERATURE:
     showTemperatureEdit();
@@ -288,54 +303,19 @@ void updateLCD()
     showEnabledEdit();
     break;
   }
-
-  needLcdUpdate = false;
 }
 
-// Обновление текста для прокрутки
-void initScrollText()
+void disabledButtonForOta(bool isUpdate)
 {
-  scrollText = "";
-
-  // Добавляем информацию о датчиках и устройствах
-  for (const auto &device : devices)
+  if (isUpdate)
   {
-    if (device.isDataValid())
-    {
-      scrollText += (device.name + ": " + String(device.currentTemperature, 1).c_str() + "C").c_str();
-
-      if (device.enabled)
-      {
-        scrollText += ("/" + String(device.targetTemperature, 1) + "C").c_str();
-
-        // Добавляем статус обогрева
-        if (device.heatingActive)
-        {
-          scrollText += "-(heating)";
-        }
-        else
-        {
-          scrollText += "-(OK)";
-        }
-      }
-
-      scrollText += (" Hum: " + String(device.humidity, 1) + "% Battery: " + String(device.battery) + "% | ").c_str();
-    }
-    else if (device.enabled)
-    {
-      // Показываем только включенные устройства, которые не в сети
-      scrollText += device.name + ": Not data | ";
-    }
+    currentMenu = OTA_UPDATE;
   }
-
-  // Если текст пустой, добавляем информационное сообщение
-  if (scrollText.length() == 0)
+  else
   {
-    scrollText = "No active devices | Add devices via the web interface | ";
+    currentMenu = MAIN_SCREEN;
   }
-
-  // Сбрасываем позицию прокрутки
-  scrollPosition = 0;
+  updateMainScreenLCD();
 }
 
 // Обработка нажатий кнопок
@@ -356,17 +336,8 @@ void handleButtons()
   // Обработка дребезга контактов и длительного нажатия
   static unsigned long lastButtonTime = 0;
   static int lastButton = BUTTON_NONE;
-  static unsigned long buttonPressStartTime = 0;
-  static bool longPressHandled = false;
 
   unsigned long currentTime = millis();
-
-  // Если нажата новая кнопка, сбрасываем таймер длительного нажатия
-  if (pressedButton != lastButton)
-  {
-    buttonPressStartTime = currentTime;
-    longPressHandled = false;
-  }
 
   // Проверяем, не та же ли кнопка нажата и прошло ли достаточно времени (защита от дребезга)
   if (pressedButton == lastButton && currentTime - lastButtonTime < BUTTON_DEBOUNCE_DELAY)
@@ -374,46 +345,16 @@ void handleButtons()
     return;
   }
 
-  // Проверка длительного нажатия RIGHT (замена SELECT)
-  if (pressedButton == BUTTON_RIGHT && !longPressHandled &&
-      currentTime - buttonPressStartTime > 2000)
-  {                                // 2000 мс для длительного нажатия
-    pressedButton = BUTTON_SELECT; // Заменяем на SELECT
-    longPressHandled = true;
-  }
-
   // Обновляем время последнего нажатия и последнюю нажатую кнопку
   lastButtonTime = currentTime;
   lastButton = pressedButton;
 
-  // Флаг для обновления экрана
-  needLcdUpdate = true;
-
   // Обработка нажатий в зависимости от текущего состояния меню
   switch (currentMenu)
   {
-  case MAIN_SCREEN:
-    // На главном экране
-    if (pressedButton == BUTTON_SELECT)
-    {
-      // Переход к списку устройств
-      currentMenu = DEVICE_LIST;
-    }
-    else if (pressedButton == BUTTON_LEFT || pressedButton == BUTTON_RIGHT)
-    {
-      // Прокрутка текста влево/вправо
-      if (pressedButton == BUTTON_LEFT)
-      {
-        scrollPosition = (scrollPosition + 1) % scrollText.length();
-      }
-      else if (pressedButton == BUTTON_RIGHT && !longPressHandled) // Проверяем, что это не длительное нажатие
-      {
-        scrollPosition = (scrollPosition + scrollText.length() - 1) % scrollText.length();
-      }
-    }
+  case OTA_UPDATE:
     break;
-
-  case DEVICE_LIST:
+  case MAIN_SCREEN:
     // В списке устройств
     if (devices.size() > 0)
     {
@@ -427,22 +368,12 @@ void handleButtons()
         // Следующее устройство
         deviceListIndex = (deviceListIndex + 1) % devices.size();
       }
-      else if (pressedButton == BUTTON_SELECT)
+      else if (pressedButton == BUTTON_RIGHT)
       {
         // Выбор устройства - переход в меню устройства
         currentMenu = DEVICE_MENU;
         deviceMenuIndex = 0;
       }
-      else if (pressedButton == BUTTON_LEFT)
-      {
-        // Возврат на главный экран
-        currentMenu = MAIN_SCREEN;
-      }
-    }
-    else if (pressedButton == BUTTON_LEFT)
-    {
-      // Возврат на главный экран
-      currentMenu = MAIN_SCREEN;
     }
     break;
 
@@ -458,30 +389,38 @@ void handleButtons()
       // Следующий пункт меню
       deviceMenuIndex = (deviceMenuIndex + 1) % deviceMenuOptionsCount;
     }
-    else if (pressedButton == BUTTON_SELECT)
+    else if (pressedButton == BUTTON_RIGHT)
     {
       // Выбор пункта меню
       switch (deviceMenuIndex)
       {
-      case 0: // Температура
+      case 0: // Info
+        currentMenu = INFO_DEVICE;
+        break;
+      case 1: // Температура
         currentMenu = EDIT_TEMPERATURE;
         break;
-      case 1: // GPIO пины
+      case 2: // GPIO пины
         currentMenu = EDIT_GPIO;
         gpioSelectionIndex = 0;
         break;
-      case 2: // Вкл/Выкл
+      case 3: // Вкл/Выкл
         currentMenu = EDIT_ENABLED;
-        break;
-      case 3: // Назад
-        currentMenu = DEVICE_LIST;
         break;
       }
     }
     else if (pressedButton == BUTTON_LEFT)
     {
       // Возврат к списку устройств
-      currentMenu = DEVICE_LIST;
+      currentMenu = MAIN_SCREEN;
+    }
+    break;
+
+  case INFO_DEVICE:
+    if (pressedButton == BUTTON_LEFT)
+    {
+      // Возврат на главный экран
+      currentMenu = DEVICE_MENU;
     }
     break;
 
@@ -501,9 +440,9 @@ void handleButtons()
         devices[deviceListIndex].targetTemperature = 0;
       }
     }
-    else if (pressedButton == BUTTON_SELECT)
+    else if (pressedButton == BUTTON_RIGHT)
     {
-      Serial.println("Нажата кнопка SELECT, сохраняем результаты");
+      Serial.println("Нажата кнопка SELECT, сохраняем изменения температуры");
       // Сохранение и возврат в меню устройства
       saveClientsToFile();
       currentMenu = DEVICE_MENU;
@@ -529,7 +468,7 @@ void handleButtons()
         // Следующий GPIO
         gpioSelectionIndex = (gpioSelectionIndex + 1) % availableGpio.size();
       }
-      else if (pressedButton == BUTTON_SELECT)
+      else if (pressedButton == BUTTON_RIGHT)
       {
         // Выбор/отмена выбора текущего GPIO
         uint8_t selectedGpio = availableGpio[gpioSelectionIndex].pin;
@@ -546,7 +485,6 @@ void handleButtons()
             break;
           }
         }
-
         // Если не был выбран, добавляем
         if (!isSelected)
         {
@@ -556,13 +494,13 @@ void handleButtons()
         // Сохраняем изменения
         saveClientsToFile();
       }
-      else if (pressedButton == BUTTON_LEFT || pressedButton == BUTTON_RIGHT)
+      else if (pressedButton == BUTTON_LEFT)
       {
         // Возврат в меню устройства
         currentMenu = DEVICE_MENU;
       }
     }
-    else if (pressedButton == BUTTON_LEFT || pressedButton == BUTTON_SELECT)
+    else if (pressedButton == BUTTON_LEFT)
     {
       // Если нет доступных GPIO, возвращаемся в меню
       currentMenu = DEVICE_MENU;
@@ -575,228 +513,23 @@ void handleButtons()
     {
       // Переключение состояния
       devices[deviceListIndex].enabled = !devices[deviceListIndex].enabled;
-
-      // Если устройство выключено, деактивируем обогрев
-      if (!devices[deviceListIndex].enabled)
-      {
-        devices[deviceListIndex].heatingActive = false;
-      }
-      Serial.println("Нажата кнопка BUTTON_UP при изменении доступности устройства, сохраняем результаты");
+    }
+    else if (pressedButton == BUTTON_RIGHT)
+    {
+      Serial.println("Нажата кнопка BUTTON_RIGHT при изменении доступности устройства, сохраняем результаты");
       // Сохраняем изменения
       saveClientsToFile();
+      currentMenu = DEVICE_MENU;
     }
-    else if (pressedButton == BUTTON_SELECT || pressedButton == BUTTON_LEFT)
+    else if (pressedButton == BUTTON_LEFT)
     {
       // Возврат в меню устройства
       currentMenu = DEVICE_MENU;
     }
     break;
   }
-
   // Обновляем дисплей
-  updateLCD();
-}
-
-// Функция для прокрутки текста на главном экране
-void scrollMainScreenText()
-{
-  static unsigned long lastScrollTime = 0;
-
-  // Прокручиваем текст каждые 500 мс
-  if (currentMenu == MAIN_SCREEN && millis() - lastScrollTime > SCROLL_DELAY)
-  {
-    if (scrollText.length() > 0)
-    {
-      scrollPosition = (scrollPosition + 1) % scrollText.length();
-    }
-    else
-    {
-      scrollPosition = 0;
-    }
-    lastScrollTime = millis();
-
-    // Обновляем экран только если мы на главном экране
-    if (currentMenu == MAIN_SCREEN)
-    {
-      needLcdUpdate = true;
-    }
-  }
-}
-
-// Функция для периодического обновления информации на экране
-void updateLCDTask()
-{
-  // Прокрутка текста на главном экране
-  scrollMainScreenText();
-
-  // Управление подсветкой
-  handleBacklight();
-
-  // Обновление экрана при необходимости
-  if (needLcdUpdate)
-  {
-    updateLCD();
-  }
-}
-
-// Функция для обновления данных на экране при изменении устройств
-void refreshLCDData()
-{
-  // Обновляем текст для прокрутки
-  initScrollText();
-
-  // Устанавливаем флаг для обновления экрана
-  needLcdUpdate = true;
-}
-
-// Обновление статуса устройств
-void updateDevicesInformation()
-{
-  for (auto &device : devices)
-  {
-    // Проверяем, не устарели ли данные
-    if (!device.isDataValid())
-    {
-      device.isOnline = false;
-      Serial.println(String(device.name.c_str()) + " перешло в оффлайн");
-    }
-  }
-  refreshLCDData();
-}
-
-// Функция для отображения статистики обогрева
-void showHeatingStats()
-{
-  if (devices.size() == 0 || deviceListIndex >= devices.size())
-  {
-    displayText("There are no devices");
-    return;
-  }
-
-  const DeviceData &device = devices[deviceListIndex];
-
-  // Показываем имя устройства
-  std::string deviceName = device.name;
-  if (deviceName.length() > 10)
-  {
-    deviceName = deviceName.substr(0, 10);
-  }
-  displayText(deviceName.c_str());
-
-  // Показываем статус обогрева
-  displayText(device.heatingActive ? "ON" : "OFF", 11, 0, false);
-
-  // Показываем общее время работы
-  displayText("Time: " + formatHeatingTime(device.totalHeatingTime), 0, 1);
-}
-
-// Функция для отображения информации о GPIO
-void showGpioInfo()
-{
-  if (devices.size() == 0 || deviceListIndex >= devices.size())
-  {
-    displayText("There are no devices");
-    return;
-  }
-
-  const DeviceData &device = devices[deviceListIndex];
-
-  // Показываем имя устройства
-  std::string deviceName = device.name;
-  if (deviceName.length() > 16)
-  {
-    deviceName = deviceName.substr(0, 16);
-  }
-  displayText(deviceName.c_str());
-
-  // Показываем GPIO пины
-  if (device.gpioPins.size() == 0)
-  {
-    displayText("GPIO: Not selected", 0, 1);
-  }
-  else
-  {
-    String gpioList = "";
-    for (size_t i = 0; i < device.gpioPins.size() && i < 4; i++)
-    {
-      if (i > 0)
-      {
-        gpioList += ",";
-      }
-      gpioList += String(device.gpioPins[i]);
-    }
-
-    if (device.gpioPins.size() > 4)
-    {
-      gpioList += "...";
-    }
-    displayText("GPIO: " + gpioList, 0, 1);
-  }
-}
-
-// Функция для отображения информации о температуре
-void showTemperatureInfo()
-{
-  lcd.clear();
-
-  if (devices.size() == 0 || deviceListIndex >= devices.size())
-  {
-    displayText("There are no devices");
-    return;
-  }
-
-  const DeviceData &device = devices[deviceListIndex];
-
-  // Показываем имя устройства
-  std::string deviceName = device.name;
-  if (deviceName.length() > 10)
-  {
-    deviceName = deviceName.substr(0, 10);
-  }
-  displayText(deviceName.c_str());
-
-  // Показываем текущую температуру
-  displayText(String(device.currentTemperature, 1).c_str() + String("C"), 11, 0, false);
-
-  // Показываем целевую температуру и статус
-  displayText("Target: " + String(device.targetTemperature, 1) + "C ", 0, 1);
-
-  // Статус обогрева
-  if (device.enabled)
-  {
-    displayText(device.heatingActive ? "Heat" : "ОК", 12, 1, false);
-  }
-  else
-  {
-    displayText("OFF", 12, 1, false);
-  }
-}
-
-// Функция для циклического переключения информационных экранов
-void cycleInfoScreens()
-{
-  static int infoScreenIndex = 0;
-  static unsigned long lastScreenChangeTime = 0;
-
-  // Меняем экран каждые 5 секунд, только если мы на главном экране
-  if (currentMenu == MAIN_SCREEN && millis() - lastScreenChangeTime > 5000)
-  {
-    infoScreenIndex = (infoScreenIndex + 1) % 3;
-    lastScreenChangeTime = millis();
-
-    switch (infoScreenIndex)
-    {
-    case 0:
-      showMainScreen();
-      break;
-    case 1:
-      showTemperatureInfo();
-      break;
-    case 2:
-      showHeatingStats();
-      break;
-    }
-  }
+  updateMainScreenLCD();
 }
 
 // Метод для отображения текста с указанием столбца и строки

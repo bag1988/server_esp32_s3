@@ -47,8 +47,7 @@ bool initOTA()
         
         // Отображение информации на LCD        
         displayText("OTA Update", 0, 0, true, true);
-        displayText("Type: " + type, 0, 1);
-        });
+        displayText("Type: " + type, 0, 1); });
 
     ArduinoOTA.onEnd([]()
                      {
@@ -58,8 +57,7 @@ bool initOTA()
         
         // Отображение информации на LCD
         displayText("Update Complete", 0, 0, true, true);
-        displayText("Rebooting...", 0, 1, true, true);
-         });
+        displayText("Rebooting...", 0, 1, true, true); });
 
     ArduinoOTA.onProgress([](unsigned int progress, unsigned int total)
                           {
@@ -80,8 +78,7 @@ bool initOTA()
         progressBar += "]";
         
         displayText(progressBar, 0, 1);
-        displayText(String(percentage) + "%", 12, 1, false);    
-        });
+        displayText(String(percentage) + "%", 12, 1, false); });
 
     ArduinoOTA.onError([](ota_error_t error)
                        {
@@ -117,7 +114,8 @@ bool initOTA()
         
         // Выход из режима OTA через 10 секунд после ошибки
         vTaskDelay(10000 / portTICK_PERIOD_MS);
-        otaActive = false; });
+        otaActive = false; 
+        disabledButtonForOta(false); });
     // выключаем инициализацию mDNS
 
     ArduinoOTA.begin();
@@ -138,7 +136,7 @@ void handleOTA()
         displayText("OTA Timeout", 0, 0, true, true);
         displayText("Normal mode", 0, 1, true, true);
         vTaskDelay(2000 / portTICK_PERIOD_MS);
-        updateLCD(); // Возврат к обычному отображению
+        disabledButtonForOta(false); // Возврат к обычному отображению
     }
 }
 

@@ -36,41 +36,27 @@
 // Таймер для автоматического отключения подсветки
 #define BACKLIGHT_TIMEOUT 20000 // 20 секунд бездействия
 
-// Переменные для прокрутки текста
-extern std::string scrollText;
-extern int scrollPosition;
-
 // Инициализация LCD дисплея
 void initLCD();
+
+void disabledButtonForOta(bool isUpdate);
 
 // Чтение состояния кнопок LCD Keypad Shield
 int readKeypad();
 
-// Инициализация текста для прокрутки
-void initScrollText();
-
 // Обновление LCD дисплея
-void updateLCD();
+void updateMainScreenLCD();
 
 // Обработка нажатий кнопок
 void handleButtons();
-
-// Функция для периодического обновления информации на экране
-void updateLCDTask();
-
-// Функция для обновления данных на экране при изменении устройств
-void refreshLCDData();
-
-void updateDevicesInformation();
-
-// Функция для отображения главного экрана
-void showMainScreen();
 
 // Функция для отображения списка устройств
 void showDeviceList();
 
 // Функция для отображения меню устройства
 void showDeviceMenu();
+
+void showInfoDevice();
 
 // Функция для редактирования температуры
 void showTemperatureEdit();
@@ -80,18 +66,6 @@ void showGpioEdit();
 
 // Функция для включения/выключения устройства
 void showEnabledEdit();
-
-// Функция для отображения статистики обогрева
-void showHeatingStats();
-
-// Функция для отображения информации о GPIO
-void showGpioInfo();
-
-// Функция для отображения информации о температуре
-void showTemperatureInfo();
-
-// Функция для циклического переключения информационных экранов
-void cycleInfoScreens();
 
 // Метод для отображения текста с указанием столбца и строки
 void displayText(const String &text, int column = 0, int row = 0, bool clearLine = true, bool center = false);
