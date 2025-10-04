@@ -238,9 +238,6 @@ void createTasksStandart()
 void ReadDataInSPIFFS()
 {
     // Загрузка данных устройств
-    loadWifiCredentialsFromFile();
-    loadClientsFromFile();
-    loadServerWorkTime();
 }
 
 // Настройка
@@ -268,11 +265,13 @@ void setup()
         Serial.println("Ошибка инициализации SPIFFS");
         return;
     }
-
-    xTaskCreate([](void *parameter)
-                {
-                    ReadDataInSPIFFS();
-                    vTaskDelete(NULL); }, "ReadSPIFFS", 4096, NULL, 1, NULL);
+    loadWifiCredentialsFromFile();
+    loadClientsFromFile();
+    loadServerWorkTime();
+    // xTaskCreate([](void *parameter)
+    //             {
+    //                 ReadDataInSPIFFS();
+    //                 vTaskDelete(NULL); }, "ReadSPIFFS", 4096, NULL, 1, NULL);
 
     // Загрузка данных устройств
     loadGpioFromFile();
