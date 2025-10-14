@@ -18,26 +18,31 @@ unsigned long lastActivityTime = 0;
 // Состояния для меню
 enum MenuState
 {
-  MAIN_SCREEN,      // Главный экран с информацией
-  DEVICE_MENU,      // Меню настроек устройства
-  INFO_DEVICE,      // Отображение информации
-  EDIT_TEMPERATURE, // Редактирование целевой температуры
-  EDIT_GPIO,        // Редактирование GPIO пинов
-  EDIT_ENABLED,     // Включение/выключение устройства
-  OTA_UPDATE        // Обновление по OTA
+  DEVICE_LIST,             // Главный экран со списком устройств
+  DEVICE_MENU,             // Меню настроек устройства
+  DEVICE_INFO,             // Отображение информации
+  DEVICE_EDIT_TEMPERATURE, // Редактирование целевой температуры
+  DEVICE_EDIT_GPIO,        // Редактирование GPIO пинов
+  DEVICE_EDIT_ENABLED,     // Включение/выключение устройства
+  VIEW_GPIO,
+  EDIT_GPIO,
+  OTA_UPDATE // Обновление по OTA
 };
 
 // Текущее состояние меню
-MenuState currentMenu = MAIN_SCREEN;
+MenuState currentMenu = DEVICE_LIST;
 
 // Индексы для навигации
 int deviceListIndex = 0;    // Индекс в списке устройств
 int deviceMenuIndex = 0;    // Индекс в меню устройства
 int gpioSelectionIndex = 0; // Индекс для выбора GPIO
-
+int gpioMenuIndex = 0;
 // Опции меню устройства
 const char *deviceMenuOptions[] = {"Info", "Target temp", "GPIO", "On/Off"};
 const int deviceMenuOptionsCount = 4;
+
+const char *gpioMenuOptions[] = {"Auto", "On", "Off"};
+const int gpioMenuOptionsCount = 3;
 
 // Функция для определения нажатой кнопки
 int readKeypad()
@@ -157,19 +162,18 @@ void showDeviceList()
     }
     // Отображаем имя устройства
     std::string deviceName = devices[deviceListIndex].name;
+
+    if (!devices[deviceListIndex].isDataValid())
+    {
+      deviceName = "?" + deviceName;
+    }
+
     // Ограничиваем длину имени, чтобы оно поместилось на экране
-    if (deviceName.length() > 9)
+    if (deviceName.length() > 10)
     {
-      deviceName = deviceName.substr(0, 9);
+      deviceName = deviceName.substr(0, 10);
     }
-    if (devices[deviceListIndex].isDataValid())
-    {
-      deviceName += "*";
-    }
-    else
-    {
-      deviceName += "?";
-    }
+
     deviceName += "-";
     deviceName += String(devices[deviceListIndex].currentTemperature, 1).c_str();
     deviceName += "C";
@@ -230,14 +234,14 @@ void showInfoDevice()
 }
 
 // Функция для редактирования температуры
-void showTemperatureEdit()
+void showDeviceTemperatureEdit()
 {
   displayText("Target temp:");
   displayText(String(devices[deviceListIndex].targetTemperature) + " C  [+/-]", 0, 1);
 }
 
 // Функция для редактирования GPIO
-void showGpioEdit()
+void showDeviceGpioEdit()
 {
   // Проверяем, есть ли доступные GPIO
   if (availableGpio.size() == 0)
@@ -270,8 +274,55 @@ void showGpioEdit()
   displayText(isSelected ? "[X]" : "[ ]", 10, 1, false);
 }
 
+void showViewEdit()
+{
+  displayText("Select GPIO");
+  if (availableGpio.size() > 0)
+  {
+    // Проверяем, не выходит ли индекс за пределы
+    if (gpioSelectionIndex >= availableGpio.size())
+    {
+      return;
+    }
+    auto &gpio = availableGpio[gpioSelectionIndex];
+    gpioMenuIndex = gpio.state;
+    std::string gpioName = gpio.name;
+    if (gpioName.length() > 16)
+    {
+      gpioName = gpioName.substr(0, 16);
+    }
+    displayText(gpioName.c_str(), 0, 1);
+    displayText(gpioMenuOptions[gpioMenuIndex], 11, 1, false);
+  }
+  else
+  {
+    displayText("No gpio", 0, 1);
+  }
+}
+
+void showGpioEdit()
+{
+  if (availableGpio.size() > 0)
+  {
+    // Проверяем, не выходит ли индекс за пределы
+    if (gpioSelectionIndex >= availableGpio.size())
+    {
+      return;
+    }
+    // Показываем имя устройства
+    std::string gpioName = availableGpio[gpioSelectionIndex].name;
+    if (gpioName.length() > 16)
+    {
+      gpioName = gpioName.substr(0, 16);
+    }
+    displayText(gpioName.c_str());
+    // Показываем текущий пункт меню
+    displayText("> " + String(gpioMenuOptions[gpioMenuIndex]), 0, 1);
+  }
+}
+
 // Функция для включения/выключения устройства
-void showEnabledEdit()
+void showDeviceEnabledEdit()
 {
   displayText("Device:");
   displayText((devices[deviceListIndex].enabled ? "Enabled" : "Disabled") + String(" [+/-]"), 0, 1);
@@ -284,23 +335,29 @@ void updateMainScreenLCD()
   {
   case OTA_UPDATE:
     break;
-  case MAIN_SCREEN:
+  case DEVICE_LIST:
     showDeviceList();
     break;
   case DEVICE_MENU:
     showDeviceMenu();
     break;
-  case INFO_DEVICE:
+  case DEVICE_INFO:
     showInfoDevice();
     break;
-  case EDIT_TEMPERATURE:
-    showTemperatureEdit();
+  case DEVICE_EDIT_TEMPERATURE:
+    showDeviceTemperatureEdit();
+    break;
+  case DEVICE_EDIT_GPIO:
+    showDeviceGpioEdit();
+    break;
+  case VIEW_GPIO:
+    showViewEdit();
     break;
   case EDIT_GPIO:
     showGpioEdit();
     break;
-  case EDIT_ENABLED:
-    showEnabledEdit();
+  case DEVICE_EDIT_ENABLED:
+    showDeviceEnabledEdit();
     break;
   }
 }
@@ -313,7 +370,7 @@ void disabledButtonForOta(bool isUpdate)
   }
   else
   {
-    currentMenu = MAIN_SCREEN;
+    currentMenu = DEVICE_LIST;
   }
   updateMainScreenLCD();
 }
@@ -354,7 +411,7 @@ void handleButtons()
   {
   case OTA_UPDATE:
     break;
-  case MAIN_SCREEN:
+  case DEVICE_LIST:
     // В списке устройств
     if (devices.size() > 0)
     {
@@ -373,6 +430,12 @@ void handleButtons()
         // Выбор устройства - переход в меню устройства
         currentMenu = DEVICE_MENU;
         deviceMenuIndex = 0;
+      }
+      else if (pressedButton == BUTTON_LEFT)
+      {
+        // Возврат к списку устройств
+        currentMenu = VIEW_GPIO;
+        gpioSelectionIndex = 0;
       }
     }
     break;
@@ -395,36 +458,36 @@ void handleButtons()
       switch (deviceMenuIndex)
       {
       case 0: // Info
-        currentMenu = INFO_DEVICE;
+        currentMenu = DEVICE_INFO;
         break;
       case 1: // Температура
-        currentMenu = EDIT_TEMPERATURE;
+        currentMenu = DEVICE_EDIT_TEMPERATURE;
         break;
       case 2: // GPIO пины
-        currentMenu = EDIT_GPIO;
+        currentMenu = DEVICE_EDIT_GPIO;
         gpioSelectionIndex = 0;
         break;
       case 3: // Вкл/Выкл
-        currentMenu = EDIT_ENABLED;
+        currentMenu = DEVICE_EDIT_ENABLED;
         break;
       }
     }
     else if (pressedButton == BUTTON_LEFT)
     {
       // Возврат к списку устройств
-      currentMenu = MAIN_SCREEN;
+      currentMenu = DEVICE_LIST;
     }
     break;
 
-  case INFO_DEVICE:
-    if (pressedButton == BUTTON_LEFT)
+  case DEVICE_INFO:
+    if (pressedButton == BUTTON_LEFT || pressedButton == BUTTON_RIGHT)
     {
       // Возврат на главный экран
       currentMenu = DEVICE_MENU;
     }
     break;
 
-  case EDIT_TEMPERATURE:
+  case DEVICE_EDIT_TEMPERATURE:
     // Редактирование температуры
     if (pressedButton == BUTTON_UP)
     {
@@ -454,7 +517,7 @@ void handleButtons()
     }
     break;
 
-  case EDIT_GPIO:
+  case DEVICE_EDIT_GPIO:
     // Редактирование GPIO
     if (availableGpio.size() > 0)
     {
@@ -500,14 +563,14 @@ void handleButtons()
         currentMenu = DEVICE_MENU;
       }
     }
-    else if (pressedButton == BUTTON_LEFT)
+    else
     {
       // Если нет доступных GPIO, возвращаемся в меню
       currentMenu = DEVICE_MENU;
     }
     break;
 
-  case EDIT_ENABLED:
+  case DEVICE_EDIT_ENABLED:
     // Включение/выключение устройства
     if (pressedButton == BUTTON_UP || pressedButton == BUTTON_DOWN)
     {
@@ -525,6 +588,64 @@ void handleButtons()
     {
       // Возврат в меню устройства
       currentMenu = DEVICE_MENU;
+    }
+    break;
+
+  case VIEW_GPIO:
+    if (availableGpio.size() > 0)
+    {
+      if (pressedButton == BUTTON_UP)
+      {
+        // Предыдущий GPIO
+        gpioSelectionIndex = (gpioSelectionIndex + availableGpio.size() - 1) % availableGpio.size();
+      }
+      else if (pressedButton == BUTTON_DOWN)
+      {
+        // Следующий GPIO
+        gpioSelectionIndex = (gpioSelectionIndex + 1) % availableGpio.size();
+      }
+      else if (pressedButton == BUTTON_RIGHT)
+      {
+        currentMenu = EDIT_GPIO;
+      }
+      else if (pressedButton == BUTTON_LEFT)
+      {
+        // Возврат
+        currentMenu = DEVICE_LIST;
+      }
+    }
+    else
+    {
+      // Возврат
+      currentMenu = DEVICE_LIST;
+    }
+    break;
+
+  case EDIT_GPIO:
+    // В меню устройства
+    if (pressedButton == BUTTON_UP)
+    {
+      // Предыдущий пункт меню
+      gpioMenuIndex = (gpioMenuIndex + gpioMenuOptionsCount - 1) % gpioMenuOptionsCount;
+    }
+    else if (pressedButton == BUTTON_DOWN)
+    {
+      // Следующий пункт меню
+      gpioMenuIndex = (gpioMenuIndex + 1) % gpioMenuOptionsCount;
+    }
+    else if (pressedButton == BUTTON_RIGHT)
+    {
+      if (availableGpio[gpioSelectionIndex].state != gpioMenuIndex)
+      {
+        availableGpio[gpioSelectionIndex].state = gpioMenuIndex;
+        saveGpioToFile();
+      }
+      currentMenu = VIEW_GPIO;
+    }
+    else if (pressedButton == BUTTON_LEFT)
+    {
+      // Возврат
+      currentMenu = VIEW_GPIO;
     }
     break;
   }

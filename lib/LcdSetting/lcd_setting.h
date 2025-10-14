@@ -59,13 +59,13 @@ void showDeviceMenu();
 void showInfoDevice();
 
 // Функция для редактирования температуры
-void showTemperatureEdit();
+void showDeviceTemperatureEdit();
 
 // Функция для редактирования GPIO
-void showGpioEdit();
+void showDeviceGpioEdit();
 
 // Функция для включения/выключения устройства
-void showEnabledEdit();
+void showDeviceEnabledEdit();
 
 // Метод для отображения текста с указанием столбца и строки
 void displayText(const String &text, int column = 0, int row = 0, bool clearLine = true, bool center = false);
