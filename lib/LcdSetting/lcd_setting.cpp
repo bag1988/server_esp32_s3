@@ -26,6 +26,7 @@ enum MenuState
   DEVICE_EDIT_ENABLED,     // Включение/выключение устройства
   VIEW_GPIO,
   EDIT_GPIO,
+  EDIT_HYSTERESIS,
   OTA_UPDATE // Обновление по OTA
 };
 
@@ -43,6 +44,8 @@ const int deviceMenuOptionsCount = 4;
 
 const char *gpioMenuOptions[] = {"Auto", "On", "Off"};
 const int gpioMenuOptionsCount = 3;
+
+float editHysteresisTemp = 1.5;
 
 // Функция для определения нажатой кнопки
 int readKeypad()
@@ -73,14 +76,16 @@ int readKeypad()
 }
 
 // Функция для включения подсветки
-void turnOnBacklight()
+bool turnOnBacklight()
 {
+  lastActivityTime = millis();
   if (!backlightState)
   {
     digitalWrite(BACKLIGHT_PIN, HIGH);
     backlightState = true;
+    return true;
   }
-  lastActivityTime = millis();
+  return false;
 }
 
 // Функция для выключения подсветки
@@ -321,6 +326,12 @@ void showGpioEdit()
   }
 }
 
+void showEditHysteresis()
+{
+  displayText("Edit Hysteresis:");
+  displayText(">" + String(editHysteresisTemp) + " [+/-]", 0, 1);
+}
+
 // Функция для включения/выключения устройства
 void showDeviceEnabledEdit()
 {
@@ -356,6 +367,9 @@ void updateMainScreenLCD()
   case EDIT_GPIO:
     showGpioEdit();
     break;
+  case EDIT_HYSTERESIS:
+    showEditHysteresis();
+    break;
   case DEVICE_EDIT_ENABLED:
     showDeviceEnabledEdit();
     break;
@@ -388,7 +402,10 @@ void handleButtons()
   }
 
   // При любом нажатии включаем подсветку
-  turnOnBacklight();
+  if (turnOnBacklight())
+  {
+    return;
+  }
 
   // Обработка дребезга контактов и длительного нажатия
   static unsigned long lastButtonTime = 0;
@@ -610,14 +627,14 @@ void handleButtons()
       }
       else if (pressedButton == BUTTON_LEFT)
       {
-        // Возврат
-        currentMenu = DEVICE_LIST;
+        editHysteresisTemp = hysteresisTemp;
+        currentMenu = EDIT_HYSTERESIS;
       }
     }
     else
     {
-      // Возврат
-      currentMenu = DEVICE_LIST;
+      editHysteresisTemp = hysteresisTemp;
+      currentMenu = EDIT_HYSTERESIS;
     }
     break;
 
@@ -648,7 +665,36 @@ void handleButtons()
       currentMenu = VIEW_GPIO;
     }
     break;
+
+  case EDIT_HYSTERESIS:
+
+    if (pressedButton == BUTTON_UP)
+    {
+      // Увеличение температуры
+      editHysteresisTemp += 0.1;
+    }
+    else if (pressedButton == BUTTON_DOWN)
+    {
+      // Уменьшение температуры
+      editHysteresisTemp -= 0.1;
+      if (editHysteresisTemp < 0)
+      {
+        editHysteresisTemp = 0;
+      }
+    }
+    else if (pressedButton == BUTTON_RIGHT)
+    {
+      Serial.println("Нажата кнопка SELECT, сохраняем гестерезис температуры");
+      hysteresisTemp = editHysteresisTemp;
+      saveServerSetting();
+    }
+    else if (pressedButton == BUTTON_LEFT)
+    {
+      currentMenu = DEVICE_LIST;
+    }
+    break;
   }
+
   // Обновляем дисплей
   updateMainScreenLCD();
 }
