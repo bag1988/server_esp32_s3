@@ -10,7 +10,13 @@
 AsyncWebServer server(80);
 
 // Создаем экземпляр AsyncEventSource
-// AsyncEventSource events("/events");
+AsyncEventSource serialEvents("/log_events");
+
+// Task handle for serial streaming task
+TaskHandle_t serialStreamingTaskHandle = NULL;
+
+// Flag to track if clients are connected
+volatile bool serialStreamClientsConnected = false;
 
 void connectWiFi()
 {
@@ -36,11 +42,77 @@ void connectWiFi()
         wifiConnected = false;
     }
 }
+
+// Function to read serial data
+String readSerialData()
+{
+    String data = "";
+    while (Serial.available())
+    {
+        data += (char)Serial.read();
+    }
+    return data;
+}
+
+// Task for continuous serial data streaming - only runs when clients are connected
+void serialStreamingTask(void *parameter)
+{
+    while (serialStreamClientsConnected)
+    {
+        // Check if there's serial data available and send it to connected clients
+        if (Serial.available())
+        {
+            String serialData = "";
+            while (Serial.available())
+            {
+                serialData += (char)Serial.read();
+            }
+            // Send data to all connected SSE clients
+            serialEvents.send(serialData.c_str(), "serial", millis());
+        }
+        // Small delay to prevent excessive CPU usage when no data is available
+        vTaskDelay(50 / portTICK_PERIOD_MS); // Check every 50ms
+    }
+    // Delete the task when no longer needed
+    vTaskDelete(NULL);
+}
+
 // web server +++++++++++++++++++++++++++++++++
 void initWebServer()
 {
-    // Добавляем обработчик событий
-    // server.addHandler(&events);
+    // Add event source handler
+    server.addHandler(&serialEvents);
+
+    // Event source connection handlers
+    serialEvents.onConnect([](AsyncEventSourceClient *client)
+                           {
+        // Send initial data when client connects
+        String initialData = readSerialData();
+        if(initialData.length() > 0) {
+            client->send(initialData.c_str(), "serial", millis(), 1000);
+        }
+        // Set flag that clients are connected
+        serialStreamClientsConnected = true;
+        // Start the serial streaming task if not already running
+        if (serialStreamingTaskHandle == NULL) {
+            xTaskCreate(serialStreamingTask, "serialStreamingTask", 4096, NULL, 1, &serialStreamingTaskHandle);
+        } });
+
+    serialEvents.onDisconnect([](void *arg, AsyncEventSourceClient *client)
+                              {
+        // Check if there are still connected clients
+        if (serialEvents.count() == 0) {
+            // No more clients connected, set flag to false
+            serialStreamClientsConnected = false;
+            // Give some time for the task to detect the flag change and finish
+            if (serialStreamingTaskHandle != NULL) {
+                // Wait a bit for the task to finish naturally
+                vTaskDelay(100 / portTICK_PERIOD_MS);
+                // Reset task handle
+                serialStreamingTaskHandle = NULL;
+            }
+        } });
+
     // GET /clients (get list of all clients)
     server.on("/clients", HTTP_GET, [](AsyncWebServerRequest *request)
               {
@@ -349,6 +421,28 @@ void initWebServer()
     server.on("/get_hysteresis_temp", HTTP_GET, [](AsyncWebServerRequest *request)
               { request->send(200, "application/json", String(hysteresisTemp, 1)); });
 
+    // New endpoint for real-time serial data streaming using Server-Sent Events
+    server.on("/serial_stream", HTTP_GET, [](AsyncWebServerRequest *request)
+              {
+                if(request->header("Accept") != "text/event-stream") {
+                    request->send(400, "text/plain", "This endpoint is for Server-Sent Events only");
+                    return;
+                }
+                
+                AsyncResponseStream *response = request->beginResponseStream("text/event-stream");
+                response->addHeader("Cache-Control", "no-cache");
+                response->addHeader("Connection", "keep-alive");
+                
+                String serialData = readSerialData(); // Using the function from variables_info
+                
+                if(serialData.length() > 0) {
+                    response->printf("data: %s\n\n", serialData.c_str());
+                } else {
+                    response->printf("data: \n\n");
+                }
+                
+                request->send(response); });
+
     // Обработчик для корневого пути и /index
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
               { request->send(SPIFFS, "/index.html", "text/html"); });
@@ -366,8 +460,8 @@ void initWebServer()
               { request->send(SPIFFS, "/heating_stats.html", "text/html"); });
 
     // Добавляем обработчик для получения логов в реальном времени через SSE
-    // server.on("/logs.html", HTTP_GET, [](AsyncWebServerRequest *request)
-    //           { request->send(SPIFFS, "/logs.html", "text/html"); });
+    server.on("/logs.html", HTTP_GET, [](AsyncWebServerRequest *request)
+              { request->send(SPIFFS, "/logs.html", "text/html"); });
 
     server.begin();
     Serial.println("Web server started");

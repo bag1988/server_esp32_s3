@@ -51,6 +51,8 @@ float editHysteresisTemp = 1.5;
 int readKeypad()
 {
   int adcValue = analogRead(KEYPAD_PIN);
+  Serial.println("Нажата кнопка, значение: " + String(adcValue));
+
   if (adcValue > 10 && adcValue < KEY_UP_VAL)
   {
     return BUTTON_NONE;
@@ -394,7 +396,6 @@ void handleButtons()
 {
   // Чтение состояния кнопок
   int pressedButton = readKeypad();
-
   // Если ни одна кнопка не нажата, выходим
   if (pressedButton == BUTTON_NONE)
   {

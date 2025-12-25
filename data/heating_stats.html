@@ -16,15 +16,17 @@
             <a href="heating_stats.html">Статистика обогрева</a>
             <a href="managment_device.html">Управление устройствами</a>
             <a href="gpio_settings.html">Настройки GPIO</a>
+            <a href="logs.html">Журнал</a>
         </div>
     </div>
+
     <div class="container">
-        <!-- Добавляем кнопку сброса статистики -->
-        <button class="button" style="background-color: chocolate; float: right;"
-            onclick="resetStats()">Сбросить</button>
-        <button class="button" onclick="refreshStats()">Обновить</button>
-    </div>
-    <div class="container">
+        <div>
+            <!-- Добавляем кнопку сброса статистики -->
+            <button class="button" style="background-color: chocolate; float: right;"
+                onclick="resetStats()">Сбросить</button>
+            <button class="button" onclick="refreshStats()">Обновить</button>
+        </div>
         <table>
             <thead>
                 <tr>
@@ -46,12 +48,13 @@
 
     <!-- Статистика для gpio -->
     <div class="container">
-        <!-- Добавляем кнопку сброса статистики -->
-        <button class="button" style="background-color: chocolate; float: right;" onclick="resetGpioStats()">Сбросить
-            Gpio</button>
-        <button class="button" onclick="refreshGpioStats()">Обновить Gpio</button>
-    </div>
-    <div class="container">
+        <div>
+            <!-- Добавляем кнопку сброса статистики -->
+            <button class="button" style="background-color: chocolate; float: right;"
+                onclick="resetGpioStats()">Сбросить
+                Gpio</button>
+            <button class="button" onclick="refreshGpioStats()">Обновить Gpio</button>
+        </div>
         <table>
             <thead>
                 <tr>
@@ -68,14 +71,88 @@
             </tbody>
         </table>
     </div>
+
+    <div class="container">
+        <h2>Информация о сервере</h2>
+        <div id="serverInfoContainer">
+            <!-- Отображение информации о сервере -->
+        </div>
+        <button onclick="resetWorkTime()" style="background-color: chocolate;">Сбросить время работы</button>
+    </div>
+
     <script>
         // Загрузка данных при загрузке страницы
         document.addEventListener('DOMContentLoaded', function () {
             refreshDisplayData();
+            loadServerInfo();
             // Обновляем статистику каждые 10 секунд
             setInterval(refreshDisplayData, 10000);
         });
 
+        async function resetWorkTime() {
+            if (!confirm('Вы уверены, что хотите сбросить время работы?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/reset_work_time', {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    alert('Время работы сброшено');
+                } else {
+                    alert('Ошибка при сбросе времени работы');
+                }
+            } catch (error) {
+                console.error('Ошибка при сбросе времени работы:', error);
+                alert('Ошибка при сбросе времени работы');
+            }
+        }
+        function displayServerInfo(data) {
+            const serverContainer = document.getElementById('serverInfoContainer');
+            serverContainer.innerHTML = '';
+
+            const temperature = document.createElement("div");
+            temperature.innerHTML = `Температура: ${data.board_temperature} C`;
+            serverContainer.appendChild(temperature);
+
+            const workTime = document.createElement("div");
+            workTime.innerHTML = `Время работы: ${data.millis}`;
+            serverContainer.appendChild(workTime);
+
+            const cpu_frequency_mhz = document.createElement("div");
+            cpu_frequency_mhz.innerHTML = `Частота CPU: ${data.cpu_frequency_mhz}`;
+            serverContainer.appendChild(cpu_frequency_mhz);
+            const sram_size_bytes = document.createElement("div");
+            sram_size_bytes.innerHTML = `Размер SRAM: ${(data.sram_size_bytes / 1024).toFixed(3)} кб`;
+            serverContainer.appendChild(sram_size_bytes);
+            const free_sram_bytes = document.createElement("div");
+            free_sram_bytes.innerHTML = `Свободная SRAM: ${(data.free_sram_bytes / 1024).toFixed(3)} кб`;
+            serverContainer.appendChild(free_sram_bytes);
+
+            const flash_size_bytes = document.createElement("div");
+            flash_size_bytes.innerHTML = `Размер Flash: ${(data.flash_size_bytes / 1024 / 1024).toFixed(3)} мб`;
+            serverContainer.appendChild(flash_size_bytes);
+
+            const psram_size_bytes = document.createElement("div");
+            psram_size_bytes.innerHTML = `Размер PSRAM: ${(data.psram_size_bytes / 1024 / 1024).toFixed(3)} мб`;
+            serverContainer.appendChild(psram_size_bytes);
+            const free_psram_bytes = document.createElement("div");
+            free_psram_bytes.innerHTML = `Свободная PSRAM: ${(data.free_psram_bytes / 1024 / 1024).toFixed(3)} мб`;
+            serverContainer.appendChild(free_psram_bytes);
+        }
+
+        function loadServerInfo() {
+            fetch('/serverinfo')
+                .then(response => response.json())
+                .then(data => {
+                    displayServerInfo(data);
+                })
+                .catch(error => {
+                    console.error('Ошибка при загрузке информации о сервере:', error);
+                });
+        }
         function refreshDisplayData() {
             refreshStats();
             refreshGpioStats();
@@ -125,9 +202,9 @@
 
                 // Статус
                 const statusCell = document.createElement('td');
-                if (gpio.status == 0) {
+                if (gpio.state == 0) {
                     statusCell.textContent = 'Авто';
-                } else if (gpio.status == 1) {
+                } else if (gpio.state == 1) {
                     statusCell.textContent = 'Включен';
                 }
                 else {
