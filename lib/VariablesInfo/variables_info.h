@@ -4,7 +4,7 @@
 #include <Arduino.h>
 #include <vector>
 #include <string>
-
+#include <AsyncEventSource.h>
 #define WEB_SERVER_HOSTNAME "home-server"
 
 // Константы
@@ -24,6 +24,10 @@ struct WifiCredentials
 
 // Функция для форматирования времени работы обогрева
 String formatHeatingTime(unsigned long timeInMillis);
+
+void logAndSend(const String& message);
+
+void logAndSendf(const char* format, ...);
 
 // Объединенная структура данных для клиента/датчика
 struct DeviceData
@@ -119,4 +123,5 @@ extern SemaphoreHandle_t devicesMutex;
 extern float board_temperature;
 extern unsigned long serverWorkTime;
 extern float hysteresisTemp;
+extern AsyncEventSource serialEvents; 
 #endif // VARIABLES_INFO_H
