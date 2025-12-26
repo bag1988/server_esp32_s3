@@ -51,7 +51,7 @@ float editHysteresisTemp = 1.5;
 int readKeypad()
 {
   int adcValue = analogRead(KEYPAD_PIN);
-  logAndSend("Нажата кнопка, значение: " + String(adcValue));
+  //logAndSend("Нажата кнопка, значение: " + String(adcValue));
 
   if (adcValue > 10 && adcValue < KEY_UP_VAL)
   {
