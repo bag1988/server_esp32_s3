@@ -24,7 +24,7 @@ void loadServerWorkTime()
 // Загружаем клиентов из Preferences как единый Blob
 void loadClientsFromFile()
 {
-  Serial.println("Loading clients from Preferences...");
+  logAndSend("Loading clients from Preferences...");
 
   // Открываем пространство имен "devices" в режиме только для чтения
   if (preferences.begin("devices", true))
@@ -92,12 +92,12 @@ void loadClientsFromFile()
             }
             else
             {
-              Serial.println("deserializeJson() failed: " + String(error.c_str()));
+              logAndSend("deserializeJson() failed: " + String(error.c_str()));
             }
           }
           else
           {
-            Serial.println("Failed to read complete blob data");
+            logAndSend("Failed to read complete blob data");
           }
 
           // Освобождаем память
@@ -105,33 +105,33 @@ void loadClientsFromFile()
         }
         else
         {
-          Serial.println("Failed to allocate memory for blob data");
+          logAndSend("Failed to allocate memory for blob data");
         }
       }
       else
       {
-        Serial.println("No devices data found in Preferences");
+        logAndSend("No devices data found in Preferences");
       }
 
       xSemaphoreGive(devicesMutex);
     }
     else
     {
-      Serial.println("Failed to take devicesMutex");
+      logAndSend("Failed to take devicesMutex");
     }
 
     preferences.end();
   }
   else
   {
-    Serial.println("Failed to open 'devices' namespace");
+    logAndSend("Failed to open 'devices' namespace");
   }
 }
 
 // Сохраняем клиентов в Preferences как единый Blob
 void saveClientsToFile()
 {
-  Serial.println("Начинаем сохранение устройств в файл");
+  logAndSend("Начинаем сохранение устройств в файл");
 
   // Открываем пространство имен "devices" в режиме чтения-записи
   if (preferences.begin("devices", false))
@@ -179,11 +179,11 @@ void saveClientsToFile()
           // Сохраняем буфер в Preferences
           if (preferences.putBytes("devices_blob", buffer, serializedSize))
           {
-            Serial.println("Saved clients to Preferences blob");
+            logAndSend("Saved clients to Preferences blob");
           }
           else
           {
-            Serial.println("Failed to save devices blob to Preferences");
+            logAndSend("Failed to save devices blob to Preferences");
           }
 
           // Освобождаем память
@@ -191,26 +191,26 @@ void saveClientsToFile()
         }
         else
         {
-          Serial.println("Failed to allocate memory for serialization");
+          logAndSend("Failed to allocate memory for serialization");
         }
       }
       else
       {
-        Serial.println("Empty devices collection, nothing to save");
+        logAndSend("Empty devices collection, nothing to save");
       }
 
       xSemaphoreGive(devicesMutex);
     }
     else
     {
-      Serial.println("Failed to take devicesMutex");
+      logAndSend("Failed to take devicesMutex");
     }
 
     preferences.end();
   }
   else
   {
-    Serial.println("Failed to open 'devices' namespace");
+    logAndSend("Failed to open 'devices' namespace");
   }
 }
 
@@ -224,11 +224,11 @@ void loadWifiCredentialsFromFile()
 
     preferences.end();
 
-    Serial.println("WiFi-креденциалы загружены из Preferences");
+    logAndSend("WiFi-креденциалы загружены из Preferences");
   }
   else
   {
-    Serial.println("Нет доступа для чтения данных wifi");
+    logAndSend("Нет доступа для чтения данных wifi");
   }
 }
 // Сохраняем настройки Wifi +++++++++++++++++++++++++++
@@ -241,18 +241,18 @@ void saveWifiCredentialsToFile()
 
     preferences.end();
 
-    Serial.println("WiFi-креденциалы сохранены в Preferences");
+    logAndSend("WiFi-креденциалы сохранены в Preferences");
   }
   else
   {
-    Serial.println("Нет доступа для записи данных wifi");
+    logAndSend("Нет доступа для записи данных wifi");
   }
 }
 // Функция для сохранения GPIO в файл
 // Функция для сохранения GPIO в Preferences как Blob
 void saveGpioToFile()
 {
-  Serial.println("Saving GPIO to Preferences...");
+  logAndSend("Saving GPIO to Preferences...");
 
   // Открываем пространство имен "gpio" в режиме чтения-записи
   if (preferences.begin("gpio", false))
@@ -287,11 +287,11 @@ void saveGpioToFile()
         // Сохраняем буфер в Preferences
         if (preferences.putBytes("gpio_blob", buffer, serializedSize))
         {
-          Serial.println("Saved GPIO pins to Preferences blob");
+          logAndSend("Saved GPIO pins to Preferences blob");
         }
         else
         {
-          Serial.println("Failed to save GPIO blob to Preferences");
+          logAndSend("Failed to save GPIO blob to Preferences");
         }
 
         // Освобождаем память
@@ -299,26 +299,26 @@ void saveGpioToFile()
       }
       else
       {
-        Serial.println("Failed to allocate memory for serialization");
+        logAndSend("Failed to allocate memory for serialization");
       }
     }
     else
     {
-      Serial.println("Empty GPIO collection, nothing to save");
+      logAndSend("Empty GPIO collection, nothing to save");
     }
 
     preferences.end();
   }
   else
   {
-    Serial.println("Failed to open 'gpio' namespace");
+    logAndSend("Failed to open 'gpio' namespace");
   }
 }
 
 // Функция для загрузки GPIO из Preferences как Blob
 void loadGpioFromFile()
 {
-  Serial.println("Loading GPIO from Preferences...");
+  logAndSend("Loading GPIO from Preferences...");
 
   // Открываем пространство имен "gpio" в режиме только для чтения
   if (preferences.begin("gpio", true))
@@ -363,12 +363,12 @@ void loadGpioFromFile()
           }
           else
           {
-             Serial.println("deserializeJson() failed: " + String(error.c_str()));
+             logAndSend("deserializeJson() failed: " + String(error.c_str()));
           }
         }
         else
         {
-          Serial.println("Failed to read complete blob data");
+          logAndSend("Failed to read complete blob data");
         }
 
         // Освобождаем память
@@ -376,7 +376,7 @@ void loadGpioFromFile()
       }
       else
       {
-        Serial.println("Failed to allocate memory for blob data");
+        logAndSend("Failed to allocate memory for blob data");
       }
     }
     preferences.end();

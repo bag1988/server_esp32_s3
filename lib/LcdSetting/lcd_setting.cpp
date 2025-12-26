@@ -51,7 +51,7 @@ float editHysteresisTemp = 1.5;
 int readKeypad()
 {
   int adcValue = analogRead(KEYPAD_PIN);
-  Serial.println("Нажата кнопка, значение: " + String(adcValue));
+  logAndSend("Нажата кнопка, значение: " + String(adcValue));
 
   if (adcValue > 10 && adcValue < KEY_UP_VAL)
   {
@@ -523,7 +523,7 @@ void handleButtons()
     }
     else if (pressedButton == BUTTON_RIGHT)
     {
-      Serial.println("Нажата кнопка SELECT, сохраняем изменения температуры");
+      logAndSend("Нажата кнопка SELECT, сохраняем изменения температуры");
       // Сохранение и возврат в меню устройства
       saveClientsToFile();
       currentMenu = DEVICE_MENU;
@@ -571,7 +571,7 @@ void handleButtons()
         {
           devices[deviceListIndex].gpioPins.push_back(selectedGpio);
         }
-        Serial.println("Нажата кнопка SELECT при редактироании GPIO, сохраняем результаты");
+        logAndSend("Нажата кнопка SELECT при редактироании GPIO, сохраняем результаты");
         // Сохраняем изменения
         saveClientsToFile();
       }
@@ -597,7 +597,7 @@ void handleButtons()
     }
     else if (pressedButton == BUTTON_RIGHT)
     {
-      Serial.println("Нажата кнопка BUTTON_RIGHT при изменении доступности устройства, сохраняем результаты");
+      logAndSend("Нажата кнопка BUTTON_RIGHT при изменении доступности устройства, сохраняем результаты");
       // Сохраняем изменения
       saveClientsToFile();
       currentMenu = DEVICE_MENU;
@@ -685,7 +685,7 @@ void handleButtons()
     }
     else if (pressedButton == BUTTON_RIGHT)
     {
-      Serial.println("Нажата кнопка SELECT, сохраняем гестерезис температуры");
+      logAndSend("Нажата кнопка SELECT, сохраняем гестерезис температуры");
       hysteresisTemp = editHysteresisTemp;
       saveServerSetting();
     }
@@ -706,7 +706,7 @@ void displayText(const String &text, int column, int row, bool clearLine, bool c
   // Проверка корректности параметров
   if (row < 0 || row > 1)
   {
-    Serial.println("Ошибка: Некорректный номер строки. Допустимые значения: 0 или 1");
+    logAndSend("Ошибка: Некорректный номер строки. Допустимые значения: 0 или 1");
     return;
   }
 

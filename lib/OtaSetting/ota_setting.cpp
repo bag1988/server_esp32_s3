@@ -18,10 +18,10 @@ bool initOTA()
 {
     if (!wifiConnected)
     {
-        Serial.println("OTA: WiFi не подключен. OTA не инициализирован.");
+        logAndSend("OTA: WiFi не подключен. OTA не инициализирован.");
         return false;
     }
-    Serial.println("OTA инициализация.");
+    logAndSend("OTA инициализация.");
     // Настройка имени устройства для OTA
     ArduinoOTA.setHostname(WEB_SERVER_HOSTNAME);
 
@@ -110,7 +110,7 @@ bool initOTA()
         }
         
         displayText(otaErrorMessage, 0, 1, true, true);
-        Serial.println(otaErrorMessage.c_str());
+        logAndSend(otaErrorMessage.c_str());
         
         // Выход из режима OTA через 10 секунд после ошибки
         vTaskDelay(10000 / portTICK_PERIOD_MS);
@@ -119,7 +119,7 @@ bool initOTA()
     // выключаем инициализацию mDNS
 
     ArduinoOTA.begin();
-    Serial.println("OTA ready");
+    logAndSend("OTA ready");
     return true;
 }
 
@@ -131,7 +131,7 @@ void handleOTA()
     // Проверка таймаута режима OTA
     if (otaActive && millis() - otaStartTime > otaTimeout)
     {
-        Serial.println("OTA: Таймаут режима OTA. Возврат к нормальной работе.");
+        logAndSend("OTA: Таймаут режима OTA. Возврат к нормальной работе.");
         otaActive = false;
         displayText("OTA Timeout", 0, 0, true, true);
         displayText("Normal mode", 0, 1, true, true);

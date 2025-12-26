@@ -53,7 +53,7 @@ void rainbow(int wait)
 // Управление GPIO
 void controlGPIO()
 {
-    Serial.println("Проверка необходимости включения GPIO");
+    logAndSend("Проверка необходимости включения GPIO");
     std::vector<uint8_t> gpiosToTurnOn;
 
     static unsigned long lastcontrolGPIOTime = 0;
@@ -67,19 +67,19 @@ void controlGPIO()
             // Включаем обогрев если устройство доступно и температура ниже целевой
             if (!device.heatingActive && device.enabled && (device.currentTemperature + hysteresisTemp) < device.targetTemperature)
             {
-                Serial.println("Включаем обогрев для: " + String(device.name.c_str()));
+                logAndSend("Включаем обогрев для: " + String(device.name.c_str()));
                 device.heatingActive = true;
             }
             // Если температура достигла целевой - выключаем обогрев
             else if (device.heatingActive && device.currentTemperature >= device.targetTemperature)
             {
-                Serial.println("Выключаем обогрев для:" + String(device.name.c_str()));
+                logAndSend("Выключаем обогрев для:" + String(device.name.c_str()));
                 device.heatingActive = false;
             }
             // Если обогрев был активен, обновляем общее время работы перед выключением
             else if (!device.enabled && device.heatingActive)
             {
-                Serial.println("Устройство выключено. Выключаем обогрев для: " + String(device.name.c_str()));
+                logAndSend("Устройство выключено. Выключаем обогрев для: " + String(device.name.c_str()));
                 device.totalHeatingTime += elapsedTime;
                 device.heatingActive = false;
             }
@@ -94,7 +94,7 @@ void controlGPIO()
         }
         else if (device.isOnline)
         {
-            Serial.println("Устройство: " + String(device.name.c_str()) + " перешло в оффлайн");
+            logAndSend("Устройство: " + String(device.name.c_str()) + " перешло в оффлайн");
             device.isOnline = false;
             device.totalHeatingTime += elapsedTime;
             device.heatingActive = false;
@@ -187,7 +187,7 @@ void mainlogicFunc()
     unsigned long currentTime = millis();
     if ((currentTime - lastStatsSaveTime > 300000) || (currentTime < lastStatsSaveTime))
     {
-        Serial.println("Сохранение статистики согласно таймаута, сохраняем результаты");
+        logAndSend("Сохранение статистики согласно таймаута, сохраняем результаты");
         saveClientsToFile();
         saveGpioToFile();
         serverWorkTime += currentTime - lastStatsSaveTime;
@@ -244,7 +244,7 @@ void ReadDataInSPIFFS()
 void setup()
 {
     Serial.begin(115200);
-    Serial.println("Запуск системы...");
+    logAndSend("Запуск системы...");
     pixels.begin();           // Инициализация NeoPixel
     pixels.setBrightness(50); // Установка яркости (0-255)
     pixels.show();            // Инициализация всех пикселей в 'выключено'
@@ -252,17 +252,17 @@ void setup()
     // Инициализация и проверка PSRAM
     if (psramFound())
     {
-        Serial.println("PSRAM найдена и инициализирована");
+        logAndSend("PSRAM найдена и инициализирована");
     }
     else
     {
-        Serial.println("PSRAM не найдена! Некоторые функции могут работать некорректно");
+        logAndSend("PSRAM не найдена! Некоторые функции могут работать некорректно");
     }
 
     // Инициализация SPIFFS
     if (!SPIFFS.begin(true))
     {
-        Serial.println("Ошибка инициализации SPIFFS");
+        logAndSend("Ошибка инициализации SPIFFS");
         return;
     }
     loadWifiCredentialsFromFile();
@@ -299,7 +299,7 @@ void setup()
     {
         initOTA();
         MDNS.addService("http", "tcp", 80);
-        Serial.println("MDNS http service registered");
+        logAndSend("MDNS http service registered");
     }
 
     // Инициализация датчика температуры (старый API)
@@ -309,9 +309,9 @@ void setup()
 
     updateMainScreenLCD();
 
-    Serial.println("Датчик температуры инициализирован");
-    Serial.println("Настройка завершена");
-    Serial.println("Система готова к работе");
+    logAndSend("Датчик температуры инициализирован");
+    logAndSend("Настройка завершена");
+    logAndSend("Система готова к работе");
 }
 
 void loop()

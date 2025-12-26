@@ -16,7 +16,7 @@ class XiaomiAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
         // Создаем структуру данных для передачи в очередь
         BLEDeviceData *deviceData = new BLEDeviceData();
         deviceData->address = advertisedDevice.getAddress().toString().c_str();
-        Serial.println("Обнаружено устройство: " + String(deviceData->address.c_str()));
+        logAndSend("Обнаружено устройство: " + String(deviceData->address.c_str()));
 
         deviceData->name = advertisedDevice.getName().c_str();
 
@@ -32,7 +32,7 @@ class XiaomiAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
         }
         else
         {
-            Serial.println("Данных нет");
+            logAndSend("Данных нет");
             delete deviceData;
             return;
         }
@@ -59,19 +59,19 @@ class SetServerSettingCallbacks : public BLECharacteristicCallbacks
         // Проверяем длину значения перед обработкой
         if (value.length() > 100)
         { // Ограничиваем длину разумным значением
-            Serial.println("Получено значение слишком большой длины: " + String(value.length()));
+            logAndSend("Получено значение слишком большой длины: " + String(value.length()));
             return;
         }
 
         if (pCharacteristic->getUUID().toString() == SSID_CHARACTERISTIC_UUID)
         {
             wifiCredentials.ssid = value;
-            Serial.println("SSID received: " + String(wifiCredentials.ssid.c_str()));
+            logAndSend("SSID received: " + String(wifiCredentials.ssid.c_str()));
         }
         else if (pCharacteristic->getUUID().toString() == PASSWORD_CHARACTERISTIC_UUID)
         {
             wifiCredentials.password = value;
-            Serial.println("Password received: " + String(wifiCredentials.password.c_str()));
+            logAndSend("Password received: " + String(wifiCredentials.password.c_str()));
         }
         saveWifiCredentialsToFile(); // Save credentials to file
     }
@@ -94,8 +94,8 @@ void setupXiaomiScanner()
     // pBLEScan->setWindow(100);                    // Меньше окно сканирования
     // pBLEScan->start(0, false);                   // 0 = бесконечное сканирование
 
-    Serial.println("Сканер датчиков Xiaomi инициализирован");
-    Serial.println("Запускаем сервисы редактирования SSID и пароля");
+    logAndSend("Сканер датчиков Xiaomi инициализирован");
+    logAndSend("Запускаем сервисы редактирования SSID и пароля");
     pServer = BLEDevice::createServer();
     BLEService *pService = pServer->createService(WIFI_SERVICE_UUID);
 
@@ -120,7 +120,7 @@ void setupXiaomiScanner()
     pAdvertising->setMinPreferred(0x06); // functions that help with iPhone connections issue
     pAdvertising->setMaxPreferred(0x12);
     BLEDevice::startAdvertising();
-    Serial.println("Сервисы редактирования SSID и пароля запущены");
+    logAndSend("Сервисы редактирования SSID и пароля запущены");
 
     // Создаем задачу для обработки данных BLE из очереди
     xTaskCreate([](void *parameter)
@@ -146,7 +146,7 @@ void setupXiaomiScanner()
 void startScan(uint32_t duration)
 {
     BLEScanResults foundDevices = pBLEScan->start(duration, false);
-    Serial.println("Очистка резельтатов сканирования");
+    logAndSend("Очистка резельтатов сканирования");
     pBLEScan->clearResults();
     scanningActive = false;
 }
@@ -154,10 +154,10 @@ void startScan(uint32_t duration)
 // Запуск сканирования BLE
 void startXiaomiScan()
 {
-    Serial.println("Начало сканирования датчиков Xiaomi...");
+    logAndSend("Начало сканирования датчиков Xiaomi...");
     if (scanningActive)
     {
-        Serial.println("Сканирования датчиков Xiaomi уже запущено, выход");
+        logAndSend("Сканирования датчиков Xiaomi уже запущено, выход");
         return;
     }
     scanningActive = true;
@@ -174,7 +174,7 @@ void processXiaomiAdvertisement(BLEDeviceData &deviceData)
     // Проверка на кастомную прошивку ATC
     if (deviceData.hasServiceData && deviceData.serviceDataCount > 0)
     {
-        Serial.println("Есть сервисные данные");
+        logAndSend("Есть сервисные данные");
         for (int i = 0; i < deviceData.serviceDataCount; i++)
         {
             // Проверка на ATC прошивку (UUID: 0x181A или 0xFE95)
@@ -264,7 +264,7 @@ void processXiaomiAdvertisement(BLEDeviceData &deviceData)
 
                 if (it != devices.end())
                 {
-                    Serial.println("Обновляем данные устройства: " + String(it->name.c_str()));
+                    logAndSend("Обновляем данные устройства: " + String(it->name.c_str()));
                     //   Устройство найдено, обновляем данные
                     it->updateSensorData(temperature, humidity, battery, batteryV);
                 }
@@ -277,7 +277,7 @@ void processXiaomiAdvertisement(BLEDeviceData &deviceData)
                     {
                         deviceName = deviceData.name;
                     }
-                    Serial.println("Найдено новое устройство: " + String(deviceName.c_str()));
+                    logAndSend("Найдено новое устройство: " + String(deviceName.c_str()));
 
                     DeviceData newDevice(deviceName, deviceAddress);
                     newDevice.updateSensorData(temperature, humidity, battery, batteryV);
@@ -288,7 +288,7 @@ void processXiaomiAdvertisement(BLEDeviceData &deviceData)
         }
         else
         {
-            Serial.println("Устройство Xiaomi обнаружено, но данные не найдены: " + String(deviceAddress.c_str()));
+            logAndSend("Устройство Xiaomi обнаружено, но данные не найдены: " + String(deviceAddress.c_str()));
         }
     }
 }

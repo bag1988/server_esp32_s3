@@ -14,7 +14,7 @@ AsyncEventSource serialEvents("/log_events");
 
 void connectWiFi()
 {
-    Serial.println("Connecting to WiFi: " + String(wifiCredentials.ssid.c_str()) + ", password: " + String(wifiCredentials.password.c_str()));
+    logAndSend("Connecting to WiFi: " + String(wifiCredentials.ssid.c_str()) + ", password: " + String(wifiCredentials.password.c_str()));
     WiFi.begin(wifiCredentials.ssid.c_str(), wifiCredentials.password.c_str());
     lastWiFiAttemptTime = millis();
 
@@ -27,12 +27,12 @@ void connectWiFi()
 
     if (WiFi.status() == WL_CONNECTED)
     {
-        Serial.println("WiFi connected. Ip: " + String(WiFi.localIP().toString().c_str()));
+        logAndSend("WiFi connected. Ip: " + String(WiFi.localIP().toString().c_str()));
         wifiConnected = true;
     }
     else
     {
-        Serial.println("Failed to connect to WiFi");
+        logAndSend("Failed to connect to WiFi");
         wifiConnected = false;
     }
 }
@@ -46,7 +46,7 @@ void initWebServer()
     // Event source connection handlers
     serialEvents.onConnect([](AsyncEventSourceClient *client)
                            {
-         Serial.println("Client connected to SSE"); 
+         logAndSend("Client connected to SSE"); 
          client->send("Connected to ESP32 log stream"); });
 
     // GET /clients (get list of all clients)
@@ -221,7 +221,7 @@ void initWebServer()
                         xSemaphoreGive(devicesMutex);
                         
                         if (isSaving) {
-                            Serial.println("Получены изменения по HTTP, сохраняем результаты");
+                            logAndSend("Получены изменения по HTTP, сохраняем результаты");
                             saveClientsToFile(); // Save changes to file
                             request->send(200, "text/plain", "Client updated");
                             return;
@@ -246,7 +246,7 @@ void initWebServer()
                             );                                                                      
                         xSemaphoreGive(devicesMutex);
                         
-                        Serial.println("Удаляем устройство "+ address);
+                        logAndSend("Удаляем устройство "+ address);
                             saveClientsToFile(); // Save changes to file
                             request->send(200, "text/plain", "Client remove");
                             return;
@@ -256,7 +256,7 @@ void initWebServer()
     // GET /scan (start BLE scan)
     server.on("/scan", HTTP_GET, [](AsyncWebServerRequest *request)
               {
-                Serial.println("Получен запрос на запуск сканирования устройств");
+                logAndSend("Получен запрос на запуск сканирования устройств");
                 startXiaomiScan();
             request->send(200, "text/plain", "BLE Scan started"); });
     // Добавляем обработчик для получения статистики обогрева
@@ -305,7 +305,7 @@ void initWebServer()
             }
             xSemaphoreGive(devicesMutex);
         }        
-        Serial.println("Сброшена статистика, сохраняем результаты");
+        logAndSend("Сброшена статистика, сохраняем результаты");
         // Сохраняем изменения
         saveClientsToFile();
         request->send(200, "text/plain", "Статистика сброшена"); });
@@ -332,14 +332,14 @@ void initWebServer()
                     {
                     gpio.totalHeatingTime = 0;
                     }
-        Serial.println("Сброшена статистика, сохраняем результаты");
+        logAndSend("Сброшена статистика, сохраняем результаты");
         // Сохраняем изменения
         saveGpioToFile();
         request->send(200, "text/plain", "Статистика сброшена"); });
 
     server.on("/reset_work_time", HTTP_DELETE, [](AsyncWebServerRequest *request)
               {       
-        Serial.println("Сброшено время работы, сохраняем результаты");        
+        logAndSend("Сброшено время работы, сохраняем результаты");        
         serverWorkTime = 0;
         saveServerSetting();
         request->send(200, "text/plain", "Статистика сброшена"); });
@@ -348,7 +348,7 @@ void initWebServer()
               {       
                 if (request->hasParam("hysteresis_temp", true)) {
                     hysteresisTemp = request->getParam("hysteresis_temp", true)->value().toFloat();
-                    Serial.println("Cохраняем настройки для гистерезиса");  
+                    logAndSend("Cохраняем настройки для гистерезиса");  
                     saveServerSetting();
                     request->send(200, "text/plain", "Настройки для гистерезиса сохранены"); 
                 }
@@ -378,5 +378,5 @@ void initWebServer()
               { request->send(SPIFFS, "/logs.html", "text/html"); });
 
     server.begin();
-    Serial.println("Web server started");
+    logAndSend("Web server started");
 }
