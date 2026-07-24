@@ -376,6 +376,10 @@ void initWebServer()
     // Добавляем обработчик для получения логов в реальном времени через SSE
     server.on("/logs.html", HTTP_GET, [](AsyncWebServerRequest *request)
               { request->send(SPIFFS, "/logs.html", "text/html"); });
+              
+    // Добавляем обработчик для страницы настройки устройств
+    server.on("/setup_device.html", HTTP_GET, [](AsyncWebServerRequest *request)
+              { request->send(SPIFFS, "/setup_device.html", "text/html"); });
 
     server.begin();
     logAndSend("Web server started");

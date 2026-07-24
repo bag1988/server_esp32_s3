@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Настройка устройства mjwsd05mmc</title>
+    <link href="app.css" rel="stylesheet" />
+</head>
+<body>
+    <div class="container">
+        <h1>Настройка устройства mjwsd05mmc</h1>
+        <div class="menu">
+            <a href="index.html">Главная</a>
+            <a href="heating_stats.html">Статистика обогрева</a>
+            <a href="managment_device.html">Управление устройствами</a>
+            <a href="setup_device.html">Настройка устройств</a>
+            <a href="gpio_settings.html">Настройки GPIO</a>
+            <a href="logs.html">Журнал</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>Подключение к устройству</h2>
+        <div id="connection-section">
+            <p>Для подключения к устройству используйте браузер Chrome, Edge или Opera с включенной экспериментальной функцией Web Bluetooth.</p>
+            <button id="connectBtn" onclick="connectToDevice()">Подключиться к устройству</button>
+            <button id="disconnectBtn" onclick="disconnectFromDevice()" disabled>Отключиться</button>
+            <div id="connectionStatus" class="status"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>Прошивка устройства</h2>
+        <div id="flasher-section">
+            <p>Для прошивки устройства выберите файл прошивки (.bin) и нажмите "Прошить устройство".</p>
+            <input type="file" id="firmwareFile" accept=".bin" style="display:block; margin: 10px 0;" />
+            <button onclick="flashDevice()">Прошить устройство</button>
+            <div id="flashStatus" class="status"></div>
+            
+            <p>Альтернативно, вы можете использовать внешний <a href="https://atc1441.github.io/TelinkFlasher.html" target="_blank">Telink Flasher</a> от ATC1441.</p>
+            <button onclick="window.open('https://atc1441.github.io/TelinkFlasher.html', '_blank')">Открыть Telink Flasher</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>Настройка параметров устройства</h2>
+        <div id="config-section" style="display:none;">
+            <label for="deviceName">Имя устройства:</label>
+            <input type="text" id="deviceName" placeholder="Введите имя устройства" value="MJWSD05MMC" />
+
+            <label for="temperatureOffset">Коррекция температуры (°C):</label>
+            <input type="number" id="temperatureOffset" step="0.1" value="0.0" />
+
+            <label for="humidityOffset">Коррекция влажности (%):</label>
+            <input type="number" id="humidityOffset" step="1" value="0" />
+
+            <label for="advertInterval">Интервал передачи данных (сек):</label>
+            <input type="number" id="advertInterval" min="1" max="65535" value="10" />
+
+            <label for="deviceEnabled">Включить передачу данных:</label>
+            <input type="checkbox" id="deviceEnabled" checked />
+
+            <button id="configBtn" onclick="sendConfigToDevice()">Отправить настройки</button>
+            <div id="configStatus" class="status"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>Синхронизация времени</h2>
+        <div id="time-sync-section" style="display:none;">
+            <p>Синхронизировать текущее время на устройстве:</p>
+            <button id="syncTimeBtn" onclick="syncDeviceTime()">Синхронизировать время</button>
+            <div id="timeSyncStatus" class="status"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>Список доступных устройств</h2>
+        <div id="deviceList">
+            <p>Нажмите кнопку "Обновить список" для получения информации о доступных устройствах.</p>
+            <button onclick="loadAvailableDevices()">Обновить список</button>
+        </div>
+    </div>
+
+    <script>
+        let bluetoothDevice = null;
+        let server = null;
+        let characteristics = {};
+        let isConnected = false;
+
+        // Загрузка списка доступных устройств
+        async function loadAvailableDevices() {
+            try {
+                document.getElementById('deviceList').innerHTML = '<p>Загрузка списка устройств...</p>';
+                
+                const response = await fetch('/clients');
+                const devices = await response.json();
+                
+                const deviceListDiv = document.getElementById('deviceList');
+                deviceListDiv.innerHTML = '<h3>Обнаруженные устройства:</h3><div class="device-container">';
+                
+                if (devices.length === 0) {
+                    deviceListDiv.innerHTML += '<p>Нет доступных устройств</p></div>';
+                    return;
+                }
+                
+                devices.forEach(device => {
+                    const deviceDiv = document.createElement('div');
+                    deviceDiv.className = 'device';
+                    deviceDiv.innerHTML = `
+                        <div class="device-header">
+                            <div class="device-name">${device.name || device.macAddress}</div>
+                        </div>
+                        <div class="device-info">
+                            <div>MAC: ${device.macAddress}</div>
+                            <div>Температура: ${device.currentTemperature}°C</div>
+                            <div>Влажность: ${device.humidity}%</div>
+                            <div>Батарея: ${device.battery}%</div>
+                        </div>
+                    `;
+                    deviceListDiv.appendChild(deviceDiv);
+                });
+                
+                deviceListDiv.innerHTML += '</div>';
+            } catch (error) {
+                console.error('Ошибка загрузки устройств:', error);
+                document.getElementById('deviceList').innerHTML = '<p>Ошибка загрузки списка устройств</p>';
+            }
+        }
+
+        // Подключение к устройству через Bluetooth
+        async function connectToDevice() {
+            try {
+                document.getElementById('connectionStatus').textContent = 'Поиск устройства...';
+                document.getElementById('connectionStatus').className = 'status';
+                
+                // Запрашиваем Bluetooth-устройство
+                bluetoothDevice = await navigator.bluetooth.requestDevice({
+                    filters: [
+                        { namePrefix: 'MJWSD05MMC' },
+                        { namePrefix: 'LYWSD03MMC' },
+                        { namePrefix: 'ATC_' },
+                        { namePrefix: 'MHO-C401' },
+                        { namePrefix: 'LYWSD02' },
+                        { services: ['0000181a-0000-1000-8000-00805f9b34fb'] }, // Environmental Sensing Service
+                        { services: ['0000fe95-0000-1000-8000-00805f9b34fb'] }  // Custom Xiaomi Service
+                    ]
+                });
+
+                if (bluetoothDevice) {
+                    document.getElementById('connectionStatus').textContent = `Найдено устройство: ${bluetoothDevice.name || 'Неизвестное устройство'} (${bluetoothDevice.id})`;
+                    document.getElementById('connectionStatus').className = 'status success';
+                    
+                    // Подключаемся к GATT серверу
+                    document.getElementById('connectionStatus').textContent += '\nПодключение к GATT серверу...';
+                    server = await bluetoothDevice.gatt.connect();
+                    
+                    document.getElementById('connectionStatus').textContent += '\nУспешно подключено!';
+                    document.getElementById('connectionStatus').className = 'status success';
+                    
+                    isConnected = true;
+                    document.getElementById('connectBtn').disabled = true;
+                    document.getElementById('disconnectBtn').disabled = false;
+                    document.getElementById('config-section').style.display = 'block';
+                    document.getElementById('time-sync-section').style.display = 'block';
+                    
+                    // Пытаемся получить характеристики устройства
+                    await getDeviceCharacteristics();
+                }
+            } catch (error) {
+                document.getElementById('connectionStatus').textContent = `Ошибка подключения: ${error.message}`;
+                document.getElementById('connectionStatus').className = 'status error';
+                console.error('Ошибка подключения:', error);
+            }
+        }
+
+        // Получение характеристик устройства
+        async function getDeviceCharacteristics() {
+            try {
+                // Попробуем подключиться к сервисам, используемым в прошивке ATC
+                let primaryService = null;
+                
+                try {
+                    // Попробуем найти сервисы, характерные для Xiaomi ATC прошивки
+                    primaryService = await server.getPrimaryService('0000181a-0000-1000-8000-00805f9b34fb'); // Environmental Sensing
+                } catch(e) {
+                    console.log('Сервис Environmental Sensing не найден, пробуем другие...');
+                    
+                    try {
+                        // Попробуем найти сервис 0xfe95 (Xiaomi custom service)
+                        primaryService = await server.getPrimaryService('0000fe95-0000-1000-8000-00805f9b34fb');
+                    } catch(e2) {
+                        console.log('Сервис fe95 не найден, пробуем ATC сервис...');
+                        
+                        try {
+                            // Попробуем найти ATC сервис
+                            primaryService = await server.getPrimaryService('ebe0ccb0-7a0a-4b0c-8a1a-6ff2997da3a4');
+                        } catch(e3) {
+                            console.log('ATC сервис не найден, пробуем общий сервис...');
+                            
+                            // Если ничего не помогает, получаем первый доступный сервис
+                            const services = await server.getPrimaryServices();
+                            if (services.length > 0) {
+                                primaryService = services[0];
+                                console.log('Используем первый доступный сервис:', primaryService.uuid);
+                            }
+                        }
+                    }
+                }
+                
+                if (primaryService) {
+                    // Получаем характеристики
+                    const characteristicsList = await primaryService.getCharacteristics();
+                    console.log('Найдено характеристик:', characteristicsList.length);
+                    
+                    // Пытаемся найти характеристики, которые могут использоваться для настройки
+                    for (let char of characteristicsList) {
+                        try {
+                            // Проверяем права доступа к характеристике
+                            if (char.properties.write || char.properties.writeWithoutResponse) {
+                                console.log('Найдена записываемая характеристика:', char.uuid);
+                                // Сохраняем потенциально полезные характеристики
+                                characteristics[char.uuid] = char;
+                            }
+                        } catch(e) {
+                            console.log('Не удалось получить права для характеристики:', char.uuid, e);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Ошибка при получении характеристик:', error);
+            }
+        }
+
+        // Отключение от устройства
+        async function disconnectFromDevice() {
+            if (bluetoothDevice && bluetoothDevice.gatt.connected) {
+                bluetoothDevice.gatt.disconnect();
+                isConnected = false;
+                document.getElementById('connectBtn').disabled = false;
+                document.getElementById('disconnectBtn').disabled = true;
+                document.getElementById('config-section').style.display = 'none';
+                document.getElementById('time-sync-section').style.display = 'none';
+                document.getElementById('connectionStatus').textContent = 'Отключено от устройства';
+                document.getElementById('connectionStatus').className = 'status';
+            }
+        }
+
+        // Отправка конфигурации на устройство
+        async function sendConfigToDevice() {
+            if (!isConnected) {
+                document.getElementById('configStatus').textContent = 'Нет подключения к устройству';
+                document.getElementById('configStatus').className = 'status error';
+                return;
+            }
+
+            try {
+                const deviceName = document.getElementById('deviceName').value || 'MJWSD05MMC';
+                const tempOffset = parseFloat(document.getElementById('temperatureOffset').value) || 0;
+                const humidityOffset = parseInt(document.getElementById('humidityOffset').value) || 0;
+                const advertInterval = parseInt(document.getElementById('advertInterval').value) || 10;
+                const deviceEnabled = document.getElementById('deviceEnabled').checked;
+
+                document.getElementById('configStatus').textContent = 'Отправка настроек на устройство...';
+                document.getElementById('configStatus').className = 'status';
+
+                // Подготавливаем команды для ATC прошивки
+                // Команды для ATC прошивки обычно имеют формат: [command][param_type][param_value]
+
+                // Команда 0x10 - установка температурного смещения
+                const tempOffsetInt = Math.round(tempOffset * 100); // Преобразуем в сотые доли
+                const tempCmd = new Uint8Array([
+                    0x10, // команда установки температурного смещения
+                    tempOffsetInt & 0xFF, // младший байт
+                    (tempOffsetInt >> 8) & 0xFF // старший байт
+                ]);
+
+                // Команда 0x11 - установка смещения влажности
+                const humCmd = new Uint8Array([
+                    0x11, // команда установки смещения влажности
+                    humidityOffset & 0xFF
+                ]);
+
+                // Команда 0x12 - установка интервала передачи данных
+                const intervalCmd = new Uint8Array([
+                    0x12, // команда установки интервала
+                    advertInterval & 0xFF,
+                    (advertInterval >> 8) & 0xFF
+                ]);
+
+                // Команда 0x13 - включение/выключение передачи данных
+                const advCmd = new Uint8Array([
+                    0x13, // команда включения/выключения передачи данных
+                    deviceEnabled ? 0x01 : 0x00
+                ]);
+
+                // Команда 0x04 - установка имени устройства
+                const nameBytes = new TextEncoder().encode(deviceName.substring(0, 16)); // Ограничение длины имени
+                const nameCmd = new Uint8Array([0x04, ...nameBytes]);
+
+                // Отправляем команды последовательно
+                const commands = [
+                    {name: 'Имя устройства', cmd: nameCmd},
+                    {name: 'Температурное смещение', cmd: tempCmd},
+                    {name: 'Смещение влажности', cmd: humCmd},
+                    {name: 'Интервал передачи', cmd: intervalCmd},
+                    {name: 'Передача данных', cmd: advCmd}
+                ];
+
+                let success = true;
+                
+                for (const {name, cmd} of commands) {
+                    let cmdSuccess = false;
+                    // Попробуем отправить команду в любую доступную записываемую характеристику
+                    for (const uuid in characteristics) {
+                        try {
+                            await characteristics[uuid].writeValue(cmd);
+                            console.log(`${name} команда отправлена в характеристику:`, uuid);
+                            cmdSuccess = true;
+                            break;
+                        } catch(e) {
+                            console.log(`Не удалось записать ${name} в характеристику`, uuid, ':', e);
+                        }
+                    }
+
+                    // Если не удалось в известные характеристики, пробуем все возможные
+                    if (!cmdSuccess) {
+                        // Получим все сервисы и характеристики
+                        const services = await server.getPrimaryServices();
+                        for (const service of services) {
+                            const chars = await service.getCharacteristics();
+                            for (const char of chars) {
+                                if (char.properties.write || char.properties.writeWithoutResponse) {
+                                    try {
+                                        await char.writeValue(cmd);
+                                        console.log(`${name} команда отправлена в характеристику:`, char.uuid);
+                                        cmdSuccess = true;
+                                        break;
+                                    } catch(e) {
+                                        console.log(`Ошибка записи ${name} в характеристику:`, char.uuid, e);
+                                    }
+                                }
+                            }
+                            if (cmdSuccess) break;
+                        }
+                    }
+
+                    if (!cmdSuccess) {
+                        console.log(`Не удалось отправить команду: ${name}`);
+                        success = false;
+                    }
+                }
+
+                // Если все команды отправлены успешно
+                if (success) {
+                    document.getElementById('configStatus').textContent = 'Все настройки успешно отправлены на устройство!';
+                    document.getElementById('configStatus').className = 'status success';
+                } else {
+                    document.getElementById('configStatus').textContent = 'Часть настроек не удалось отправить на устройство';
+                    document.getElementById('configStatus').className = 'status error';
+                }
+            } catch (error) {
+                document.getElementById('configStatus').textContent = `Ошибка отправки настроек: ${error.message}`;
+                document.getElementById('configStatus').className = 'status error';
+                console.error('Ошибка отправки настроек:', error);
+            }
+        }
+
+        // Синхронизация времени на устройстве через BLE
+        async function syncDeviceTime() {
+            if (!isConnected) {
+                document.getElementById('timeSyncStatus').textContent = 'Нет подключения к устройству';
+                document.getElementById('timeSyncStatus').className = 'status error';
+                return;
+            }
+
+            try {
+                document.getElementById('timeSyncStatus').textContent = 'Синхронизация времени...';
+                document.getElementById('timeSyncStatus').className = 'status';
+
+                // Получаем текущее время в формате Unix timestamp
+                const now = Math.floor(Date.now() / 1000);
+                
+                // Формируем команду для синхронизации времени
+                // В ATC прошивке время может передаваться по-разному в зависимости от версии
+                // Пробуем стандартный формат для ATC прошивки
+                
+                // Создаем буфер с командой установки времени (обычно это команда 0x15)
+                const timeCmd = new Uint8Array([
+                    0x15, // команда установки времени
+                    now & 0xFF,           // младший байт времени
+                    (now >> 8) & 0xFF,    // второй байт
+                    (now >> 16) & 0xFF,   // третий байт
+                    (now >> 24) & 0xFF    // старший байт времени
+                ]);
+
+                let cmdSuccess = false;
+                // Попробуем отправить команду в любую доступную записываемую характеристику
+                for (const uuid in characteristics) {
+                    try {
+                        await characteristics[uuid].writeValue(timeCmd);
+                        console.log('Команда синхронизации времени отправлена в характеристику:', uuid);
+                        cmdSuccess = true;
+                        break;
+                    } catch(e) {
+                        console.log('Не удалось записать команду времени в характеристику', uuid, ':', e);
+                    }
+                }
+
+                // Если не удалось в известные характеристики, пробуем все возможные
+                if (!cmdSuccess) {
+                    // Получим все сервисы и характеристики
+                    const services = await server.getPrimaryServices();
+                    for (const service of services) {
+                        const chars = await service.getCharacteristics();
+                        for (const char of chars) {
+                            if (char.properties.write || char.properties.writeWithoutResponse) {
+                                try {
+                                    await char.writeValue(timeCmd);
+                                    console.log('Команда синхронизации времени отправлена в характеристику:', char.uuid);
+                                    cmdSuccess = true;
+                                    break;
+                                } catch(e) {
+                                    console.log('Ошибка записи команды времени в характеристику:', char.uuid, e);
+                                }
+                            }
+                            if (cmdSuccess) break;
+                        }
+                        if (cmdSuccess) break;
+                    }
+                }
+
+                if (cmdSuccess) {
+                    document.getElementById('timeSyncStatus').textContent = `Время синхронизировано: ${new Date(now * 1000).toLocaleString()}`;
+                    document.getElementById('timeSyncStatus').className = 'status success';
+                } else {
+                    document.getElementById('timeSyncStatus').textContent = 'Не удалось отправить команду синхронизации времени';
+                    document.getElementById('timeSyncStatus').className = 'status error';
+                }
+            } catch (error) {
+                document.getElementById('timeSyncStatus').textContent = `Ошибка синхронизации времени: ${error.message}`;
+                document.getElementById('timeSyncStatus').className = 'status error';
+                console.error('Ошибка синхронизации времени:', error);
+            }
+        }
+
+        // Функция прошивки устройства
+        async function flashDevice() {
+            const fileInput = document.getElementById('firmwareFile');
+            if (!fileInput.files[0]) {
+                document.getElementById('flashStatus').textContent = 'Пожалуйста, выберите файл прошивки';
+                document.getElementById('flashStatus').className = 'status error';
+                return;
+            }
+
+            if (!isConnected) {
+                document.getElementById('flashStatus').textContent = 'Нет подключения к устройству';
+                document.getElementById('flashStatus').className = 'status error';
+                return;
+            }
+
+            try {
+                document.getElementById('flashStatus').textContent = 'Начинаем процесс прошивки...';
+                document.getElementById('flashStatus').className = 'status';
+
+                // Читаем файл прошивки
+                const firmwareFile = fileInput.files[0];
+                const firmwareArrayBuffer = await firmwareFile.arrayBuffer();
+                
+                // Конвертируем ArrayBuffer в Uint8Array
+                const firmwareData = new Uint8Array(firmwareArrayBuffer);
+                
+                // В реальных условиях здесь должна быть реализация протокола прошивки Telink
+                // который включает в себя:
+                // 1. Подготовку устройства к прошивке
+                // 2. Отправку пакетов прошивки по частям
+                // 3. Проверку контрольных сумм
+                // 4. Подтверждение получения пакетов
+                
+                // Так как полная реализация протокола прошивки Telink сложна и специфична,
+                // покажем сообщение о том, что это функция в разработке
+                document.getElementById('flashStatus').textContent = 'Прошивка через Web Bluetooth в настоящее время не реализована. Пожалуйста, используйте внешний Telink Flasher.';
+                document.getElementById('flashStatus').className = 'status error';
+                
+                console.log('Размер файла прошивки:', firmwareData.length, 'байт');
+                
+                // В будущем здесь будет реализация протокола прошивки
+                // await performFlashProcedure(firmwareData);
+            } catch (error) {
+                document.getElementById('flashStatus').textContent = `Ошибка прошивки: ${error.message}`;
+                document.getElementById('flashStatus').className = 'status error';
+                console.error('Ошибка прошивки:', error);
+            }
+        }
+
+        // Инициализация страницы
+        window.onload = function() {
+            // Проверяем поддержку Web Bluetooth API
+            if (!navigator.bluetooth) {
+                document.getElementById('connectionStatus').textContent = 'Web Bluetooth не поддерживается в этом браузере. Используйте Chrome, Edge или Opera.';
+                document.getElementById('connectionStatus').className = 'status error';
+                document.getElementById('connectBtn').disabled = true;
+            }
+            
+            // Загружаем список устройств при открытии страницы
+            loadAvailableDevices();
+        };
+    </script>
+</body>
+</html>
