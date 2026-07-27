@@ -34,7 +34,7 @@
         <div id="flasher-section">
             <p>Для прошивки устройства выберите файл прошивки (.bin) и нажмите "Прошить устройство".</p>
             <input type="file" id="firmwareFile" accept=".bin" style="display:block; margin: 10px 0;" />
-            <button onclick="flashDevice()">Прошить устройство</button>
+            <button id="flashBtn" onclick="flashDevice()" disabled>Прошить устройство</button>
             <div id="flashStatus" class="status"></div>
             
             <p>Альтернативно, вы можете использовать внешний <a href="https://atc1441.github.io/TelinkFlasher.html" target="_blank">Telink Flasher</a> от ATC1441.</p>
@@ -163,6 +163,7 @@
                     document.getElementById('disconnectBtn').disabled = false;
                     document.getElementById('config-section').style.display = 'block';
                     document.getElementById('time-sync-section').style.display = 'block';
+                    document.getElementById('flashBtn').disabled = false;
                     
                     // Пытаемся получить характеристики устройства
                     await getDeviceCharacteristics();
@@ -241,6 +242,7 @@
                 document.getElementById('disconnectBtn').disabled = true;
                 document.getElementById('config-section').style.display = 'none';
                 document.getElementById('time-sync-section').style.display = 'none';
+                document.getElementById('flashBtn').disabled = true;
                 document.getElementById('connectionStatus').textContent = 'Отключено от устройства';
                 document.getElementById('connectionStatus').className = 'status';
             }
@@ -470,26 +472,34 @@
                 // Конвертируем ArrayBuffer в Uint8Array
                 const firmwareData = new Uint8Array(firmwareArrayBuffer);
                 
-                // В реальных условиях здесь должна быть реализация протокола прошивки Telink
-                // который включает в себя:
-                // 1. Подготовку устройства к прошивке
-                // 2. Отправку пакетов прошивки по частям
-                // 3. Проверку контрольных сумм
-                // 4. Подтверждение получения пакетов
-                
-                // Так как полная реализация протокола прошивки Telink сложна и специфична,
-                // покажем сообщение о том, что это функция в разработке
-                document.getElementById('flashStatus').textContent = 'Прошивка через Web Bluetooth в настоящее время не реализована. Пожалуйста, используйте внешний Telink Flasher.';
-                document.getElementById('flashStatus').className = 'status error';
+                // Проверяем, имеет ли файл правильный формат (простая проверка - размер)
+                if (firmwareData.length === 0) {
+                    document.getElementById('flashStatus').textContent = 'Файл прошивки пуст';
+                    document.getElementById('flashStatus').className = 'status error';
+                    return;
+                }
                 
                 console.log('Размер файла прошивки:', firmwareData.length, 'байт');
                 
-                // В будущем здесь будет реализация протокола прошивки
+                // В проекте ATC_MiThermometer используется протокол прошивки Telink
+                // который требует специфичной реализации через Web Bluetooth
+                // Пока реализуем уведомление о необходимости использования внешнего флешера
+                
+                // Сообщаем пользователю о текущем состоянии
+                document.getElementById('flashStatus').textContent = `Выбран файл прошивки размером ${firmwareData.length} байт. Для прошивки через Web Bluetooth требуется специфичная реализация протокола.`;
+                document.getElementById('flashStatus').className = 'status';
+                
+                // Предлагаем использовать внешний Telink Flasher
+                setTimeout(() => {
+                    document.getElementById('flashStatus').innerHTML = `Для прошивки рекомендуется использовать <a href="https://atc1441.github.io/TelinkFlasher.html" target="_blank">внешний Telink Flasher</a>.<br>Процесс прошивки через Web Bluetooth будет реализован в следующих версиях.`;
+                }, 2000);
+                
+                // В будущем здесь будет реализация протокола прошивки Telink
                 // await performFlashProcedure(firmwareData);
             } catch (error) {
-                document.getElementById('flashStatus').textContent = `Ошибка прошивки: ${error.message}`;
+                document.getElementById('flashStatus').textContent = `Ошибка подготовки файла прошивки: ${error.message}`;
                 document.getElementById('flashStatus').className = 'status error';
-                console.error('Ошибка прошивки:', error);
+                console.error('Ошибка подготовки файла прошивки:', error);
             }
         }
 
