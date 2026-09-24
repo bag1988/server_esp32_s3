@@ -51,7 +51,7 @@ float editHysteresisTemp = 1.5;
 int readKeypad()
 {
   int adcValue = analogRead(KEYPAD_PIN);
-  //logAndSend("Нажата кнопка, значение: " + String(adcValue));
+  // logAndSend("Нажата кнопка, значение: " + String(adcValue));
 
   if (adcValue > 10 && adcValue < KEY_UP_VAL)
   {
@@ -174,6 +174,10 @@ void showDeviceList()
     {
       deviceName = "?" + deviceName;
     }
+    else if (devices[deviceListIndex].heatingActive)
+    {
+      deviceName = "*" + deviceName;
+    }
 
     // Ограничиваем длину имени, чтобы оно поместилось на экране
     if (deviceName.length() > 10)
@@ -244,7 +248,8 @@ void showInfoDevice()
 void showDeviceTemperatureEdit()
 {
   // Check if deviceListIndex is valid before proceeding
-  if (deviceListIndex >= devices.size()) {
+  if (deviceListIndex >= devices.size())
+  {
     displayText("No devices");
     displayText("available", 0, 1);
     return;
@@ -344,7 +349,8 @@ void showEditHysteresis()
 void showDeviceEnabledEdit()
 {
   // Check if deviceListIndex is valid before proceeding
-  if (deviceListIndex >= devices.size()) {
+  if (deviceListIndex >= devices.size())
+  {
     displayText("No devices");
     displayText("available", 0, 1);
     return;
@@ -417,6 +423,7 @@ void handleButtons()
   // При любом нажатии включаем подсветку
   if (turnOnBacklight())
   {
+    updateMainScreenLCD();
     return;
   }
 
@@ -520,7 +527,8 @@ void handleButtons()
   case DEVICE_EDIT_TEMPERATURE:
     // Редактирование температуры
     // Check if deviceListIndex is valid before proceeding
-    if (deviceListIndex >= devices.size()) {
+    if (deviceListIndex >= devices.size())
+    {
       currentMenu = DEVICE_LIST;
       break;
     }
@@ -542,7 +550,8 @@ void handleButtons()
     {
       logAndSend("Нажата кнопка SELECT, сохраняем изменения температуры");
       // Check if deviceListIndex is still valid before saving
-      if (deviceListIndex < devices.size()) {
+      if (deviceListIndex < devices.size())
+      {
         // Сохранение и возврат в меню устройства
         saveClientsToFile();
       }
@@ -557,7 +566,8 @@ void handleButtons()
 
   case DEVICE_EDIT_GPIO:
     // Check if deviceListIndex is valid before proceeding
-    if (deviceListIndex >= devices.size()) {
+    if (deviceListIndex >= devices.size())
+    {
       currentMenu = DEVICE_LIST;
       break;
     }
@@ -615,7 +625,8 @@ void handleButtons()
 
   case DEVICE_EDIT_ENABLED:
     // Check if deviceListIndex is valid before proceeding
-    if (deviceListIndex >= devices.size()) {
+    if (deviceListIndex >= devices.size())
+    {
       currentMenu = DEVICE_LIST;
       break;
     }
