@@ -243,6 +243,12 @@ void showInfoDevice()
 // Функция для редактирования температуры
 void showDeviceTemperatureEdit()
 {
+  // Check if deviceListIndex is valid before proceeding
+  if (deviceListIndex >= devices.size()) {
+    displayText("No devices");
+    displayText("available", 0, 1);
+    return;
+  }
   displayText("Target temp:");
   displayText(String(devices[deviceListIndex].targetTemperature) + " C  [+/-]", 0, 1);
 }
@@ -337,6 +343,12 @@ void showEditHysteresis()
 // Функция для включения/выключения устройства
 void showDeviceEnabledEdit()
 {
+  // Check if deviceListIndex is valid before proceeding
+  if (deviceListIndex >= devices.size()) {
+    displayText("No devices");
+    displayText("available", 0, 1);
+    return;
+  }
   displayText("Device:");
   displayText((devices[deviceListIndex].enabled ? "Enabled" : "Disabled") + String(" [+/-]"), 0, 1);
 }
@@ -507,6 +519,11 @@ void handleButtons()
 
   case DEVICE_EDIT_TEMPERATURE:
     // Редактирование температуры
+    // Check if deviceListIndex is valid before proceeding
+    if (deviceListIndex >= devices.size()) {
+      currentMenu = DEVICE_LIST;
+      break;
+    }
     if (pressedButton == BUTTON_UP)
     {
       // Увеличение температуры
@@ -524,8 +541,11 @@ void handleButtons()
     else if (pressedButton == BUTTON_RIGHT)
     {
       logAndSend("Нажата кнопка SELECT, сохраняем изменения температуры");
-      // Сохранение и возврат в меню устройства
-      saveClientsToFile();
+      // Check if deviceListIndex is still valid before saving
+      if (deviceListIndex < devices.size()) {
+        // Сохранение и возврат в меню устройства
+        saveClientsToFile();
+      }
       currentMenu = DEVICE_MENU;
     }
     else if (pressedButton == BUTTON_LEFT)
@@ -536,6 +556,11 @@ void handleButtons()
     break;
 
   case DEVICE_EDIT_GPIO:
+    // Check if deviceListIndex is valid before proceeding
+    if (deviceListIndex >= devices.size()) {
+      currentMenu = DEVICE_LIST;
+      break;
+    }
     // Редактирование GPIO
     if (availableGpio.size() > 0)
     {
@@ -589,6 +614,11 @@ void handleButtons()
     break;
 
   case DEVICE_EDIT_ENABLED:
+    // Check if deviceListIndex is valid before proceeding
+    if (deviceListIndex >= devices.size()) {
+      currentMenu = DEVICE_LIST;
+      break;
+    }
     // Включение/выключение устройства
     if (pressedButton == BUTTON_UP || pressedButton == BUTTON_DOWN)
     {
