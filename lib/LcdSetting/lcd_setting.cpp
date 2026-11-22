@@ -797,7 +797,7 @@ case DEVICE_LIST:
     {
       logAndSend("Нажата кнопка SELECT, сохраняем гестерезис температуры");
       hysteresisTemp = editHysteresisTemp;
-      saveServerSetting();
+      SpiffsSetting::saveServerSetting();
     }
     else if (pressedButton == BUTTON_LEFT)
     {

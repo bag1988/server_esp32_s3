@@ -1,5 +1,6 @@
 #include "device_manager.h"
 #include "spiffs_setting.h"
+#include "task_monitor.h"
 #include <ArduinoJson.h>
 #include <esp_task_wdt.h>
 
@@ -128,11 +129,11 @@ static void handleCmd(const DeviceCmd& cmd, DeviceResponse* response) {
             break;
         }
         case DeviceCmdType::CMD_SAVE_DEVICES: {
-            saveClientsToFile(g_devices);
+            SpiffsSetting::saveClientsToFile(g_devices);
             break;
         }
         case DeviceCmdType::CMD_LOAD_DEVICES: {
-            loadClientsFromFile(g_devices);
+            SpiffsSetting::loadClientsFromFile(g_devices);
             break;
         }
         case DeviceCmdType::CMD_RESET_STATS: {
@@ -144,7 +145,7 @@ static void handleCmd(const DeviceCmd& cmd, DeviceResponse* response) {
                     }
                 }
             }
-            saveClientsToFile(g_devices);
+            SpiffsSetting::saveClientsToFile(g_devices);
             break;
         }
         case DeviceCmdType::CMD_GET_GPIO_STATS: {
@@ -155,7 +156,7 @@ static void handleCmd(const DeviceCmd& cmd, DeviceResponse* response) {
             for (auto& gpio : g_availableGpio) {
                 gpio.totalHeatingTime = 0;
             }
-            saveGpioToFile(g_availableGpio);
+            SpiffsSetting::saveGpioToFile(g_availableGpio);
             break;
         }
         case DeviceCmdType::CMD_UPDATE_GPIO_CONFIG: {
@@ -164,7 +165,7 @@ static void handleCmd(const DeviceCmd& cmd, DeviceResponse* response) {
             if (it != g_availableGpio.end()) {
                 it->state = cmd.gpioState;
                 if (!cmd.gpioName.empty()) it->name = cmd.gpioName;
-                saveGpioToFile(g_availableGpio);
+                SpiffsSetting::saveGpioToFile(g_availableGpio);
             } else {
                 resp.success = false;
                 resp.errorMessage = "GPIO pin not found";
@@ -185,10 +186,15 @@ static void handleCmd(const DeviceCmd& cmd, DeviceResponse* response) {
 
 static void deviceManagerTask(void* parameter) {
     esp_task_wdt_add(nullptr);
+    
+    // Register with task monitor
+    TASK_MONITOR.registerTask(nullptr, "deviceManager", 5000, true, 
+        [](void*) { initDeviceManager(); }, nullptr);
 
     DeviceCmd cmd;
     for (;;) {
         esp_task_wdt_reset();
+        TASK_CHECK_IN();
 
         if (xQueueReceive(deviceCmdQueue, &cmd, pdMS_TO_TICKS(1000)) == pdTRUE) {
             DeviceResponse response{};
@@ -202,11 +208,11 @@ static void deviceManagerTask(void* parameter) {
         unsigned long currentTime = millis();
         if ((currentTime - lastStatsSaveTime > 300000) || (currentTime < lastStatsSaveTime)) {
             logAndSend("Сохранение статистики согласно таймаута");
-            saveClientsToFile(g_devices);
-            saveGpioToFile(g_availableGpio);
+            SpiffsSetting::saveClientsToFile(g_devices);
+            SpiffsSetting::saveGpioToFile(g_availableGpio);
             serverWorkTime += currentTime - lastStatsSaveTime;
             lastStatsSaveTime = currentTime;
-            saveServerSetting();
+            SpiffsSetting::saveServerSetting();
         }
 
         if (millis() - lastGpioControlTime > CONTROL_DELAY) {
@@ -218,14 +224,16 @@ static void deviceManagerTask(void* parameter) {
 }
 
 void initDeviceManager() {
+    SpiffsSetting::init();
+    
     deviceCmdQueue = xQueueCreate(20, sizeof(DeviceCmd));
     if (deviceCmdQueue == nullptr) {
         logAndSend("Ошибка: не удалось создать очередь команд устройств");
         return;
     }
 
-    loadClientsFromFile(g_devices);
-    loadGpioFromFile(g_availableGpio);
+    SpiffsSetting::loadClientsFromFile(g_devices);
+    SpiffsSetting::loadGpioFromFile(g_availableGpio);
 
     // Initialize default GPIO pins if empty
     if (g_availableGpio.empty()) {
@@ -250,6 +258,12 @@ void initDeviceManager() {
         1,
         &deviceManagerTaskHandle
     );
+
+    // Update task monitor with actual handle
+    if (deviceManagerTaskHandle) {
+        TASK_MONITOR.registerTask(deviceManagerTaskHandle, "deviceManager", 5000, true, 
+            [](void*) { initDeviceManager(); }, nullptr);
+    }
 
     logAndSend("Device Manager запущен");
 }

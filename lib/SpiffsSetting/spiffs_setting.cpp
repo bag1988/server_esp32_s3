@@ -1,327 +1,84 @@
 #include <spiffs_setting.h>
+#include "nvs_storage.h"
+#include "variables_info.h"
 
-Preferences preferences;
+namespace SpiffsSetting {
 
-void saveServerSetting()
-{
-  if (preferences.begin("server_setting", false))
-  {
-    preferences.putLong64("server_time", serverWorkTime);
-    preferences.putFloat("hysteresis_temp", hysteresisTemp);
-    preferences.end();
-  }
+void init() {
+    NvsStorage::init();
 }
 
-void loadServerWorkTime()
-{
-  if (preferences.begin("server_setting", true))
-  {
-    serverWorkTime = preferences.getLong64("server_time", 0);
-    hysteresisTemp = preferences.getFloat("hysteresis_temp", 1.5);
-    preferences.end();
-  }
+void loadClientsFromFile(std::vector<DeviceData>& devices) {
+    logAndSend("Loading clients from NVS...");
+    esp_err_t err = NvsStorage::loadDevices(devices);
+    if (err != ESP_OK) {
+        logAndSend("Failed to load devices from NVS: " + String(esp_err_to_name(err)));
+    }
 }
 
-void loadClientsFromFile(std::vector<DeviceData>& devices)
-{
-  logAndSend("Loading clients from Preferences...");
-
-  if (preferences.begin("devices", true))
-  {
-    devices.clear();
-
-    size_t blobSize = preferences.getBytesLength("devices_blob");
-
-    if (blobSize > 0)
-    {
-      uint8_t *buffer = new uint8_t[blobSize];
-
-      if (buffer)
-      {
-        size_t readSize = preferences.getBytes("devices_blob", buffer, blobSize);
-
-        if (readSize == blobSize)
-        {
-          JsonDocument doc;
-          DeserializationError error = deserializeJson(doc, buffer, blobSize);
-
-          if (!error)
-          {
-            JsonArray devicesArray = doc.as<JsonArray>();
-
-            for (JsonObject deviceObj : devicesArray)
-            {
-              DeviceData device;
-
-              device.name = deviceObj["name"].as<const char *>();
-              device.macAddress = deviceObj["mac"].as<const char *>();
-              device.targetTemperature = deviceObj["target_temp"].as<float>();
-              device.enabled = deviceObj["enabled"].as<bool>();
-
-              if (!deviceObj["gpio_pins"].isNull())
-              {
-                JsonArray pinsArray = deviceObj["gpio_pins"].as<JsonArray>();
-                for (uint8_t pin : pinsArray)
-                {
-                  device.gpioPins.push_back(pin);
-                }
-              }
-
-              device.heatingStartTime = 0;
-              device.totalHeatingTime = deviceObj["total_heating"].as<long>();
-              device.isOnline = false;
-              device.currentTemperature = device.targetTemperature;
-              device.heatingActive = false;
-              device.humidity = deviceObj["humidity"].as<float>();
-              device.battery = deviceObj["battery"].as<uint8_t>();
-              device.batteryV = deviceObj["batteryV"].as<uint16_t>();
-
-              devices.push_back(device);
-            }
-          }
-          else
-          {
-            logAndSend("deserializeJson() failed: " + String(error.c_str()));
-          }
-        }
-        else
-        {
-          logAndSend("Failed to read complete blob data");
-        }
-
-        delete[] buffer;
-      }
-      else
-      {
-        logAndSend("Failed to allocate memory for blob data");
-      }
+void saveClientsToFile(const std::vector<DeviceData>& devices) {
+    logAndSend("Saving clients to NVS...");
+    esp_err_t err = NvsStorage::saveDevices(devices);
+    if (err != ESP_OK) {
+        logAndSend("Failed to save devices to NVS: " + String(esp_err_to_name(err)));
     }
-    else
-    {
-      logAndSend("No devices data found in Preferences");
-    }
-
-    preferences.end();
-  }
-  else
-  {
-    logAndSend("Failed to open 'devices' namespace");
-  }
 }
 
-void saveClientsToFile(const std::vector<DeviceData>& devices)
-{
-  logAndSend("Начинаем сохранение устройств в файл");
-
-  if (preferences.begin("devices", false))
-  {
-    JsonDocument doc;
-    JsonArray devicesArray = doc.to<JsonArray>();
-
-    for (const auto &device : devices)
-    {
-      JsonObject deviceObj = devicesArray.add<JsonObject>();
-
-      deviceObj["name"] = device.name;
-      deviceObj["mac"] = device.macAddress;
-      deviceObj["target_temp"] = device.targetTemperature;
-      deviceObj["enabled"] = device.enabled;
-      deviceObj["total_heating"] = device.totalHeatingTime;
-      deviceObj["humidity"] = device.humidity;
-      deviceObj["battery"] = device.battery;
-      deviceObj["batteryV"] = device.batteryV;
-
-      for (uint8_t pin : device.gpioPins)
-      {
-        deviceObj["gpio_pins"].add(pin);
-      }
+void loadWifiCredentialsFromFile() {
+    std::string ssid, password;
+    esp_err_t err = NvsStorage::loadWifiCredentials(ssid, password);
+    if (err == ESP_OK) {
+        wifiCredentials.ssid = ssid;
+        wifiCredentials.password = password;
+        logAndSend("WiFi credentials loaded from NVS");
+    } else {
+        logAndSend("Failed to load WiFi credentials from NVS: " + String(esp_err_to_name(err)));
     }
-
-    size_t bufferSize = measureJson(doc);
-
-    if (bufferSize > 0)
-    {
-      uint8_t *buffer = new uint8_t[bufferSize];
-
-      if (buffer)
-      {
-        size_t serializedSize = serializeJson(doc, buffer, bufferSize);
-
-        if (preferences.putBytes("devices_blob", buffer, serializedSize))
-        {
-          logAndSend("Saved clients to Preferences blob");
-        }
-        else
-        {
-          logAndSend("Failed to save devices blob to Preferences");
-        }
-
-        delete[] buffer;
-      }
-      else
-      {
-        logAndSend("Failed to allocate memory for serialization");
-      }
-    }
-    else
-    {
-      logAndSend("Empty devices collection, nothing to save");
-    }
-
-    preferences.end();
-  }
-  else
-  {
-    logAndSend("Failed to open 'devices' namespace");
-  }
 }
 
-void loadWifiCredentialsFromFile()
-{
-  if (preferences.begin("wifi", true))
-  {
-    wifiCredentials.ssid = preferences.getString("ssid", "").c_str();
-    wifiCredentials.password = preferences.getString("password", "").c_str();
-
-    preferences.end();
-
-    logAndSend("WiFi-креденциалы загружены из Preferences");
-  }
-  else
-  {
-    logAndSend("Нет доступа для чтения данных wifi");
-  }
+void saveWifiCredentialsToFile() {
+    esp_err_t err = NvsStorage::saveWifiCredentials(wifiCredentials.ssid, wifiCredentials.password);
+    if (err == ESP_OK) {
+        logAndSend("WiFi credentials saved to NVS");
+    } else {
+        logAndSend("Failed to save WiFi credentials to NVS: " + String(esp_err_to_name(err)));
+    }
 }
 
-void saveWifiCredentialsToFile()
-{
-  if (preferences.begin("wifi", false))
-  {
-    preferences.putString("ssid", wifiCredentials.ssid.c_str());
-    preferences.putString("password", wifiCredentials.password.c_str());
-
-    preferences.end();
-
-    logAndSend("WiFi-креденциалы сохранены в Preferences");
-  }
-  else
-  {
-    logAndSend("Нет доступа для записи данных wifi");
-  }
+void saveGpioToFile(const std::vector<GpioPin>& gpioPins) {
+    logAndSend("Saving GPIO to NVS...");
+    esp_err_t err = NvsStorage::saveGpioConfig(gpioPins);
+    if (err != ESP_OK) {
+        logAndSend("Failed to save GPIO to NVS: " + String(esp_err_to_name(err)));
+    }
 }
 
-void saveGpioToFile(const std::vector<GpioPin>& gpioPins)
-{
-  logAndSend("Saving GPIO to Preferences...");
-
-  if (preferences.begin("gpio", false))
-  {
-    JsonDocument doc;
-    JsonArray gpioArray = doc.to<JsonArray>();
-
-    for (const auto &gpio : gpioPins)
-    {
-      JsonObject gpioObj = gpioArray.add<JsonObject>();
-      gpioObj["pin"] = gpio.pin;
-      gpioObj["state"] = gpio.state;
-      gpioObj["name"] = gpio.name;
-      gpioObj["total_heating"] = gpio.totalHeatingTime;
+void loadGpioFromFile(std::vector<GpioPin>& gpioPins) {
+    logAndSend("Loading GPIO from NVS...");
+    esp_err_t err = NvsStorage::loadGpioConfig(gpioPins);
+    if (err != ESP_OK) {
+        logAndSend("Failed to load GPIO from NVS: " + String(esp_err_to_name(err)));
     }
-
-    size_t bufferSize = measureJson(doc);
-
-    if (bufferSize > 0)
-    {
-      uint8_t *buffer = new uint8_t[bufferSize];
-
-      if (buffer)
-      {
-        size_t serializedSize = serializeJson(doc, buffer, bufferSize);
-
-        if (preferences.putBytes("gpio_blob", buffer, serializedSize))
-        {
-          logAndSend("Saved GPIO pins to Preferences blob");
-        }
-        else
-        {
-          logAndSend("Failed to save GPIO blob to Preferences");
-        }
-
-        delete[] buffer;
-      }
-      else
-      {
-        logAndSend("Failed to allocate memory for serialization");
-      }
-    }
-    else
-    {
-      logAndSend("Empty GPIO collection, nothing to save");
-    }
-
-    preferences.end();
-  }
-  else
-  {
-    logAndSend("Failed to open 'gpio' namespace");
-  }
 }
 
-void loadGpioFromFile(std::vector<GpioPin>& gpioPins)
-{
-  logAndSend("Loading GPIO from Preferences...");
-
-  if (preferences.begin("gpio", true))
-  {
-    size_t blobSize = preferences.getBytesLength("gpio_blob");
-
-    if (blobSize > 0)
-    {
-      uint8_t *buffer = new uint8_t[blobSize];
-
-      if (buffer)
-      {
-        size_t readSize = preferences.getBytes("gpio_blob", buffer, blobSize);
-
-        if (readSize == blobSize)
-        {
-          JsonDocument doc;
-          DeserializationError error = deserializeJson(doc, buffer, blobSize);
-
-          if (!error)
-          {
-            gpioPins.clear();
-
-            JsonArray gpioArray = doc.as<JsonArray>();
-
-            for (JsonObject gpioObj : gpioArray)
-            {
-              GpioPin gpio;
-              gpio.pin = gpioObj["pin"].as<uint8_t>();
-              gpio.state = gpioObj["state"].as<uint8_t>();
-              gpio.name = gpioObj["name"].as<const char *>();
-              gpio.totalHeatingTime = gpioObj["total_heating"].as<long>();
-
-              gpioPins.push_back(gpio);
-            }
-          }
-          else
-          {
-            logAndSend("deserializeJson() failed: " + String(error.c_str()));
-          }
-        }
-        else
-        {
-          logAndSend("Failed to read complete blob data");
-        }
-
-        delete[] buffer ;     
-      }
-      else
-      {
-        logAndSend("Failed to allocate memory for blob data");
-      }
+void loadServerWorkTime() {
+    unsigned long serverTime = 0;
+    float hysteresis = 1.5;
+    esp_err_t err = NvsStorage::loadServerSettings(serverTime, hysteresis);
+    if (err == ESP_OK) {
+        serverWorkTime = serverTime;
+        hysteresisTemp = hysteresis;
+        logAndSend("Server settings loaded from NVS");
+    } else {
+        logAndSend("Failed to load server settings from NVS: " + String(esp_err_to_name(err)));
     }
-    preferences.end();
-  }
 }
+
+void saveServerSetting() {
+    esp_err_t err = NvsStorage::saveServerSettings(serverWorkTime, hysteresisTemp);
+    if (err != ESP_OK) {
+        logAndSend("Failed to save server settings to NVS: " + String(esp_err_to_name(err)));
+    }
+}
+
+} // namespace SpiffsSetting

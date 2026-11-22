@@ -4,17 +4,19 @@
 #include <Arduino.h>
 #include <string>
 #include <vector>
-#include <variables_info.h>
-#include <Preferences.h>
+#include "variables_info.h"
 #include <ArduinoJson.h>
 
-void loadClientsFromFile(std::vector<DeviceData>& devices);
-void saveClientsToFile(const std::vector<DeviceData>& devices);
-void loadWifiCredentialsFromFile();
-void saveWifiCredentialsToFile();
-void saveGpioToFile(const std::vector<GpioPin>& gpioPins);
-void loadGpioFromFile(std::vector<GpioPin>& gpioPins);
-void loadServerWorkTime();
-void saveServerSetting();
+namespace SpiffsSetting {
+    void loadClientsFromFile(std::vector<DeviceData>& devices);
+    void saveClientsToFile(const std::vector<DeviceData>& devices);
+    void loadWifiCredentialsFromFile();
+    void saveWifiCredentialsToFile();
+    void saveGpioToFile(const std::vector<GpioPin>& gpioPins);
+    void loadGpioFromFile(std::vector<GpioPin>& gpioPins);
+    void loadServerWorkTime();
+    void saveServerSetting();
+    void init();  // Initialize NVS
+}
 
 #endif

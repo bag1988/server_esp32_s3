@@ -5,6 +5,7 @@
 #include <spiffs_setting.h>
 #include "xiaomi_scanner.h"
 #include "device_manager.h"
+#include "task_monitor.h"
 #include <SPIFFS.h>
 
 // Web Server
@@ -325,7 +326,7 @@ server.on("/heating_gpio_stats", HTTP_GET, [](AsyncWebServerRequest *request)
               {       
         logAndSend("Сброшено время работы, сохраняем результаты");        
         serverWorkTime = 0;
-        saveServerSetting();
+        SpiffsSetting::saveServerSetting();
         request->send(200, "text/plain", "Статистика сброшена"); });
 
     server.on("/save_hysteresis_temp", HTTP_POST, [](AsyncWebServerRequest *request)
@@ -333,13 +334,33 @@ server.on("/heating_gpio_stats", HTTP_GET, [](AsyncWebServerRequest *request)
                 if (request->hasParam("hysteresis_temp", true)) {
                     hysteresisTemp = request->getParam("hysteresis_temp", true)->value().toFloat();
                     logAndSend("Cохраняем настройки для гистерезиса");  
-                    saveServerSetting();
+                    SpiffsSetting::saveServerSetting();
                     request->send(200, "text/plain", "Настройки для гистерезиса сохранены"); 
                 }
      request->send(404, "text/plain", "Param not found"); });
 
     server.on("/get_hysteresis_temp", HTTP_GET, [](AsyncWebServerRequest *request)
               { request->send(200, "application/json", String(hysteresisTemp, 1)); });
+
+    // Task health monitoring endpoint
+    server.on("/task_health", HTTP_GET, [](AsyncWebServerRequest *request) {
+        JsonDocument doc;
+        TASK_MONITOR.getHealthReport(doc);
+        String response;
+        serializeJson(doc, response);
+        request->send(200, "application/json", response);
+    });
+    
+    // Restart task endpoint
+    server.on("/restart_task", HTTP_POST, [](AsyncWebServerRequest *request) {
+        if (request->hasParam("task", true)) {
+            String taskName = request->getParam("task", true)->value();
+            TASK_MONITOR.restartTask(taskName.c_str());
+            request->send(200, "text/plain", "Task restart requested");
+        } else {
+            request->send(400, "text/plain", "Task name required");
+        }
+    });
     
     // Обработчик для корневого пути и /index
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)

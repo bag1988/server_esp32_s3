@@ -8,6 +8,7 @@
 #include <BLEAdvertisedDevice.h>
 #include "variables_info.h"
 #include <ArduinoJson.h>
+#include <freertos/queue.h>
 
 // #define CONFIG_BT_BLE_DYNAMIC_ENV_MEMORY 1
 // #define CONFIG_BT_BTU_TASK_STACK_SIZE 4096
@@ -19,7 +20,14 @@
 #define SSID_CHARACTERISTIC_UUID "93d971b2-4bb8-45d0-9ab3-74d7f881d828"     // New SSID and password Characteristic UUID
 #define PASSWORD_CHARACTERISTIC_UUID "c5481513-22cb-4aae-9fe3-e9db5d06bf6f" // New Password Characteristic UUID
 
-// Структура для передачи данных через очередь
+// Event types for event-driven BLE scanner
+enum class BleEventType : uint8_t {
+    EVENT_DEVICE_FOUND,
+    EVENT_SCAN_COMPLETE,
+    EVENT_SCAN_ERROR
+};
+
+// BLE Device Data structure (for backward compatibility with processXiaomiAdvertisement)
 struct BLEDeviceData {
     std::string address;
     std::string name;
@@ -30,12 +38,30 @@ struct BLEDeviceData {
     bool hasServiceData = false;
 };
 
-// Глобальные переменные
+// Event structure for queue-based communication
+struct BleEvent {
+    BleEventType type;
+    // For EVENT_DEVICE_FOUND
+    std::string address;
+    std::string name;
+    std::string serviceData[5];
+    BLEUUID serviceUUID[5];
+    int serviceDataCount = 0;
+    bool hasName = false;
+    bool hasServiceData = false;
+    // For EVENT_SCAN_ERROR
+    int errorCode;
+};
+
+extern QueueHandle_t bleEventQueue;
 extern BLEScan* pBLEScan;
 extern bool scanningActive;
-// Функции
+extern TaskHandle_t bleScannerTaskHandle;
+
 void setupXiaomiScanner();
 void startXiaomiScan();
 void processXiaomiAdvertisement(BLEDeviceData& deviceData);
 void printDevicesData();
+void bleScannerTask(void* parameter);
+
 #endif // XIAOMI_SCANNER_H

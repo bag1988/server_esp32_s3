@@ -9,6 +9,7 @@
 #include "xiaomi_scanner.h"
 #include "ota_setting.h"
 #include "device_manager.h"
+#include "task_monitor.h"
 #include <atomic>
 #include "esp_system.h"
 #include "driver/temp_sensor.h"
@@ -73,13 +74,16 @@ void networkFunc()
 
 void createTasksStandart()
 {
+    TaskHandle_t networkTaskHandle = nullptr;
+    TaskHandle_t lcdTaskHandle = nullptr;
+    
     xTaskCreate(
         networkTaskFunction,
         "networkTask",
         8192,
         NULL,
         1,
-        NULL
+        &networkTaskHandle
     );
 
     xTaskCreate(
@@ -88,8 +92,25 @@ void createTasksStandart()
         4096,
         NULL,
         1,
-        NULL
+        &lcdTaskHandle
     );
+    
+    // Start task monitor and register tasks
+    TASK_MONITOR.begin(5000);
+    
+    if (networkTaskHandle) {
+        TASK_MONITOR.registerTask(networkTaskHandle, "networkTask", 10000, true,
+            [](void*) { 
+                xTaskCreate(networkTaskFunction, "networkTask", 8192, nullptr, 1, nullptr); 
+            }, nullptr);
+    }
+    
+    if (lcdTaskHandle) {
+        TASK_MONITOR.registerTask(lcdTaskHandle, "lcdTask", 2000, false,
+            [](void*) { 
+                xTaskCreate(lcdTaskFunction, "lcdTask", 4096, nullptr, 1, nullptr); 
+            }, nullptr);
+    }
 }
 
 void networkTaskFunction(void* parameter)
@@ -97,6 +118,7 @@ void networkTaskFunction(void* parameter)
     esp_task_wdt_add(nullptr);
     for (;;) {
         esp_task_wdt_reset();
+        TASK_CHECK_IN();
         networkFunc();
     }
 }
@@ -106,6 +128,7 @@ void lcdTaskFunction(void* parameter)
     esp_task_wdt_add(nullptr);
     for (;;) {
         esp_task_wdt_reset();
+        TASK_CHECK_IN();
         handleButtons();
         updateMainScreenLCD();
         vTaskDelay(500 / portTICK_PERIOD_MS);
@@ -140,8 +163,9 @@ void setup()
         logAndSend("Ошибка инициализации SPIFFS");
         return;
     }
-    loadWifiCredentialsFromFile();
-    loadServerWorkTime();
+    
+    SpiffsSetting::loadWifiCredentialsFromFile();
+    SpiffsSetting::loadServerWorkTime();
 
     initDeviceManager();
 
