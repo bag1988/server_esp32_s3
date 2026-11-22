@@ -1,5 +1,6 @@
 #include "xiaomi_scanner.h"
 #include "variables_info.h"
+#include "device_manager.h"
 #include <algorithm>
 #include <spiffs_setting.h>
 
@@ -253,38 +254,14 @@ void processXiaomiAdvertisement(BLEDeviceData &deviceData)
         // Если данные найдены, обновляем информацию об устройстве
         if (dataFound)
         {
-            if (xSemaphoreTake(devicesMutex, portMAX_DELAY) == pdTRUE)
-            {
-                //   Ищем устройство с таким MAC-адресом
-                auto it = std::find_if(devices.begin(), devices.end(),
-                                       [&deviceAddress](const DeviceData &device)
-                                       {
-                                           return device.macAddress == deviceAddress;
-                                       });
-
-                if (it != devices.end())
-                {
-                    logAndSend("Обновляем данные устройства: " + String(it->name.c_str()));
-                    //   Устройство найдено, обновляем данные
-                    it->updateSensorData(temperature, humidity, battery, batteryV);
-                }
-                else
-                {
-                    // Устройство не найдено, создаем новое
-                    std::string deviceName = "Xiaomi " + deviceAddress.substr(deviceAddress.length() - 5);
-                    //  Если устройство имеет имя, используем его
-                    if (deviceData.hasName)
-                    {
-                        deviceName = deviceData.name;
-                    }
-                    logAndSend("Найдено новое устройство: " + String(deviceName.c_str()));
-
-                    DeviceData newDevice(deviceName, deviceAddress);
-                    newDevice.updateSensorData(temperature, humidity, battery, batteryV);
-                    devices.push_back(newDevice);
-                }
-                xSemaphoreGive(devicesMutex);
-            }
+            DeviceCmd cmd{};
+            cmd.type = DeviceCmdType::CMD_UPDATE_SENSOR_DATA;
+            cmd.macAddress = deviceAddress;
+            cmd.temperature = temperature;
+            cmd.humidity = humidity;
+            cmd.battery = battery;
+            cmd.batteryV = batteryV;
+            sendDeviceCmdAsync(cmd);
         }
         else
         {

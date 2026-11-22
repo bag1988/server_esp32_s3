@@ -21,103 +21,84 @@ void loadServerWorkTime()
     preferences.end();
   }
 }
-// Загружаем клиентов из Preferences как единый Blob
-void loadClientsFromFile()
+
+void loadClientsFromFile(std::vector<DeviceData>& devices)
 {
   logAndSend("Loading clients from Preferences...");
 
-  // Открываем пространство имен "devices" в режиме только для чтения
   if (preferences.begin("devices", true))
   {
-    if (xSemaphoreTake(devicesMutex, portMAX_DELAY) == pdTRUE)
+    devices.clear();
+
+    size_t blobSize = preferences.getBytesLength("devices_blob");
+
+    if (blobSize > 0)
     {
-      devices.clear();
+      uint8_t *buffer = new uint8_t[blobSize];
 
-      // Получаем размер сохраненного Blob
-      size_t blobSize = preferences.getBytesLength("devices_blob");
-
-      if (blobSize > 0)
+      if (buffer)
       {
-        // Выделяем буфер для данных
-        uint8_t *buffer = new uint8_t[blobSize];
+        size_t readSize = preferences.getBytes("devices_blob", buffer, blobSize);
 
-        if (buffer)
+        if (readSize == blobSize)
         {
-          // Читаем данные в буфер
-          size_t readSize = preferences.getBytes("devices_blob", buffer, blobSize);
+          JsonDocument doc;
+          DeserializationError error = deserializeJson(doc, buffer, blobSize);
 
-          if (readSize == blobSize)
+          if (!error)
           {
-            // Десериализуем JSON из буфера
-            JsonDocument doc;
-            DeserializationError error = deserializeJson(doc, buffer, blobSize);
+            JsonArray devicesArray = doc.as<JsonArray>();
 
-            if (!error)
+            for (JsonObject deviceObj : devicesArray)
             {
-              // Преобразуем JSON в объекты DeviceData
-              JsonArray devicesArray = doc.as<JsonArray>();
+              DeviceData device;
 
-              for (JsonObject deviceObj : devicesArray)
+              device.name = deviceObj["name"].as<const char *>();
+              device.macAddress = deviceObj["mac"].as<const char *>();
+              device.targetTemperature = deviceObj["target_temp"].as<float>();
+              device.enabled = deviceObj["enabled"].as<bool>();
+
+              if (!deviceObj["gpio_pins"].isNull())
               {
-                DeviceData device;
-
-                // Заполняем поля устройства
-                device.name = deviceObj["name"].as<const char *>();
-                device.macAddress = deviceObj["mac"].as<const char *>();
-                device.targetTemperature = deviceObj["target_temp"].as<float>();
-                device.enabled = deviceObj["enabled"].as<bool>();
-
-                // Парсим массив GPIO пинов
-                if (!deviceObj["gpio_pins"].isNull())
+                JsonArray pinsArray = deviceObj["gpio_pins"].as<JsonArray>();
+                for (uint8_t pin : pinsArray)
                 {
-                  JsonArray pinsArray = deviceObj["gpio_pins"].as<JsonArray>();
-                  for (uint8_t pin : pinsArray)
-                  {
-                    device.gpioPins.push_back(pin);
-                  }
+                  device.gpioPins.push_back(pin);
                 }
-
-                // Инициализируем дополнительные поля
-                device.heatingStartTime = 0;
-                device.totalHeatingTime = deviceObj["total_heating"].as<long>();
-                device.isOnline = false;
-                device.currentTemperature = device.targetTemperature;
-                device.heatingActive = false;
-                device.humidity = deviceObj["humidity"].as<float>();
-                device.battery = deviceObj["battery"].as<uint8_t>();
-                device.batteryV = deviceObj["batteryV"].as<uint16_t>();
-                // Добавляем устройство в вектор
-                devices.push_back(device);
               }
-            }
-            else
-            {
-              logAndSend("deserializeJson() failed: " + String(error.c_str()));
+
+              device.heatingStartTime = 0;
+              device.totalHeatingTime = deviceObj["total_heating"].as<long>();
+              device.isOnline = false;
+              device.currentTemperature = device.targetTemperature;
+              device.heatingActive = false;
+              device.humidity = deviceObj["humidity"].as<float>();
+              device.battery = deviceObj["battery"].as<uint8_t>();
+              device.batteryV = deviceObj["batteryV"].as<uint16_t>();
+
+              devices.push_back(device);
             }
           }
           else
           {
-            logAndSend("Failed to read complete blob data");
+            logAndSend("deserializeJson() failed: " + String(error.c_str()));
           }
-
-          // Освобождаем память
-          delete[] buffer;
         }
         else
         {
-          logAndSend("Failed to allocate memory for blob data");
+          logAndSend("Failed to read complete blob data");
         }
+
+        delete[] buffer;
       }
       else
       {
-        logAndSend("No devices data found in Preferences");
+        logAndSend("Failed to allocate memory for blob data");
       }
-
-      xSemaphoreGive(devicesMutex);
     }
     else
     {
-      logAndSend("Failed to take devicesMutex");
+      logAndSend("No devices data found in Preferences");
     }
 
     preferences.end();
@@ -128,82 +109,63 @@ void loadClientsFromFile()
   }
 }
 
-// Сохраняем клиентов в Preferences как единый Blob
-void saveClientsToFile()
+void saveClientsToFile(const std::vector<DeviceData>& devices)
 {
   logAndSend("Начинаем сохранение устройств в файл");
 
-  // Открываем пространство имен "devices" в режиме чтения-записи
   if (preferences.begin("devices", false))
   {
-    if (xSemaphoreTake(devicesMutex, portMAX_DELAY) == pdTRUE)
+    JsonDocument doc;
+    JsonArray devicesArray = doc.to<JsonArray>();
+
+    for (const auto &device : devices)
     {
-      // Создаем JSON-документ для сериализации
-      JsonDocument doc;
-      JsonArray devicesArray = doc.to<JsonArray>();
+      JsonObject deviceObj = devicesArray.add<JsonObject>();
 
-      // Добавляем каждое устройство в массив
-      for (const auto &device : devices)
+      deviceObj["name"] = device.name;
+      deviceObj["mac"] = device.macAddress;
+      deviceObj["target_temp"] = device.targetTemperature;
+      deviceObj["enabled"] = device.enabled;
+      deviceObj["total_heating"] = device.totalHeatingTime;
+      deviceObj["humidity"] = device.humidity;
+      deviceObj["battery"] = device.battery;
+      deviceObj["batteryV"] = device.batteryV;
+
+      for (uint8_t pin : device.gpioPins)
       {
-        JsonObject deviceObj = devicesArray.add<JsonObject>();
-
-        // Сохраняем основные поля
-        deviceObj["name"] = device.name;
-        deviceObj["mac"] = device.macAddress;
-        deviceObj["target_temp"] = device.targetTemperature;
-        deviceObj["enabled"] = device.enabled;
-        deviceObj["total_heating"] = device.totalHeatingTime;
-        deviceObj["humidity"] = device.humidity;
-        deviceObj["battery"] = device.battery;
-        deviceObj["batteryV"] = device.batteryV;
-        // Сохраняем массив GPIO пинов
-        for (uint8_t pin : device.gpioPins)
-        {
-          deviceObj["gpio_pins"].add(pin);
-        }
+        deviceObj["gpio_pins"].add(pin);
       }
+    }
 
-      // Определяем размер буфера для сериализации
-      size_t bufferSize = measureJson(doc);
+    size_t bufferSize = measureJson(doc);
 
-      if (bufferSize > 0)
+    if (bufferSize > 0)
+    {
+      uint8_t *buffer = new uint8_t[bufferSize];
+
+      if (buffer)
       {
-        // Выделяем буфер
-        uint8_t *buffer = new uint8_t[bufferSize];
+        size_t serializedSize = serializeJson(doc, buffer, bufferSize);
 
-        if (buffer)
+        if (preferences.putBytes("devices_blob", buffer, serializedSize))
         {
-          // Сериализуем JSON в буфер
-          size_t serializedSize = serializeJson(doc, buffer, bufferSize);
-
-          // Сохраняем буфер в Preferences
-          if (preferences.putBytes("devices_blob", buffer, serializedSize))
-          {
-            logAndSend("Saved clients to Preferences blob");
-          }
-          else
-          {
-            logAndSend("Failed to save devices blob to Preferences");
-          }
-
-          // Освобождаем память
-          delete[] buffer;
+          logAndSend("Saved clients to Preferences blob");
         }
         else
         {
-          logAndSend("Failed to allocate memory for serialization");
+          logAndSend("Failed to save devices blob to Preferences");
         }
+
+        delete[] buffer;
       }
       else
       {
-        logAndSend("Empty devices collection, nothing to save");
+        logAndSend("Failed to allocate memory for serialization");
       }
-
-      xSemaphoreGive(devicesMutex);
     }
     else
     {
-      logAndSend("Failed to take devicesMutex");
+      logAndSend("Empty devices collection, nothing to save");
     }
 
     preferences.end();
@@ -214,10 +176,9 @@ void saveClientsToFile()
   }
 }
 
-// Загружаем настройки Wifi +++++++++++++++++++++++++++
 void loadWifiCredentialsFromFile()
 {
-  if (preferences.begin("wifi", true)) // true = только чтение
+  if (preferences.begin("wifi", true))
   {
     wifiCredentials.ssid = preferences.getString("ssid", "").c_str();
     wifiCredentials.password = preferences.getString("password", "").c_str();
@@ -231,10 +192,10 @@ void loadWifiCredentialsFromFile()
     logAndSend("Нет доступа для чтения данных wifi");
   }
 }
-// Сохраняем настройки Wifi +++++++++++++++++++++++++++
+
 void saveWifiCredentialsToFile()
 {
-  if (preferences.begin("wifi", false)) // false = чтение-запись
+  if (preferences.begin("wifi", false))
   {
     preferences.putString("ssid", wifiCredentials.ssid.c_str());
     preferences.putString("password", wifiCredentials.password.c_str());
@@ -248,21 +209,17 @@ void saveWifiCredentialsToFile()
     logAndSend("Нет доступа для записи данных wifi");
   }
 }
-// Функция для сохранения GPIO в файл
-// Функция для сохранения GPIO в Preferences как Blob
-void saveGpioToFile()
+
+void saveGpioToFile(const std::vector<GpioPin>& gpioPins)
 {
   logAndSend("Saving GPIO to Preferences...");
 
-  // Открываем пространство имен "gpio" в режиме чтения-записи
   if (preferences.begin("gpio", false))
   {
-    // Создаем JSON-документ для сериализации
     JsonDocument doc;
     JsonArray gpioArray = doc.to<JsonArray>();
 
-    // Добавляем каждый GPIO в массив
-    for (const auto &gpio : availableGpio)
+    for (const auto &gpio : gpioPins)
     {
       JsonObject gpioObj = gpioArray.add<JsonObject>();
       gpioObj["pin"] = gpio.pin;
@@ -271,20 +228,16 @@ void saveGpioToFile()
       gpioObj["total_heating"] = gpio.totalHeatingTime;
     }
 
-    // Определяем размер буфера для сериализации
     size_t bufferSize = measureJson(doc);
 
     if (bufferSize > 0)
     {
-      // Выделяем буфер
       uint8_t *buffer = new uint8_t[bufferSize];
 
       if (buffer)
       {
-        // Сериализуем JSON в буфер
         size_t serializedSize = serializeJson(doc, buffer, bufferSize);
 
-        // Сохраняем буфер в Preferences
         if (preferences.putBytes("gpio_blob", buffer, serializedSize))
         {
           logAndSend("Saved GPIO pins to Preferences blob");
@@ -294,7 +247,6 @@ void saveGpioToFile()
           logAndSend("Failed to save GPIO blob to Preferences");
         }
 
-        // Освобождаем память
         delete[] buffer;
       }
       else
@@ -315,39 +267,31 @@ void saveGpioToFile()
   }
 }
 
-// Функция для загрузки GPIO из Preferences как Blob
-void loadGpioFromFile()
+void loadGpioFromFile(std::vector<GpioPin>& gpioPins)
 {
   logAndSend("Loading GPIO from Preferences...");
 
-  // Открываем пространство имен "gpio" в режиме только для чтения
   if (preferences.begin("gpio", true))
   {
-    // Получаем размер сохраненного Blob
     size_t blobSize = preferences.getBytesLength("gpio_blob");
 
     if (blobSize > 0)
     {
-      // Выделяем буфер для данных
       uint8_t *buffer = new uint8_t[blobSize];
 
       if (buffer)
       {
-        // Читаем данные в буфер
         size_t readSize = preferences.getBytes("gpio_blob", buffer, blobSize);
 
         if (readSize == blobSize)
         {
-          // Десериализуем JSON из буфера
           JsonDocument doc;
           DeserializationError error = deserializeJson(doc, buffer, blobSize);
 
           if (!error)
           {
-            // Очищаем текущий вектор GPIO
-            availableGpio.clear();
+            gpioPins.clear();
 
-            // Преобразуем JSON в объекты GpioPin
             JsonArray gpioArray = doc.as<JsonArray>();
 
             for (JsonObject gpioObj : gpioArray)
@@ -357,13 +301,13 @@ void loadGpioFromFile()
               gpio.state = gpioObj["state"].as<uint8_t>();
               gpio.name = gpioObj["name"].as<const char *>();
               gpio.totalHeatingTime = gpioObj["total_heating"].as<long>();
-              // Добавляем GPIO в вектор
-              availableGpio.push_back(gpio);
+
+              gpioPins.push_back(gpio);
             }
           }
           else
           {
-             logAndSend("deserializeJson() failed: " + String(error.c_str()));
+            logAndSend("deserializeJson() failed: " + String(error.c_str()));
           }
         }
         else
@@ -371,8 +315,7 @@ void loadGpioFromFile()
           logAndSend("Failed to read complete blob data");
         }
 
-        // Освобождаем память
-        delete[] buffer;
+        delete[] buffer ;     
       }
       else
       {

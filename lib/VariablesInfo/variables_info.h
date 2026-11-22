@@ -112,14 +112,10 @@ struct GpioPin
     GpioPin(uint8_t p, uint8_t s, const std::string &n) : pin(p), state(s), name(n), totalHeatingTime(0) {}
 };
 // Глобальные переменные (объявлены как extern)
-extern std::vector<DeviceData> devices;
-extern std::vector<GpioPin> availableGpio;
-extern int gpioSelectionIndex;
 extern WifiCredentials wifiCredentials;
 extern bool wifiConnected;
 extern unsigned long lastWiFiAttemptTime;
-// Мьютекс для защиты доступа к общим данным
-extern SemaphoreHandle_t devicesMutex;
+// Мьютекс для защиты доступа к общим данным (deprecated, используется device_manager)
 extern float board_temperature;
 extern unsigned long serverWorkTime;
 extern float hysteresisTemp;

@@ -3,7 +3,8 @@
 #include <variables_info.h>
 #include <WiFi.h>
 #include <xiaomi_scanner.h>
-#include <LiquidCrystal.h> // Используем стандартную библиотеку LiquidCrystal вместо I2C
+#include <device_manager.h>
+#include <LiquidCrystal.h>
 
 // LCD Keypad Shield использует следующие пины для подключения LCD
 // RS, E, D4, D5, D6, D7
@@ -149,8 +150,11 @@ void initLCD()
 // Функция для отображения списка устройств
 void showDeviceList()
 {
-  // Верхняя строка - статус системы
-  // Отображаем статус WiFi
+  DeviceResponse response;
+  DeviceCmd cmd{};
+  cmd.type = DeviceCmdType::CMD_GET_DEVICES;
+  sendDeviceCmd(cmd, &response);
+
   if (wifiConnected)
   {
     displayText(WiFi.localIP().toString());
@@ -160,33 +164,30 @@ void showDeviceList()
     displayText("WiFi: Disabled");
   }
 
-  if (devices.size() > 0)
+  if (response.success && response.devices.size() > 0)
   {
-    // Проверяем, не выходит ли индекс за пределы
-    if (deviceListIndex >= devices.size())
+    if (deviceListIndex >= response.devices.size())
     {
       deviceListIndex = 0;
     }
-    // Отображаем имя устройства
-    std::string deviceName = devices[deviceListIndex].name;
+    std::string deviceName = response.devices[deviceListIndex].name;
 
-    if (!devices[deviceListIndex].isDataValid())
+    if (!response.devices[deviceListIndex].isDataValid())
     {
       deviceName = "?" + deviceName;
     }
-    else if (devices[deviceListIndex].heatingActive)
+    else if (response.devices[deviceListIndex].heatingActive)
     {
       deviceName = "*" + deviceName;
     }
 
-    // Ограничиваем длину имени, чтобы оно поместилось на экране
     if (deviceName.length() > 10)
     {
       deviceName = deviceName.substr(0, 10);
     }
 
     deviceName += "-";
-    deviceName += String(devices[deviceListIndex].currentTemperature, 1).c_str();
+    deviceName += String(response.devices[deviceListIndex].currentTemperature, 1).c_str();
     deviceName += "C";
     displayText(deviceName.c_str(), 0, 1);
   }
@@ -199,43 +200,47 @@ void showDeviceList()
 // Функция для отображения меню устройства
 void showDeviceMenu()
 {
-  if (devices.size() > 0)
+  DeviceResponse response;
+  DeviceCmd cmd{};
+  cmd.type = DeviceCmdType::CMD_GET_DEVICES;
+  sendDeviceCmd(cmd, &response);
+
+  if (response.success && response.devices.size() > 0)
   {
-    // Проверяем, не выходит ли индекс за пределы
-    if (deviceListIndex >= devices.size())
+    if (deviceListIndex >= response.devices.size())
     {
       return;
     }
-    // Показываем имя устройства
-    std::string deviceName = devices[deviceListIndex].name;
+    std::string deviceName = response.devices[deviceListIndex].name;
     if (deviceName.length() > 16)
     {
       deviceName = deviceName.substr(0, 16);
     }
     displayText(deviceName.c_str());
-    // Показываем текущий пункт меню
     displayText("> " + String(deviceMenuOptions[deviceMenuIndex]), 0, 1);
   }
 }
 
 void showInfoDevice()
 {
+  DeviceResponse response;
+  DeviceCmd cmd{};
+  cmd.type = DeviceCmdType::CMD_GET_DEVICES;
+  sendDeviceCmd(cmd, &response);
+
   displayText("Info:");
-  if (devices.size() > 0)
+  if (response.success && response.devices.size() > 0)
   {
-    // Проверяем, не выходит ли индекс за пределы
-    if (deviceListIndex >= devices.size())
+    if (deviceListIndex >= response.devices.size())
     {
       return;
     }
-    // Отображаем имя устройства
-    std::string deviceInfo = String(devices[deviceListIndex].currentTemperature, 1).c_str(); // 4 symbols
+    std::string deviceInfo = String(response.devices[deviceListIndex].currentTemperature, 1).c_str();
     deviceInfo += "C/";
-    deviceInfo += String(devices[deviceListIndex].targetTemperature, 1).c_str();
+    deviceInfo += String(response.devices[deviceListIndex].targetTemperature, 1).c_str();
     deviceInfo += "C  ";
-    deviceInfo += String(devices[deviceListIndex].humidity).c_str();
+    deviceInfo += String(response.devices[deviceListIndex].humidity).c_str();
     deviceInfo += "%";
-    // Ограничиваем длину имени, чтобы оно поместилось на экране
     if (deviceInfo.length() > 10)
     {
       deviceInfo = deviceInfo.substr(0, 10);
@@ -247,46 +252,59 @@ void showInfoDevice()
 // Функция для редактирования температуры
 void showDeviceTemperatureEdit()
 {
-  // Check if deviceListIndex is valid before proceeding
-  if (deviceListIndex >= devices.size())
+  DeviceResponse response;
+  DeviceCmd cmd{};
+  cmd.type = DeviceCmdType::CMD_GET_DEVICES;
+  sendDeviceCmd(cmd, &response);
+
+  if (!response.success || deviceListIndex >= response.devices.size())
   {
     displayText("No devices");
     displayText("available", 0, 1);
     return;
   }
   displayText("Target temp:");
-  displayText(String(devices[deviceListIndex].targetTemperature) + " C  [+/-]", 0, 1);
+  displayText(String(response.devices[deviceListIndex].targetTemperature) + " C  [+/-]", 0, 1);
 }
 
 // Функция для редактирования GPIO
 void showDeviceGpioEdit()
 {
-  // Проверяем, есть ли доступные GPIO
-  if (availableGpio.size() == 0)
+  DeviceResponse gpioResponse;
+  DeviceCmd gpioCmd{};
+  gpioCmd.type = DeviceCmdType::CMD_GET_GPIO_STATS;
+  sendDeviceCmd(gpioCmd, &gpioResponse);
+
+  DeviceResponse deviceResponse;
+  DeviceCmd deviceCmd{};
+  deviceCmd.type = DeviceCmdType::CMD_GET_DEVICES;
+  sendDeviceCmd(deviceCmd, &deviceResponse);
+
+  if (!gpioResponse.success || gpioResponse.gpioPins.size() == 0)
   {
     displayText("There are no available");
     displayText("GPIO pins", 0, 1);
     return;
   }
 
-  // Проверяем индекс
-  if (gpioSelectionIndex >= availableGpio.size())
+  if (gpioSelectionIndex >= gpioResponse.gpioPins.size())
   {
     gpioSelectionIndex = 0;
   }
 
   displayText("GPIO pins:");
 
-  displayText("PIN " + String(availableGpio[gpioSelectionIndex].pin), 0, 1);
+  displayText("PIN " + String(gpioResponse.gpioPins[gpioSelectionIndex].pin), 0, 1);
 
-  // Проверяем, выбран ли этот GPIO для устройства
   bool isSelected = false;
-  for (uint8_t gpio : devices[deviceListIndex].gpioPins)
-  {
-    if (gpio == availableGpio[gpioSelectionIndex].pin)
+  if (deviceResponse.success && deviceListIndex < deviceResponse.devices.size()) {
+    for (uint8_t gpio : deviceResponse.devices[deviceListIndex].gpioPins)
     {
-      isSelected = true;
-      break;
+      if (gpio == gpioResponse.gpioPins[gpioSelectionIndex].pin)
+      {
+        isSelected = true;
+        break;
+      }
     }
   }
   displayText(isSelected ? "[X]" : "[ ]", 10, 1, false);
@@ -294,15 +312,19 @@ void showDeviceGpioEdit()
 
 void showViewEdit()
 {
+  DeviceResponse response;
+  DeviceCmd cmd{};
+  cmd.type = DeviceCmdType::CMD_GET_GPIO_STATS;
+  sendDeviceCmd(cmd, &response);
+
   displayText("Select GPIO");
-  if (availableGpio.size() > 0)
+  if (response.success && response.gpioPins.size() > 0)
   {
-    // Проверяем, не выходит ли индекс за пределы
-    if (gpioSelectionIndex >= availableGpio.size())
+    if (gpioSelectionIndex >= response.gpioPins.size())
     {
       return;
     }
-    auto &gpio = availableGpio[gpioSelectionIndex];
+    auto &gpio = response.gpioPins[gpioSelectionIndex];
     gpioMenuIndex = gpio.state;
     std::string gpioName = gpio.name;
     if (gpioName.length() > 16)
@@ -320,21 +342,23 @@ void showViewEdit()
 
 void showGpioEdit()
 {
-  if (availableGpio.size() > 0)
+  DeviceResponse response;
+  DeviceCmd cmd{};
+  cmd.type = DeviceCmdType::CMD_GET_GPIO_STATS;
+  sendDeviceCmd(cmd, &response);
+
+  if (response.success && response.gpioPins.size() > 0)
   {
-    // Проверяем, не выходит ли индекс за пределы
-    if (gpioSelectionIndex >= availableGpio.size())
+    if (gpioSelectionIndex >= response.gpioPins.size())
     {
       return;
     }
-    // Показываем имя устройства
-    std::string gpioName = availableGpio[gpioSelectionIndex].name;
+    std::string gpioName = response.gpioPins[gpioSelectionIndex].name;
     if (gpioName.length() > 16)
     {
       gpioName = gpioName.substr(0, 16);
     }
     displayText(gpioName.c_str());
-    // Показываем текущий пункт меню
     displayText("> " + String(gpioMenuOptions[gpioMenuIndex]), 0, 1);
   }
 }
@@ -348,15 +372,19 @@ void showEditHysteresis()
 // Функция для включения/выключения устройства
 void showDeviceEnabledEdit()
 {
-  // Check if deviceListIndex is valid before proceeding
-  if (deviceListIndex >= devices.size())
+  DeviceResponse response;
+  DeviceCmd cmd{};
+  cmd.type = DeviceCmdType::CMD_GET_DEVICES;
+  sendDeviceCmd(cmd, &response);
+
+  if (!response.success || deviceListIndex >= response.devices.size())
   {
     displayText("No devices");
     displayText("available", 0, 1);
     return;
   }
   displayText("Device:");
-  displayText((devices[deviceListIndex].enabled ? "Enabled" : "Disabled") + String(" [+/-]"), 0, 1);
+  displayText((response.devices[deviceListIndex].enabled ? "Enabled" : "Disabled") + String(" [+/-]"), 0, 1);
 }
 
 // Обновление LCD дисплея в зависимости от текущего состояния меню
@@ -448,31 +476,34 @@ void handleButtons()
   {
   case OTA_UPDATE:
     break;
-  case DEVICE_LIST:
+case DEVICE_LIST:
     // В списке устройств
-    if (devices.size() > 0)
     {
-      if (pressedButton == BUTTON_UP)
+      DeviceResponse response;
+      DeviceCmd getCmd{};
+      getCmd.type = DeviceCmdType::CMD_GET_DEVICES;
+      sendDeviceCmd(getCmd, &response);
+
+      if (response.success && response.devices.size() > 0)
       {
-        // Предыдущее устройство
-        deviceListIndex = (deviceListIndex + devices.size() - 1) % devices.size();
-      }
-      else if (pressedButton == BUTTON_DOWN)
-      {
-        // Следующее устройство
-        deviceListIndex = (deviceListIndex + 1) % devices.size();
-      }
-      else if (pressedButton == BUTTON_RIGHT)
-      {
-        // Выбор устройства - переход в меню устройства
-        currentMenu = DEVICE_MENU;
-        deviceMenuIndex = 0;
-      }
-      else if (pressedButton == BUTTON_LEFT)
-      {
-        // Возврат к списку устройств
-        currentMenu = VIEW_GPIO;
-        gpioSelectionIndex = 0;
+        if (pressedButton == BUTTON_UP)
+        {
+          deviceListIndex = (deviceListIndex + response.devices.size() - 1) % response.devices.size();
+        }
+        else if (pressedButton == BUTTON_DOWN)
+        {
+          deviceListIndex = (deviceListIndex + 1) % response.devices.size();
+        }
+        else if (pressedButton == BUTTON_RIGHT)
+        {
+          currentMenu = DEVICE_MENU;
+          deviceMenuIndex = 0;
+        }
+        else if (pressedButton == BUTTON_LEFT)
+        {
+          currentMenu = VIEW_GPIO;
+          gpioSelectionIndex = 0;
+        }
       }
     }
     break;
@@ -526,157 +557,186 @@ void handleButtons()
 
   case DEVICE_EDIT_TEMPERATURE:
     // Редактирование температуры
-    // Check if deviceListIndex is valid before proceeding
-    if (deviceListIndex >= devices.size())
     {
-      currentMenu = DEVICE_LIST;
-      break;
-    }
-    if (pressedButton == BUTTON_UP)
-    {
-      // Увеличение температуры
-      devices[deviceListIndex].targetTemperature += 0.5;
-    }
-    else if (pressedButton == BUTTON_DOWN)
-    {
-      // Уменьшение температуры
-      devices[deviceListIndex].targetTemperature -= 0.5;
-      if (devices[deviceListIndex].targetTemperature < 0)
+      DeviceResponse response;
+      DeviceCmd getCmd{};
+      getCmd.type = DeviceCmdType::CMD_GET_DEVICES;
+      sendDeviceCmd(getCmd, &response);
+
+      if (!response.success || deviceListIndex >= response.devices.size())
       {
-        devices[deviceListIndex].targetTemperature = 0;
+        currentMenu = DEVICE_LIST;
+        break;
       }
-    }
-    else if (pressedButton == BUTTON_RIGHT)
-    {
-      logAndSend("Нажата кнопка SELECT, сохраняем изменения температуры");
-      // Check if deviceListIndex is still valid before saving
-      if (deviceListIndex < devices.size())
+      if (pressedButton == BUTTON_UP)
       {
-        // Сохранение и возврат в меню устройства
-        saveClientsToFile();
+        float newTemp = response.devices[deviceListIndex].targetTemperature + 0.5;
+        DeviceCmd setCmd{};
+        setCmd.type = DeviceCmdType::CMD_UPDATE_DEVICE_CONFIG;
+        setCmd.macAddress = response.devices[deviceListIndex].macAddress;
+        setCmd.targetTemperature = newTemp;
+        sendDeviceCmdAsync(setCmd);
       }
-      currentMenu = DEVICE_MENU;
-    }
-    else if (pressedButton == BUTTON_LEFT)
-    {
-      // Отмена и возврат в меню устройства без сохранения
-      currentMenu = DEVICE_MENU;
+      else if (pressedButton == BUTTON_DOWN)
+      {
+        float newTemp = response.devices[deviceListIndex].targetTemperature - 0.5;
+        if (newTemp < 0) newTemp = 0;
+        DeviceCmd setCmd{};
+        setCmd.type = DeviceCmdType::CMD_UPDATE_DEVICE_CONFIG;
+        setCmd.macAddress = response.devices[deviceListIndex].macAddress;
+        setCmd.targetTemperature = newTemp;
+        sendDeviceCmdAsync(setCmd);
+      }
+      else if (pressedButton == BUTTON_RIGHT)
+      {
+        logAndSend("Нажата кнопка SELECT, сохраняем изменения температуры");
+        currentMenu = DEVICE_MENU;
+      }
+      else if (pressedButton == BUTTON_LEFT)
+      {
+        currentMenu = DEVICE_MENU;
+      }
     }
     break;
 
   case DEVICE_EDIT_GPIO:
-    // Check if deviceListIndex is valid before proceeding
-    if (deviceListIndex >= devices.size())
-    {
-      currentMenu = DEVICE_LIST;
-      break;
-    }
     // Редактирование GPIO
-    if (availableGpio.size() > 0)
     {
-      if (pressedButton == BUTTON_UP)
-      {
-        // Предыдущий GPIO
-        gpioSelectionIndex = (gpioSelectionIndex + availableGpio.size() - 1) % availableGpio.size();
-      }
-      else if (pressedButton == BUTTON_DOWN)
-      {
-        // Следующий GPIO
-        gpioSelectionIndex = (gpioSelectionIndex + 1) % availableGpio.size();
-      }
-      else if (pressedButton == BUTTON_RIGHT)
-      {
-        // Выбор/отмена выбора текущего GPIO
-        uint8_t selectedGpio = availableGpio[gpioSelectionIndex].pin;
-        bool isSelected = false;
+      DeviceResponse gpioResponse;
+      DeviceCmd gpioCmd{};
+      gpioCmd.type = DeviceCmdType::CMD_GET_GPIO_STATS;
+      sendDeviceCmd(gpioCmd, &gpioResponse);
 
-        // Проверяем, выбран ли уже этот GPIO
-        for (size_t i = 0; i < devices[deviceListIndex].gpioPins.size(); i++)
-        {
-          if (devices[deviceListIndex].gpioPins[i] == selectedGpio)
-          {
-            // Если выбран, удаляем его
-            devices[deviceListIndex].gpioPins.erase(devices[deviceListIndex].gpioPins.begin() + i);
-            isSelected = true;
-            break;
-          }
-        }
-        // Если не был выбран, добавляем
-        if (!isSelected)
-        {
-          devices[deviceListIndex].gpioPins.push_back(selectedGpio);
-        }
-        logAndSend("Нажата кнопка SELECT при редактироании GPIO, сохраняем результаты");
-        // Сохраняем изменения
-        saveClientsToFile();
-      }
-      else if (pressedButton == BUTTON_LEFT)
+      DeviceResponse deviceResponse;
+      DeviceCmd deviceCmd{};
+      deviceCmd.type = DeviceCmdType::CMD_GET_DEVICES;
+      sendDeviceCmd(deviceCmd, &deviceResponse);
+
+      if (!deviceResponse.success || deviceListIndex >= deviceResponse.devices.size())
       {
-        // Возврат в меню устройства
+        currentMenu = DEVICE_LIST;
+        break;
+      }
+
+      if (gpioResponse.success && gpioResponse.gpioPins.size() > 0)
+      {
+        if (pressedButton == BUTTON_UP)
+        {
+          gpioSelectionIndex = (gpioSelectionIndex + gpioResponse.gpioPins.size() - 1) % gpioResponse.gpioPins.size();
+        }
+        else if (pressedButton == BUTTON_DOWN)
+        {
+          gpioSelectionIndex = (gpioSelectionIndex + 1) % gpioResponse.gpioPins.size();
+        }
+        else if (pressedButton == BUTTON_RIGHT)
+        {
+          uint8_t selectedGpio = gpioResponse.gpioPins[gpioSelectionIndex].pin;
+          bool isSelected = false;
+
+          for (size_t i = 0; i < deviceResponse.devices[deviceListIndex].gpioPins.size(); i++)
+          {
+            if (deviceResponse.devices[deviceListIndex].gpioPins[i] == selectedGpio)
+            {
+              isSelected = true;
+              break;
+            }
+          }
+
+          DeviceCmd setCmd{};
+          setCmd.type = DeviceCmdType::CMD_UPDATE_DEVICE_CONFIG;
+          setCmd.macAddress = deviceResponse.devices[deviceListIndex].macAddress;
+          setCmd.gpioPins = deviceResponse.devices[deviceListIndex].gpioPins;
+
+          if (!isSelected) {
+            setCmd.gpioPins.push_back(selectedGpio);
+          } else {
+            setCmd.gpioPins.erase(
+              std::remove(setCmd.gpioPins.begin(), setCmd.gpioPins.end(), selectedGpio),
+              setCmd.gpioPins.end()
+            );
+          }
+
+          sendDeviceCmdAsync(setCmd);
+          logAndSend("Нажата кнопка SELECT при редактировании GPIO, сохраняем результаты");
+        }
+        else if (pressedButton == BUTTON_LEFT)
+        {
+          currentMenu = DEVICE_MENU;
+        }
+      }
+      else
+      {
         currentMenu = DEVICE_MENU;
       }
-    }
-    else
-    {
-      // Если нет доступных GPIO, возвращаемся в меню
-      currentMenu = DEVICE_MENU;
     }
     break;
 
   case DEVICE_EDIT_ENABLED:
-    // Check if deviceListIndex is valid before proceeding
-    if (deviceListIndex >= devices.size())
-    {
-      currentMenu = DEVICE_LIST;
-      break;
-    }
     // Включение/выключение устройства
-    if (pressedButton == BUTTON_UP || pressedButton == BUTTON_DOWN)
     {
-      // Переключение состояния
-      devices[deviceListIndex].enabled = !devices[deviceListIndex].enabled;
-    }
-    else if (pressedButton == BUTTON_RIGHT)
-    {
-      logAndSend("Нажата кнопка BUTTON_RIGHT при изменении доступности устройства, сохраняем результаты");
-      // Сохраняем изменения
-      saveClientsToFile();
-      currentMenu = DEVICE_MENU;
-    }
-    else if (pressedButton == BUTTON_LEFT)
-    {
-      // Возврат в меню устройства
-      currentMenu = DEVICE_MENU;
+      DeviceResponse response;
+      DeviceCmd getCmd{};
+      getCmd.type = DeviceCmdType::CMD_GET_DEVICES;
+      sendDeviceCmd(getCmd, &response);
+
+      if (!response.success || deviceListIndex >= response.devices.size())
+      {
+        currentMenu = DEVICE_LIST;
+        break;
+      }
+
+      if (pressedButton == BUTTON_UP || pressedButton == BUTTON_DOWN)
+      {
+        DeviceCmd setCmd{};
+        setCmd.type = DeviceCmdType::CMD_UPDATE_DEVICE_CONFIG;
+        setCmd.macAddress = response.devices[deviceListIndex].macAddress;
+        setCmd.enabled = !response.devices[deviceListIndex].enabled;
+        sendDeviceCmdAsync(setCmd);
+      }
+      else if (pressedButton == BUTTON_RIGHT)
+      {
+        logAndSend("Нажата кнопка BUTTON_RIGHT при изменении доступности устройства, сохраняем результаты");
+        currentMenu = DEVICE_MENU;
+      }
+      else if (pressedButton == BUTTON_LEFT)
+      {
+        currentMenu = DEVICE_MENU;
+      }
     }
     break;
 
   case VIEW_GPIO:
-    if (availableGpio.size() > 0)
     {
-      if (pressedButton == BUTTON_UP)
+      DeviceResponse response;
+      DeviceCmd getCmd{};
+      getCmd.type = DeviceCmdType::CMD_GET_GPIO_STATS;
+      sendDeviceCmd(getCmd, &response);
+
+      if (response.success && response.gpioPins.size() > 0)
       {
-        // Предыдущий GPIO
-        gpioSelectionIndex = (gpioSelectionIndex + availableGpio.size() - 1) % availableGpio.size();
+        if (pressedButton == BUTTON_UP)
+        {
+          gpioSelectionIndex = (gpioSelectionIndex + response.gpioPins.size() - 1) % response.gpioPins.size();
+        }
+        else if (pressedButton == BUTTON_DOWN)
+        {
+          gpioSelectionIndex = (gpioSelectionIndex + 1) % response.gpioPins.size();
+        }
+        else if (pressedButton == BUTTON_RIGHT)
+        {
+          currentMenu = EDIT_GPIO;
+        }
+        else if (pressedButton == BUTTON_LEFT)
+        {
+          editHysteresisTemp = hysteresisTemp;
+          currentMenu = EDIT_HYSTERESIS;
+        }
       }
-      else if (pressedButton == BUTTON_DOWN)
-      {
-        // Следующий GPIO
-        gpioSelectionIndex = (gpioSelectionIndex + 1) % availableGpio.size();
-      }
-      else if (pressedButton == BUTTON_RIGHT)
-      {
-        currentMenu = EDIT_GPIO;
-      }
-      else if (pressedButton == BUTTON_LEFT)
+      else
       {
         editHysteresisTemp = hysteresisTemp;
         currentMenu = EDIT_HYSTERESIS;
       }
-    }
-    else
-    {
-      editHysteresisTemp = hysteresisTemp;
-      currentMenu = EDIT_HYSTERESIS;
     }
     break;
 
@@ -694,16 +754,25 @@ void handleButtons()
     }
     else if (pressedButton == BUTTON_RIGHT)
     {
-      if (availableGpio[gpioSelectionIndex].state != gpioMenuIndex)
-      {
-        availableGpio[gpioSelectionIndex].state = gpioMenuIndex;
-        saveGpioToFile();
+      DeviceResponse response;
+      DeviceCmd getCmd{};
+      getCmd.type = DeviceCmdType::CMD_GET_GPIO_STATS;
+      sendDeviceCmd(getCmd, &response);
+      
+      if (response.success && gpioSelectionIndex < response.gpioPins.size()) {
+        if (response.gpioPins[gpioSelectionIndex].state != gpioMenuIndex)
+        {
+          DeviceCmd setCmd{};
+          setCmd.type = DeviceCmdType::CMD_UPDATE_GPIO_CONFIG;
+          setCmd.gpioPin = response.gpioPins[gpioSelectionIndex].pin;
+          setCmd.gpioState = gpioMenuIndex;
+          sendDeviceCmdAsync(setCmd);
+        }
       }
       currentMenu = VIEW_GPIO;
     }
     else if (pressedButton == BUTTON_LEFT)
     {
-      // Возврат
       currentMenu = VIEW_GPIO;
     }
     break;
